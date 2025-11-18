@@ -181,10 +181,9 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
 
   // Sync state and ref when prop changes or internal navigation happens
   useEffect(() => {
-      if (initialChatId) {
-          setCurrentChatId(initialChatId);
-          chatIdRef.current = initialChatId;
-      }
+      // Always update state, whether it's a new ID or null (new chat)
+      setCurrentChatId(initialChatId || null);
+      chatIdRef.current = initialChatId || null;
   }, [initialChatId]);
 
   // Update ref whenever state changes
@@ -474,11 +473,12 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
       />
       <main className="flex-1 flex flex-col relative h-full">
          {/* Top Bar */}
-         <div className="absolute top-0 left-0 w-full h-14 flex items-center justify-between px-4 z-10">
+         <div className="absolute top-0 left-0 w-full h-14 flex items-center justify-between px-4 z-20">
             <div className="flex items-center gap-2 md:hidden">
                <button 
                   onClick={toggleSidebar}
                   className="p-2 hover:bg-[var(--bg-hover)] rounded-md text-[var(--text-secondary)]"
+                  aria-label="Toggle sidebar"
                >
                   <PanelLeft size={20} />
                </button>

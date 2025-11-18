@@ -77,6 +77,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                     chats={chats} 
                     currentChatId={currentChatId} 
                     onSelectChat={handleSelectChat} 
+                    onClose={closeSidebar}
                     isLoading={isLoading}
                     className="w-full" 
                  />

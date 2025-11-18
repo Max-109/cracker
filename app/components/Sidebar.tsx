@@ -1,4 +1,4 @@
-import { SquarePen } from 'lucide-react';
+import { SquarePen, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Skeleton } from './Skeleton';
 import { useState, useEffect } from 'react';
@@ -14,6 +14,7 @@ interface SidebarProps {
   chats: Chat[];
   currentChatId: string | null;
   onSelectChat: (id: string) => void;
+  onClose?: () => void;
   isLoading?: boolean;
 }
 
@@ -80,19 +81,27 @@ function FadeWrapper({ show, children, className, isAbsolute = false }: { show: 
     );
 }
 
-export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, isLoading, className }: SidebarProps & { className?: string }) {
+export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose, isLoading, className }: SidebarProps & { className?: string }) {
   const groupedChats = groupChatsByDate(chats);
 
   return (
     <div className={cn("bg-[var(--bg-sidebar)] h-full flex flex-col p-3 border-r border-transparent relative", className)}>
       {/* Sticky Header for New Chat */}
-      <div className="mb-4 z-10 relative">
+      <div className="mb-4 z-10 relative flex items-center gap-2">
          <button 
             onClick={onNewChat}
-            className="flex items-center gap-2 px-2 py-2 rounded-lg hover:bg-[var(--bg-hover)] transition-colors text-sm font-medium text-[var(--text-primary)] w-full text-left"
+            className="flex-1 flex items-center gap-2 px-2 py-2 rounded-lg hover:bg-[var(--bg-hover)] transition-colors text-sm font-medium text-[var(--text-primary)] text-left"
           >
             <SquarePen size={18} strokeWidth={2} />
             <span>New Chat</span>
+        </button>
+        {/* Mobile Close Button */}
+        <button 
+            onClick={onClose}
+            className="md:hidden p-2 rounded-lg hover:bg-[var(--bg-hover)] text-[var(--text-secondary)] transition-colors"
+            aria-label="Close sidebar"
+        >
+            <X size={20} />
         </button>
       </div>
 
