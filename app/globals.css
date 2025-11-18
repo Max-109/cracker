@@ -32,3 +32,38 @@ body {
   --color-gpt-border: var(--border-color);
   --color-gpt-bubble: var(--bubble-user);
 }
+
+/* Custom Thinking Dot Animation */
+@keyframes pulse-dot {
+  0%, 100% {
+    opacity: 0.4;
+    transform: scale(0.8);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-pulse-dot {
+  animation: pulse-dot 1.4s ease-in-out infinite both;
+}
+
+/* Custom Table Styles for Markdown */
+.prose table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1em 0;
+}
+
+.prose th,
+.prose td {
+  border: 1px solid var(--border-color);
+  padding: 0.5em;
+  text-align: left;
+}
+
+.prose th {
+  background-color: var(--bg-input);
+  font-weight: 600;
+}
