@@ -6,7 +6,6 @@ import { MessageItem } from './MessageItem';
 import { ArrowUp, Paperclip, Globe, ChevronDown, PanelLeft, Copy, ThumbsUp, ThumbsDown, Square } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { cn } from '@/lib/utils';
-import { ChatGPTLogo } from './ChatGPTLogo';
 
 export default function ChatInterface() {
   const { messages, input, handleInputChange, handleSubmit, isLoading, stop, setMessages } = useChat({
@@ -16,7 +15,7 @@ export default function ChatInterface() {
 
   const handleNewChat = () => {
     setMessages([]);
-    // Optionally: stop() if you want to cancel generation too
+    stop();
   };
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -61,10 +60,7 @@ export default function ChatInterface() {
            <div className="max-w-[800px] mx-auto pt-20 pb-40 px-4 md:px-6">
               {messages.length === 0 && (
                  <div className="flex flex-col items-center justify-center h-[60vh] text-center opacity-100">
-                    <div className="bg-white p-4 rounded-full mb-4 text-black">
-                       <ChatGPTLogo />
-                    </div>
-                    <h2 className="text-2xl font-semibold text-[var(--text-primary)]">Can I help you with anything?</h2>
+                    <h2 className="text-2xl font-semibold text-[var(--text-primary)]">Where should we begin?</h2>
                  </div>
               )}
               
@@ -80,10 +76,8 @@ export default function ChatInterface() {
               {/* Explicit generic Thinking indicator if loading but no assistant message yet */}
               {isLoading && messages.length > 0 && messages[messages.length - 1].role === 'user' && (
                  <div className="flex justify-start mb-6 w-full animate-pulse">
-                    <div className="w-8 h-8 rounded-full border border-[var(--border-color)] flex items-center justify-center bg-transparent mr-4">
-                         <div className="w-2 h-2 bg-[var(--text-primary)] rounded-full"></div>
-                    </div>
-                    <div className="flex items-center text-[var(--text-secondary)] text-sm">Thinking...</div>
+                    <div className="w-0 h-0 flex-shrink-0 overflow-hidden"></div>
+                    <div className="flex items-center text-[var(--text-secondary)] text-sm ml-4">Thinking...</div>
                  </div>
               )}
            </div>
@@ -98,33 +92,42 @@ export default function ChatInterface() {
                     value={input}
                     onChange={handleInputChange}
                     onKeyDown={handleKeyDown}
-                    placeholder="Message ChatGPT"
-                    className="w-full bg-transparent text-[var(--text-primary)] placeholder-[var(--text-secondary)] px-10 py-3.5 pr-12 resize-none focus:outline-none max-h-[200px] min-h-[52px] leading-relaxed scrollbar-hide"
+                    placeholder="Ask Chai"
+                    className="w-full bg-transparent text-[var(--text-primary)] placeholder-[var(--text-secondary)] pl-16 pr-12 py-3.5 resize-none focus:outline-none max-h-[200px] min-h-[52px] leading-relaxed scrollbar-hide"
                     rows={1}
                  />
                  {/* Left Icons: Attach */}
                  <div className="absolute bottom-3 left-3 flex items-center h-[32px]">
                     <button className="text-[#b4b4b4] hover:text-white transition-colors p-1 rounded-full">
-                       <div className="w-6 h-6 rounded-full border border-[#676767] flex items-center justify-center">
-                           <Paperclip size={14} strokeWidth={2} />
+                       <div className="w-9 h-9 rounded-full border border-[#676767] flex items-center justify-center">
+                           <Paperclip size={20} strokeWidth={2} />
                        </div>
                     </button>
                  </div>
 
-                 {/* Right Icons: Send */}
+                 {/* Right Icons: Send / Stop */}
                  <div className="absolute bottom-3 right-3 flex items-center h-[32px]">
-                     <button 
-                        onClick={(e) => input.trim() && handleSubmit(e as any)}
-                        disabled={!input.trim() && !isLoading}
-                        className={cn(
-                           "p-2 rounded-full transition-all duration-200 flex items-center justify-center",
-                           input.trim() 
-                              ? "bg-white text-black hover:opacity-90" 
-                              : "bg-[#676767] text-[#2F2F2F] cursor-default opacity-50"
-                        )}
-                     >
-                        <ArrowUp size={18} strokeWidth={3} />
-                     </button>
+                     {isLoading ? (
+                        <button 
+                           onClick={() => stop()}
+                           className="p-2 rounded-full bg-white text-black hover:opacity-90 transition-all duration-200 flex items-center justify-center"
+                        >
+                           <Square size={16} fill="currentColor" />
+                        </button>
+                     ) : (
+                        <button 
+                           onClick={(e) => input.trim() && handleSubmit(e as any)}
+                           disabled={!input.trim()}
+                           className={cn(
+                              "p-2 rounded-full transition-all duration-200 flex items-center justify-center",
+                              input.trim() 
+                                 ? "bg-white text-black hover:opacity-90" 
+                                 : "bg-[#676767] text-[#2F2F2F] cursor-default opacity-50"
+                           )}
+                        >
+                           <ArrowUp size={20} strokeWidth={3} />
+                        </button>
+                     )}
                  </div>
               </div>
               <div className="text-center text-xs text-[var(--text-secondary)] mt-3">

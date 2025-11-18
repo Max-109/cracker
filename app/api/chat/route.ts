@@ -13,12 +13,19 @@ export async function POST(req: Request) {
   console.log("--- API Request Received ---");
   try {
     const { messages } = await req.json();
-    console.log("Messages:", JSON.stringify(messages, null, 2));
+    // console.log("Messages:", JSON.stringify(messages, null, 2));
 
-    console.log("Starting streamText...");
+    console.log("Starting streamText with sherlock-think-alpha...");
     const result = await streamText({
-      model: openai("openai/gpt-5.1-codex-mini"),
+      model: openai("openrouter/sherlock-think-alpha"),
       messages,
+      // Enable reasoning tokens for OpenRouter
+      // This is required for some models to output the reasoning trace
+      experimental_providerMetadata: {
+        openrouter: {
+            include_reasoning: true
+        }
+      },
       onFinish: (event) => {
         console.log("Stream finished. Tokens:", event.usage.completionTokens);
       },

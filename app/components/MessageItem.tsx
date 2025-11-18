@@ -11,13 +11,13 @@ interface MessageItemProps {
 }
 
 export function MessageItem({ role, content, isThinking }: MessageItemProps) {
-  const [isThinkingOpen, setIsThinkingOpen] = useState(false);
+  const [isThinkingOpen, setIsThinkingOpen] = useState(!!isThinking); // Auto-open if currently thinking
 
   useEffect(() => {
-    if (role === 'assistant' && isThinking) {
-      console.log('Assistant content:', content);
+    if (isThinking) {
+      setIsThinkingOpen(true);
     }
-  }, [content, role, isThinking]);
+  }, [isThinking]);
 
 
   const handleCopy = () => {
@@ -65,6 +65,7 @@ export function MessageItem({ role, content, isThinking }: MessageItemProps) {
   let finalContent = content;
   
   // Check for <think> tags
+  // console.log('Raw content:', content);
   const thinkStart = content.indexOf('<think>');
   if (thinkStart !== -1) {
     const thinkEnd = content.indexOf('</think>');
