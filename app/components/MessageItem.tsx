@@ -46,19 +46,14 @@ const THINKING_LABELS = [
 
 // Animated "Thinking" Icon - ASCII Spinner
 function ThinkingIcon({ className }: { className?: string }) {
-    const [frame, setFrame] = useState(0);
-    const frames = ['·', '✻', '✽', '✶', '✳', '✢'];
-
-    useEffect(() => {
-        const interval = setInterval(() => {
-            setFrame(prev => (prev + 1) % frames.length);
-        }, 120); // Cycle speed
-        return () => clearInterval(interval);
-    }, []);
-
+    // Replaced star/spinner animation with a simple 3-dot bounce as requested
     return (
         <div className={cn("flex items-center justify-center w-4 h-4 text-[var(--text-secondary)]", className)}>
-            <span className="text-lg leading-none">{frames[frame]}</span>
+            <div className="flex space-x-[2px]">
+                <div className="w-1 h-1 bg-[var(--text-secondary)] rounded-full animate-[bounce_1s_infinite_0ms]"></div>
+                <div className="w-1 h-1 bg-[var(--text-secondary)] rounded-full animate-[bounce_1s_infinite_200ms]"></div>
+                <div className="w-1 h-1 bg-[var(--text-secondary)] rounded-full animate-[bounce_1s_infinite_400ms]"></div>
+            </div>
         </div>
     );
 }
@@ -258,7 +253,9 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
   finalContent = preprocessLaTeX(finalContent);
   thinkContent = preprocessLaTeX(thinkContent);
 
-  const hasThinking = !!thinkContent || isThinking;
+  const hasThinking = (!!thinkContent || isThinking) && thinkContent.length > 0; // Only show accordion if there is ACTUAL thinking content.
+  // If isThinking is true but thinkContent is empty, we rely on the fallback logic below to show the "Thinking..." dots.
+  
   const isThinkingValues = isThinking && !finalContent; // Assuming reasoning comes before content
 
   return (
@@ -280,11 +277,11 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
                        <ToggleIcon isOpen={isThinkingOpen} />
                    )}
                    
-                   <span className={isThinking ? "animate-pulse-dot font-semibold tracking-wide text-[var(--text-secondary)]" : "font-medium"}>{thinkingLabel}</span>
+                   <span className={isThinking ? "animate-pulse-dot font-semibold tracking-wide text-[var(--text-secondary)] animate-[pulse_2s_ease-in-out_infinite]" : "font-medium"}>{thinkingLabel}</span>
                    
                    {/* Show 'Thinking...' if streaming and closed */}
                    {isThinking && !isThinkingOpen && (
-                     <span className="text-[var(--text-secondary)] ml-1 opacity-60">...</span>
+                     <span className="text-[var(--text-secondary)] ml-1 opacity-60 animate-[pulse_2s_ease-in-out_infinite]">...</span>
                    )}
                 </button>
                 
@@ -326,9 +323,11 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
              // AND we don't have a thinking block that is already showing "Thinking..."
              (isThinking && !hasThinking) ? (
                <div className="flex items-center gap-2 text-[var(--text-secondary)] animate-pulse">
-                  <span className="w-2 h-2 bg-[var(--text-secondary)] rounded-full animate-bounce"></span>
-                  <span className="w-2 h-2 bg-[var(--text-secondary)] rounded-full animate-bounce [animation-delay:0.2s]"></span>
-                  <span className="w-2 h-2 bg-[var(--text-secondary)] rounded-full animate-bounce [animation-delay:0.4s]"></span>
+                   <div className="flex space-x-[2px]">
+                        <div className="w-1.5 h-1.5 bg-[var(--text-secondary)] rounded-full animate-[bounce_1s_infinite_0ms]"></div>
+                        <div className="w-1.5 h-1.5 bg-[var(--text-secondary)] rounded-full animate-[bounce_1s_infinite_200ms]"></div>
+                        <div className="w-1.5 h-1.5 bg-[var(--text-secondary)] rounded-full animate-[bounce_1s_infinite_400ms]"></div>
+                   </div>
                   <span className="text-sm ml-1">Thinking...</span>
                </div>
              ) : null

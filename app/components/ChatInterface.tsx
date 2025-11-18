@@ -586,9 +586,18 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
               
               {/* Explicit generic Thinking indicator if loading but no assistant message yet */}
               {!isMessagesLoading && isLoading && messages.length > 0 && (messages[messages.length - 1] as any).role === 'user' && (
-                 <div className="flex justify-start mb-6 w-full animate-pulse">
-                    <div className="w-0 h-0 flex-shrink-0 overflow-hidden"></div>
-                    <div className="flex items-center text-[var(--text-secondary)] text-sm ml-4">Thinking...</div>
+                 <div className="flex justify-start mb-6 w-full animate-in fade-in duration-300">
+                    <div className="w-8 h-8 flex-shrink-0 overflow-hidden flex items-center justify-center mr-4">
+                         {/* Optional Avatar Placeholder if needed, else hidden */}
+                    </div>
+                    <div className="flex items-center gap-2 text-[var(--text-secondary)]">
+                        <div className="flex space-x-[2px]">
+                            <div className="w-1.5 h-1.5 bg-[var(--text-secondary)] rounded-full animate-[bounce_1s_infinite_0ms]"></div>
+                            <div className="w-1.5 h-1.5 bg-[var(--text-secondary)] rounded-full animate-[bounce_1s_infinite_200ms]"></div>
+                            <div className="w-1.5 h-1.5 bg-[var(--text-secondary)] rounded-full animate-[bounce_1s_infinite_400ms]"></div>
+                        </div>
+                        <span className="text-sm font-medium tracking-wide animate-pulse">Thinking...</span>
+                    </div>
                  </div>
               )}
 
