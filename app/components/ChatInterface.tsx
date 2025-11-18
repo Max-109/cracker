@@ -2,13 +2,13 @@
 
 import React, { memo } from 'react';
 import { useChat } from '@ai-sdk/react';
-import { Sidebar } from './Sidebar';
 import { MessageItem } from './MessageItem';
 import { Skeleton } from './Skeleton';
 import { ArrowUp, Paperclip, ChevronDown, PanelLeft, Square, Check, Sparkles } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { useRouter } from 'next/navigation';
+import { useChatContext } from './ChatContext';
 
 // Simple Custom Components for Dialog/Input (since we can't easily install shadcn via cli)
 // In a real scenario, we would use proper Radix/Shadcn components.
@@ -129,11 +129,36 @@ const ThrottledMessageItem = memo(function ThrottledMessageItem({ message, isThi
 
 export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
   const router = useRouter();
+  const { refreshChats, toggleSidebar } = useChatContext();
+  
+  // User Settings State with LocalStorage Persistence
   const [currentModelId, setCurrentModelId] = useState("openai/gpt-oss-120b:exacto");
   const [currentModelName, setCurrentModelName] = useState("GPT 5.1");
+  const [reasoningEffort, setReasoningEffort] = useState("medium");
+
+  // Load settings on mount
+  useEffect(() => {
+      const savedModelId = localStorage.getItem('CHATGPT_MODEL_ID');
+      const savedModelName = localStorage.getItem('CHATGPT_MODEL_NAME');
+      const savedEffort = localStorage.getItem('CHATGPT_REASONING_EFFORT');
+
+      if (savedModelId) setCurrentModelId(savedModelId);
+      if (savedModelName) setCurrentModelName(savedModelName);
+      if (savedEffort) setReasoningEffort(savedEffort);
+  }, []);
+
+  // Save settings on change
+  useEffect(() => {
+      localStorage.setItem('CHATGPT_MODEL_ID', currentModelId);
+      localStorage.setItem('CHATGPT_MODEL_NAME', currentModelName);
+  }, [currentModelId, currentModelName]);
+
+  useEffect(() => {
+      localStorage.setItem('CHATGPT_REASONING_EFFORT', reasoningEffort);
+  }, [reasoningEffort]);
+
   const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
   const [isCustomDialogOpen, setIsCustomDialogOpen] = useState(false);
-  const [reasoningEffort, setReasoningEffort] = useState("medium");
   const [isEffortMenuOpen, setIsEffortMenuOpen] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -142,8 +167,6 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
   const [attachments, setAttachments] = useState<FileList | null>(null);
   
-  // Chat History State
-  const [chats, setChats] = useState<any[]>([]);
   const [currentChatId, setCurrentChatId] = useState<string | null>(initialChatId || null);
   const chatIdRef = useRef<string | null>(initialChatId || null);
   
@@ -151,7 +174,6 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
   const messagesRef = useRef<any[]>([]);
   
   // Loading states
-  const [isChatsLoading, setIsChatsLoading] = useState(true);
   const [isMessagesLoading, setIsMessagesLoading] = useState(false);
   
   // Ref to prevent double-loading messages when we just created a chat locally
@@ -170,18 +192,6 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
       chatIdRef.current = currentChatId;
   }, [currentChatId]);
 
-  // Fetch chats on mount
-  useEffect(() => {
-      setIsChatsLoading(true);
-      fetch('/api/chats')
-        .then(res => res.json())
-        .then(data => {
-            if (Array.isArray(data)) setChats(data);
-        })
-        .catch(err => console.error("Failed to fetch chats:", err))
-        .finally(() => setIsChatsLoading(false));
-  }, []);
-
   // Load messages when chat ID changes
   useEffect(() => {
       if (currentChatId) {
@@ -197,12 +207,18 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
             .then(data => {
                 if (Array.isArray(data)) {
                     // Map DB messages to UI format
-                    const uiMessages = data.map((msg: any) => ({
-                        id: msg.id,
-                        role: msg.role,
-                        content: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content), // Handle jsonb
-                        createdAt: new Date(msg.createdAt)
-                    }));
+                    const uiMessages = data.map((msg: any) => {
+                        const isParts = Array.isArray(msg.content);
+                        return {
+                            id: msg.id,
+                            role: msg.role,
+                            // If it's an array (parts), we put it in 'parts' and leave content empty/stringified.
+                            // However, MessageItem uses (content || parts), so we need to ensure 'parts' is set if it's an array.
+                            content: isParts ? "" : msg.content, 
+                            parts: isParts ? msg.content : undefined,
+                            createdAt: new Date(msg.createdAt)
+                        };
+                    });
                     setMessages(uiMessages);
                 }
             })
@@ -213,14 +229,6 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
           setIsMessagesLoading(false);
       }
   }, [currentChatId]);
-
-  const refreshChats = () => {
-      fetch('/api/chats')
-        .then(res => res.json())
-        .then(data => {
-            if (Array.isArray(data)) setChats(data);
-        });
-  };
 
   // Handle scroll events to determine if we should stick to bottom
   const handleScroll = () => {
@@ -247,35 +255,38 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
        // Use ref to ensure we have the latest ID even if closure is stale
        const activeId = chatIdRef.current;
        if (activeId) {
-           // Determine the actual content string.
-           let contentToSave = message.content || "";
-           
-           // Also check if content is already an array of parts
-           if (typeof contentToSave !== 'string' && Array.isArray(contentToSave)) {
-               contentToSave = contentToSave.map((p: any) => p.text).join('');
+           // Determine the actual content to save. 
+           // We prefer saving 'parts' (JSON) if available to preserve reasoning/structure.
+           let contentToSave: any = null;
+
+           // 1. Check if message.parts exists and is non-empty (Priority)
+           if (message.parts && Array.isArray(message.parts) && message.parts.length > 0) {
+               contentToSave = message.parts;
+           }
+           // 2. Check if message.content is already an object/array (from some providers)
+           else if (message.content && typeof message.content !== 'string') {
+               contentToSave = message.content;
+           }
+           // 3. Fallback to text content
+           else if (message.content) {
+               contentToSave = message.content;
            }
 
-           if (!contentToSave && message.parts && Array.isArray(message.parts)) {
-               contentToSave = message.parts.map((p: any) => p.text).join('');
-           }
-           
-           // Fallback: check the last message in the React state
+           // 4. Emergency Fallback: Check the React state if everything else is empty
+           // (Common with some reasoning models that stream but don't populate the final object correctly)
            if (!contentToSave && messagesRef.current.length > 0) {
                const lastMsg = messagesRef.current[messagesRef.current.length - 1];
                if (lastMsg.role === 'assistant') {
-                   console.log("Recovering content from state:", lastMsg.content);
-                   // If state content is array (parts), join it
-                   if (Array.isArray(lastMsg.content)) {
-                        contentToSave = lastMsg.content.map((p: any) => p.text || "").join('');
-                   } else if (typeof lastMsg.content === 'string') {
+                   console.log("Recovering content from state:", lastMsg);
+                   if (lastMsg.parts && Array.isArray(lastMsg.parts) && lastMsg.parts.length > 0) {
+                       contentToSave = lastMsg.parts;
+                   } else if (lastMsg.content) {
                        contentToSave = lastMsg.content;
-                   } else if (lastMsg.parts) {
-                        contentToSave = lastMsg.parts.map((p: any) => p.text || "").join('');
                    }
                }
            }
 
-           // Final Fallback if still empty (rare, but handles edge cases)
+           // Final safety check
            if (!contentToSave) {
                console.warn("Content still empty after all checks. Saving placeholder.");
                contentToSave = " "; 
@@ -287,7 +298,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                body: JSON.stringify({
                    chatId: activeId,
                    role: 'assistant',
-                   content: contentToSave
+                   content: contentToSave // Can be string or JSON array
                })
            });
        } else {
@@ -402,6 +413,8 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
   };
 
   const handleNewChat = () => {
+    // This function is no longer used by sidebar, but keeping it just in case we need a local reset
+    // Actually, we should probably remove it, but let's just leave it unused or use it if we had a "New Chat" button in main area
     setMessages([]);
     stop();
     setInput('');
@@ -459,19 +472,14 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
          onSubmit={handleCustomModelSubmit}
          initialValue={currentModelId}
       />
-      <Sidebar 
-        onNewChat={handleNewChat} 
-        chats={chats} 
-        currentChatId={currentChatId} 
-        onSelectChat={handleSelectChat} 
-        isLoading={isChatsLoading}
-      />
-      
       <main className="flex-1 flex flex-col relative h-full">
          {/* Top Bar */}
          <div className="absolute top-0 left-0 w-full h-14 flex items-center justify-between px-4 z-10">
             <div className="flex items-center gap-2 md:hidden">
-               <button className="p-2 hover:bg-[var(--bg-hover)] rounded-md text-[var(--text-secondary)]">
+               <button 
+                  onClick={toggleSidebar}
+                  className="p-2 hover:bg-[var(--bg-hover)] rounded-md text-[var(--text-secondary)]"
+               >
                   <PanelLeft size={20} />
                </button>
             </div>

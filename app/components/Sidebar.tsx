@@ -48,8 +48,8 @@ function groupChatsByDate(chats: Chat[]) {
     return groups;
 }
 
-// Smooth Fade Wrapper for Skeletons/Content - Absolute positioning to prevent layout shifts
-function FadeWrapper({ show, children, className }: { show: boolean; children: React.ReactNode; className?: string }) {
+// Smooth Fade Wrapper for Skeletons/Content
+function FadeWrapper({ show, children, className, isAbsolute = false }: { show: boolean; children: React.ReactNode; className?: string; isAbsolute?: boolean }) {
     const [shouldRender, setShouldRender] = useState(show);
     const [isFadingIn, setIsFadingIn] = useState(false);
 
@@ -69,7 +69,8 @@ function FadeWrapper({ show, children, className }: { show: boolean; children: R
     return (
         <div 
             className={cn(
-                "transition-opacity duration-300 absolute inset-0 w-full h-full", // Absolute to prevent jumps
+                "transition-opacity duration-300",
+                isAbsolute ? "absolute inset-0 w-full h-full" : "relative",
                 isFadingIn ? "opacity-100" : "opacity-0", 
                 className
             )}
@@ -79,11 +80,11 @@ function FadeWrapper({ show, children, className }: { show: boolean; children: R
     );
 }
 
-export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, isLoading }: SidebarProps) {
+export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, isLoading, className }: SidebarProps & { className?: string }) {
   const groupedChats = groupChatsByDate(chats);
 
   return (
-    <div className="w-[260px] bg-[var(--bg-sidebar)] h-full hidden md:flex flex-col p-3 border-r border-transparent relative">
+    <div className={cn("bg-[var(--bg-sidebar)] h-full flex flex-col p-3 border-r border-transparent relative", className)}>
       {/* Sticky Header for New Chat */}
       <div className="mb-4 z-10 relative">
          <button 
@@ -98,8 +99,8 @@ export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, isLoadi
       {/* Scrollable Content Area */}
       <div className="flex-1 overflow-y-auto scrollbar-custom relative">
         <div className="relative min-h-full">
-            {/* Loading State */}
-            <FadeWrapper show={!!isLoading}>
+            {/* Loading State - Absolute Overlay */}
+            <FadeWrapper show={!!isLoading} isAbsolute={true} className="z-10 bg-[var(--bg-sidebar)]">
                 <div className="space-y-4 px-2">
                     <div className="space-y-2">
                         <Skeleton className="h-3 w-12 bg-[var(--border-color)]" />
@@ -115,8 +116,8 @@ export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, isLoadi
                 </div>
             </FadeWrapper>
 
-            {/* Content State */}
-            <FadeWrapper show={!isLoading}>
+            {/* Content State - Relative Flow */}
+            <FadeWrapper show={!isLoading} isAbsolute={false}>
                 <div className="pb-4">
                     {Object.entries(groupedChats).map(([label, group]) => (
                         group.length > 0 && (
