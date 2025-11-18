@@ -72,6 +72,23 @@ function ToggleIcon({ isOpen }: { isOpen: boolean }) {
     );
 }
 
+// Utility to preprocess LaTeX for better compatibility with remark-math
+const preprocessLaTeX = (content: string) => {
+    // 1. Replace \[ ... \] with $$ ... $$ (Block Math)
+    let processed = content.replace(/\\\[([\s\S]*?)\\\]/g, '\n$$$1$$\n');
+    
+    // 2. Replace \( ... \) with $ ... $ (Inline Math)
+    processed = processed.replace(/\\\(([\s\S]*?)\\\)/g, '$$$1$$');
+    
+    // 3. Ensure $$ is separated by newlines if it looks like a block
+    // Note: This is a heuristic. If $$ is surrounded by text, remark-math might miss it or treat it as inline.
+    // We'll try to add a newline before $$ if it's preceded by a colon or text, but that might be aggressive.
+    // A safer bet is to ensure there's at least a space.
+    // But standard remark-math handles inline $$...$$ as display math inline.
+    
+    return processed;
+};
+
 export const MessageItem = memo(function MessageItem({ role, content, isThinking }: MessageItemProps) {
   const [isThinkingOpen, setIsThinkingOpen] = useState(!!isThinking); // Auto-open if currently thinking
 
@@ -79,6 +96,7 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
   
   // Memoize markdown components to prevent full re-renders on every token update
   const markdownComponents = useMemo(() => ({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       code(props: any) {
           const { inline, className, children } = props;
           const match = /language-(\w+)/.exec(className || '');
@@ -109,14 +127,40 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
               </code>
           );
       },
-      p: ({children}: any) => <p className="mb-4 last:mb-0 leading-relaxed">{children}</p>,
+      // Use div instead of p for paragraphs to avoid hydration errors when nesting block math (divs) inside p
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      p: ({children}: any) => <div className="mb-4 last:mb-0 leading-relaxed">{children}</div>,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       ul: ({children}: any) => <ul className="list-disc pl-4 mb-4 space-y-1">{children}</ul>,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       ol: ({children}: any) => <ol className="list-decimal pl-4 mb-4 space-y-1">{children}</ol>,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       li: ({children}: any) => <li className="mb-1">{children}</li>,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       h1: ({children}: any) => <h1 className="text-2xl font-bold mb-4 mt-6">{children}</h1>,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       h2: ({children}: any) => <h2 className="text-xl font-bold mb-3 mt-5">{children}</h2>,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       h3: ({children}: any) => <h3 className="text-lg font-bold mb-2 mt-4">{children}</h3>,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       blockquote: ({children}: any) => <blockquote className="border-l-2 border-[var(--border-color)] pl-4 italic my-4 text-[var(--text-secondary)]">{children}</blockquote>,
+      // Table components for GFM
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      table: ({children}: any) => (
+          <div className="my-4 w-full overflow-x-auto scrollbar-thin scrollbar-thumb-[#424242] scrollbar-track-transparent rounded-lg border border-[var(--border-color)]">
+              <table className="w-full border-collapse text-sm">{children}</table>
+          </div>
+      ),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      thead: ({children}: any) => <thead className="bg-[var(--bg-input)] text-left text-[var(--text-secondary)]">{children}</thead>,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      tbody: ({children}: any) => <tbody className="divide-y divide-[var(--border-color)] bg-transparent">{children}</tbody>,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      tr: ({children}: any) => <tr className="transition-colors hover:bg-[var(--bg-hover)]/50">{children}</tr>,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      th: ({children}: any) => <th className="px-4 py-3 font-medium">{children}</th>,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      td: ({children}: any) => <td className="px-4 py-3 align-top">{children}</td>,
   }), []);
 
   useEffect(() => {
@@ -209,6 +253,10 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
         }
     }
   }
+  
+  // Preprocess LaTeX in content
+  finalContent = preprocessLaTeX(finalContent);
+  thinkContent = preprocessLaTeX(thinkContent);
 
   const hasThinking = !!thinkContent || isThinking;
   const isThinkingValues = isThinking && !finalContent; // Assuming reasoning comes before content

@@ -1,5 +1,6 @@
 'use client';
 
+import React, { memo } from 'react';
 import { useChat } from '@ai-sdk/react';
 import { Sidebar } from './Sidebar';
 import { MessageItem } from './MessageItem';
@@ -88,6 +89,44 @@ interface ChatInterfaceProps {
     initialChatId?: string;
 }
 
+const ThrottledMessageItem = memo(function ThrottledMessageItem({ message, isThinking }: { message: any, isThinking: boolean }) {
+    // For user messages, render immediately
+    if (message.role === 'user') {
+        return <MessageItem role={message.role} content={message.content || message.parts} />;
+    }
+
+    // For AI messages, throttle updates to 100ms to prevent CPU spikes during fast streaming
+    const [throttledContent, setThrottledContent] = useState(message.content || message.parts);
+    const lastUpdateRef = useRef(Date.now());
+    const rafRef = useRef<number | null>(null);
+
+    useEffect(() => {
+        // If it's the final content (not streaming anymore), update immediately
+        if (!isThinking) {
+            setThrottledContent(message.content || message.parts);
+            return;
+        }
+
+        const now = Date.now();
+        if (now - lastUpdateRef.current > 100) {
+            setThrottledContent(message.content || message.parts);
+            lastUpdateRef.current = now;
+        } else {
+            // Schedule an update if we haven't updated recently
+            if (rafRef.current) cancelAnimationFrame(rafRef.current);
+            rafRef.current = requestAnimationFrame(() => {
+                setThrottledContent(message.content || message.parts);
+                lastUpdateRef.current = Date.now();
+            });
+        }
+        return () => {
+            if (rafRef.current) cancelAnimationFrame(rafRef.current);
+        };
+    }, [message.content, message.parts, isThinking]);
+
+    return <MessageItem role={message.role} content={throttledContent} isThinking={isThinking} />;
+});
+
 export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
   const router = useRouter();
   const [currentModelId, setCurrentModelId] = useState("openai/gpt-oss-120b:exacto");
@@ -114,6 +153,9 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
   // Loading states
   const [isChatsLoading, setIsChatsLoading] = useState(true);
   const [isMessagesLoading, setIsMessagesLoading] = useState(false);
+  
+  // Ref to prevent double-loading messages when we just created a chat locally
+  const ignoreNextChatIdChangeRef = useRef(false);
 
   // Sync state and ref when prop changes or internal navigation happens
   useEffect(() => {
@@ -143,6 +185,12 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
   // Load messages when chat ID changes
   useEffect(() => {
       if (currentChatId) {
+          // If we just created this chat locally, don't overwrite the optimistic state from useChat
+          if (ignoreNextChatIdChangeRef.current) {
+              ignoreNextChatIdChangeRef.current = false;
+              return;
+          }
+
           setIsMessagesLoading(true);
           fetch(`/api/chats/${currentChatId}`)
             .then(res => res.json())
@@ -294,6 +342,10 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
           const newChat = await res.json();
           if (newChat && newChat.id) {
               activeChatId = newChat.id;
+              
+              // Prevent the subsequent useEffect from reloading messages and wiping our state
+              ignoreNextChatIdChangeRef.current = true;
+              
               setCurrentChatId(newChat.id);
               chatIdRef.current = newChat.id; // Immediately update ref
               isNewChat = true;
@@ -515,10 +567,9 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                     )}
                     
                     {messages.map((m: any, index: number) => (
-                        <MessageItem 
+                        <ThrottledMessageItem 
                             key={m.id} 
-                            role={m.role} 
-                            content={(m.parts && m.parts.length > 0) ? m.parts : m.content} 
+                            message={m}
                             isThinking={isLoading && index === messages.length - 1 && m.role === 'assistant'}
                         />
                     ))}

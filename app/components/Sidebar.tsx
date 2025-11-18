@@ -84,19 +84,23 @@ export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, isLoadi
 
   return (
     <div className="w-[260px] bg-[var(--bg-sidebar)] h-full hidden md:flex flex-col p-3 border-r border-transparent relative">
-      <div className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-[#424242] scrollbar-track-transparent relative h-full">
+      {/* Sticky Header for New Chat */}
+      <div className="mb-4 z-10 relative">
          <button 
             onClick={onNewChat}
-            className="flex items-center gap-2 px-2 py-2 rounded-lg hover:bg-[var(--bg-hover)] transition-colors text-sm font-medium text-[var(--text-primary)] w-full text-left mb-4 z-10 relative"
+            className="flex items-center gap-2 px-2 py-2 rounded-lg hover:bg-[var(--bg-hover)] transition-colors text-sm font-medium text-[var(--text-primary)] w-full text-left"
           >
             <SquarePen size={18} strokeWidth={2} />
             <span>New Chat</span>
         </button>
+      </div>
 
-        <div className="relative flex-1 h-full">
+      {/* Scrollable Content Area */}
+      <div className="flex-1 overflow-y-auto scrollbar-custom relative">
+        <div className="relative min-h-full">
             {/* Loading State */}
             <FadeWrapper show={!!isLoading}>
-                <div className="space-y-4 mt-4 px-2">
+                <div className="space-y-4 px-2">
                     <div className="space-y-2">
                         <Skeleton className="h-3 w-12 bg-[var(--border-color)]" />
                         <Skeleton className="h-8 w-full" />
