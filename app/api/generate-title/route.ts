@@ -18,8 +18,8 @@ export async function POST(req: Request) {
     }
 
     const { text } = await generateText({
-      model: openrouter("nvidia/nemotron-nano-12b-v2-vl:free"),
-      prompt: `Analyze the following conversation start and generate a concise, 3-5 word title for this chat session. Do not use quotes. Conversation: "${prompt.substring(0, 500)}..."`,
+      model: openrouter("meta-llama/llama-3.2-3b-instruct:free"),
+      prompt: `Summarize this conversation start in 3-5 words for a title. No quotes. Text: "${prompt.substring(0, 300)}..."`,
     });
 
     const title = text.trim().replace(/^["']|["']$/g, ''); // Remove quotes if any

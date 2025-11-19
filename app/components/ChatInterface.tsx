@@ -1,13 +1,13 @@
 'use client';
 
-import React, { memo } from 'react';
+import React, { memo, useMemo, useDeferredValue } from 'react';
 import { useChat } from '@ai-sdk/react';
 import { MessageItem } from './MessageItem';
 import { Skeleton } from './Skeleton';
 import { ArrowUp, Paperclip, ChevronDown, PanelLeft, Square, Check, Sparkles } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { cn } from '@/lib/utils';
-import { useRouter } from 'next/navigation';
+// import { useRouter } from 'next/navigation'; // Removed unused
 import { useChatContext } from './ChatContext';
 
 // Simple Custom Components for Dialog/Input (since we can't easily install shadcn via cli)
@@ -20,6 +20,7 @@ function CustomDialog({ isOpen, onClose, onSubmit, initialValue }: { isOpen: boo
   const [shouldRender, setShouldRender] = useState(isOpen);
   
   useEffect(() => {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       if (isOpen) setShouldRender(true);
   }, [isOpen]);
 
@@ -65,15 +66,19 @@ function FadeWrapper({ show, children, className }: { show: boolean; children: R
     const [isFadingIn, setIsFadingIn] = useState(false);
 
     useEffect(() => {
+        let timeout: NodeJS.Timeout;
         if (show) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setShouldRender(true);
             // Small delay to allow render before transition
             requestAnimationFrame(() => setIsFadingIn(true));
         } else {
             setIsFadingIn(false);
-            const timer = setTimeout(() => setShouldRender(false), 300); // Match duration
-            return () => clearTimeout(timer);
+            timeout = setTimeout(() => setShouldRender(false), 300); // Match duration
         }
+        return () => {
+             if (timeout) clearTimeout(timeout);
+        };
     }, [show]);
 
     if (!shouldRender) return null;
@@ -90,45 +95,21 @@ interface ChatInterfaceProps {
 }
 
 const ThrottledMessageItem = memo(function ThrottledMessageItem({ message, isThinking }: { message: any, isThinking: boolean }) {
-    // For user messages, render immediately
-    if (message.role === 'user') {
-        return <MessageItem role={message.role} content={message.content || message.parts} />;
-    }
+    // For AI messages, we use useDeferredValue to prioritize UI responsiveness over immediate text updates.
+    // This allows React to interrupt the rendering of text updates if there are more urgent updates (like typing or scrolling),
+    // effectively throttling the render cost of fast streams without complex manual logic.
+    const content = message.content || message.parts;
+    const deferredContent = useDeferredValue(content);
 
-    // For AI messages, throttle updates to 100ms to prevent CPU spikes during fast streaming
-    const [throttledContent, setThrottledContent] = useState(message.content || message.parts);
-    const lastUpdateRef = useRef(Date.now());
-    const rafRef = useRef<number | null>(null);
-
-    useEffect(() => {
-        // If it's the final content (not streaming anymore), update immediately
-        if (!isThinking) {
-            setThrottledContent(message.content || message.parts);
-            return;
-        }
-
-        const now = Date.now();
-        if (now - lastUpdateRef.current > 100) {
-            setThrottledContent(message.content || message.parts);
-            lastUpdateRef.current = now;
-        } else {
-            // Schedule an update if we haven't updated recently
-            if (rafRef.current) cancelAnimationFrame(rafRef.current);
-            rafRef.current = requestAnimationFrame(() => {
-                setThrottledContent(message.content || message.parts);
-                lastUpdateRef.current = Date.now();
-            });
-        }
-        return () => {
-            if (rafRef.current) cancelAnimationFrame(rafRef.current);
-        };
-    }, [message.content, message.parts, isThinking]);
-
-    return <MessageItem role={message.role} content={throttledContent} isThinking={isThinking} />;
+    // For user messages, render immediately (deferredContent will eventually match, but we can just pass content if we want absolute immediacy, 
+    // though deferredValue is usually fast enough. Let's stick to deferred for consistency or direct for user).
+    // User messages don't stream, so deferredValue is effectively immediate.
+    
+    return <MessageItem role={message.role} content={deferredContent} isThinking={isThinking} />;
 });
 
 export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
-  const router = useRouter();
+  // const router = useRouter(); // Removed unused
   const { refreshChats, toggleSidebar } = useChatContext();
   
   // User Settings State with LocalStorage Persistence
@@ -182,6 +163,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
   // Sync state and ref when prop changes or internal navigation happens
   useEffect(() => {
       // Always update state, whether it's a new ID or null (new chat)
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setCurrentChatId(initialChatId || null);
       chatIdRef.current = initialChatId || null;
   }, [initialChatId]);
@@ -191,55 +173,8 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
       chatIdRef.current = currentChatId;
   }, [currentChatId]);
 
-  // Load messages when chat ID changes
-  useEffect(() => {
-      if (currentChatId) {
-          // If we just created this chat locally, don't overwrite the optimistic state from useChat
-          if (ignoreNextChatIdChangeRef.current) {
-              ignoreNextChatIdChangeRef.current = false;
-              return;
-          }
-
-          setIsMessagesLoading(true);
-          fetch(`/api/chats/${currentChatId}`)
-            .then(res => res.json())
-            .then(data => {
-                if (Array.isArray(data)) {
-                    // Map DB messages to UI format
-                    const uiMessages = data.map((msg: any) => {
-                        const isParts = Array.isArray(msg.content);
-                        return {
-                            id: msg.id,
-                            role: msg.role,
-                            // If it's an array (parts), we put it in 'parts' and leave content empty/stringified.
-                            // However, MessageItem uses (content || parts), so we need to ensure 'parts' is set if it's an array.
-                            content: isParts ? "" : msg.content, 
-                            parts: isParts ? msg.content : undefined,
-                            createdAt: new Date(msg.createdAt)
-                        };
-                    });
-                    setMessages(uiMessages);
-                }
-            })
-            .catch(err => console.error("Failed to fetch messages:", err))
-            .finally(() => setIsMessagesLoading(false));
-      } else {
-          setMessages([]);
-          setIsMessagesLoading(false);
-      }
-  }, [currentChatId]);
-
-  // Handle scroll events to determine if we should stick to bottom
-  const handleScroll = () => {
-      if (!scrollContainerRef.current) return;
-      const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current;
-      // If user is within 50px of bottom, enable auto-scroll. Otherwise disable it.
-      const isAtBottom = scrollHeight - scrollTop - clientHeight < 50;
-      setShouldAutoScroll(isAtBottom);
-  };
-
   // @ts-expect-error - useChat types mismatch
-  const { messages, isLoading, stop, setMessages, sendMessage } = useChat({
+  const { messages, isLoading, stop, setMessages, sendMessage } = useChat(useMemo(() => ({
      api: '/api/chat',
      body: {
         model: currentModelId,
@@ -304,12 +239,61 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
            console.error("No active chat ID found in onFinish");
        }
      },
-  } as unknown as import('@ai-sdk/react').UseChatOptions<any>);
+  }), [currentModelId, reasoningEffort]) as unknown as import('@ai-sdk/react').UseChatOptions<any>);
 
   // Sync messages ref whenever messages update
   useEffect(() => {
       messagesRef.current = messages;
   }, [messages]);
+
+  // Load messages when chat ID changes
+  useEffect(() => {
+      if (currentChatId) {
+          // If we just created this chat locally, don't overwrite the optimistic state from useChat
+          if (ignoreNextChatIdChangeRef.current) {
+              ignoreNextChatIdChangeRef.current = false;
+              return;
+          }
+
+          // eslint-disable-next-line react-hooks/set-state-in-effect
+          setIsMessagesLoading(true);
+          fetch(`/api/chats/${currentChatId}`)
+            .then(res => res.json())
+            .then(data => {
+                if (Array.isArray(data)) {
+                    // Map DB messages to UI format
+                    const uiMessages = data.map((msg: any) => {
+                        const isParts = Array.isArray(msg.content);
+                        return {
+                            id: msg.id,
+                            role: msg.role,
+                            // If it's an array (parts), we put it in 'parts' and leave content empty/stringified.
+                            // However, MessageItem uses (content || parts), so we need to ensure 'parts' is set if it's an array.
+                            content: isParts ? "" : msg.content, 
+                            parts: isParts ? msg.content : undefined,
+                            createdAt: new Date(msg.createdAt)
+                        };
+                    });
+                    setMessages(uiMessages);
+                }
+            })
+            .catch(err => console.error("Failed to fetch messages:", err))
+            .finally(() => setIsMessagesLoading(false));
+      } else {
+          setMessages([]);
+          setIsMessagesLoading(false);
+      }
+  }, [currentChatId, setMessages]);
+
+
+  // Handle scroll events to determine if we should stick to bottom
+  const handleScroll = () => {
+      if (!scrollContainerRef.current) return;
+      const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current;
+      // If user is within 50px of bottom, enable auto-scroll. Otherwise disable it.
+      const isAtBottom = scrollHeight - scrollTop - clientHeight < 50;
+      setShouldAutoScroll(isAtBottom);
+  };
 
   // Auto-scroll effect (Moved after messages definition)
   useEffect(() => {
@@ -317,10 +301,6 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
           messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
       }
   }, [messages, shouldAutoScroll]);
-
-  useEffect(() => {
-    console.log("Current messages:", messages);
-  }, [messages]);
 
   const [input, setInput] = useState('');
 
@@ -411,24 +391,10 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
     }
   };
 
-  const handleNewChat = () => {
-    // This function is no longer used by sidebar, but keeping it just in case we need a local reset
-    // Actually, we should probably remove it, but let's just leave it unused or use it if we had a "New Chat" button in main area
-    setMessages([]);
-    stop();
-    setInput('');
-    setCurrentChatId(null);
-    chatIdRef.current = null;
-    router.push('/');
-  };
+  // This function is no longer used by sidebar, but keeping it just in case we need a local reset
+  // Actually, we should probably remove it, but let's just leave it unused or use it if we had a "New Chat" button in main area
+  // const handleNewChat = () => { ... }; (Removed to avoid confusion)
   
-  const handleSelectChat = (id: string) => {
-      if (id === currentChatId) return;
-      setCurrentChatId(id);
-      chatIdRef.current = id;
-      router.push(`/chat/${id}`);
-  };
-
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // Auto-resize textarea

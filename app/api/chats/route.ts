@@ -5,7 +5,7 @@ import { NextResponse } from 'next/server';
 
 export async function GET() {
   try {
-    const allChats = await db.select().from(chats).orderBy(desc(chats.createdAt));
+    const allChats = await db.select().from(chats).orderBy(desc(chats.createdAt)).limit(100);
     return NextResponse.json(allChats);
   } catch (error) {
     return NextResponse.json({ error: 'Failed to fetch chats' }, { status: 500 });

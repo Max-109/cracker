@@ -56,6 +56,7 @@ function FadeWrapper({ show, children, className, isAbsolute = false }: { show: 
 
     useEffect(() => {
         if (show) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
             setShouldRender(true);
             requestAnimationFrame(() => setIsFadingIn(true));
         } else {
