@@ -8,7 +8,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     const { id } = await params;
     const chatMessages = await db.select().from(messages).where(eq(messages.chatId, id)).orderBy(asc(messages.createdAt));
     return NextResponse.json(chatMessages);
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: 'Failed to fetch messages' }, { status: 500 });
   }
 }
@@ -19,7 +19,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
         await db.delete(messages).where(eq(messages.chatId, id));
         await db.delete(chats).where(eq(chats.id, id));
         return NextResponse.json({ success: true });
-    } catch (error) {
+    } catch {
         return NextResponse.json({ error: 'Failed to delete chat' }, { status: 500 });
     }
 }

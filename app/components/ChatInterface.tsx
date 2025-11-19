@@ -119,13 +119,16 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
 
   // Load settings on mount
   useEffect(() => {
-      const savedModelId = localStorage.getItem('CHATGPT_MODEL_ID');
-      const savedModelName = localStorage.getItem('CHATGPT_MODEL_NAME');
-      const savedEffort = localStorage.getItem('CHATGPT_REASONING_EFFORT');
+      const loadSettings = () => {
+          const savedModelId = localStorage.getItem('CHATGPT_MODEL_ID');
+          const savedModelName = localStorage.getItem('CHATGPT_MODEL_NAME');
+          const savedEffort = localStorage.getItem('CHATGPT_REASONING_EFFORT');
 
-      if (savedModelId) setCurrentModelId(savedModelId);
-      if (savedModelName) setCurrentModelName(savedModelName);
-      if (savedEffort) setReasoningEffort(savedEffort);
+          if (savedModelId) setCurrentModelId(savedModelId);
+          if (savedModelName) setCurrentModelName(savedModelName);
+          if (savedEffort) setReasoningEffort(savedEffort);
+      };
+      loadSettings();
   }, []);
 
   // Save settings on change

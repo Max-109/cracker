@@ -7,7 +7,7 @@ export async function GET() {
   try {
     const allChats = await db.select().from(chats).orderBy(desc(chats.createdAt)).limit(100);
     return NextResponse.json(allChats);
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: 'Failed to fetch chats' }, { status: 500 });
   }
 }
@@ -17,7 +17,7 @@ export async function POST(req: Request) {
     const { title } = await req.json();
     const [newChat] = await db.insert(chats).values({ title: title || 'New Chat' }).returning();
     return NextResponse.json(newChat);
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: 'Failed to create chat' }, { status: 500 });
   }
 }
