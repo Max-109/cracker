@@ -23,7 +23,7 @@ export async function POST(req: Request) {
     console.log("First message example:", JSON.stringify(messages[0], null, 2));
     
     // Manual conversion to ensure compatibility
-    // @ts-expect-error - Typing messages for streamText can be strict
+    // @ts-ignore - Typing messages for streamText can be strict
     const coreMessages = messages.map((m: { role: string; content: unknown; parts?: { text: string }[] }) => ({
         role: m.role as "user" | "assistant" | "system" | "tool",
         content: (typeof m.content === 'string' ? m.content : "") || m.parts?.map((p) => p.text).join('') || ""
@@ -34,7 +34,7 @@ export async function POST(req: Request) {
       // @ts-expect-error - Typing mismatch for fallback messages
       messages: coreMessages,
       // Enable reasoning tokens for OpenRouter
-      // @ts-expect-error - providerMetadata might not be in the types yet or is experimental
+      // @ts-ignore - providerMetadata might not be in the types yet or is experimental
       experimental_providerMetadata: {
         openrouter: {
             reasoning: {
@@ -52,7 +52,7 @@ export async function POST(req: Request) {
     console.log("streamText initiated successfully.");
 
     // Use the UI Message Stream response format which works with @ai-sdk/react useChat
-    // @ts-expect-error - toUIMessageStreamResponse might need type assertion or is experimental
+    // @ts-ignore - toUIMessageStreamResponse might need type assertion or is experimental
     return result.toUIMessageStreamResponse();
   } catch (error: unknown) {
     console.error("API Route Error:", error);
