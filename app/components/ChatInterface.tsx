@@ -2,6 +2,7 @@
 
 import React, { memo, useMemo, useDeferredValue } from 'react';
 import { useChat } from '@ai-sdk/react';
+import { type Message } from 'ai';
 import { MessageItem } from './MessageItem';
 import { Skeleton } from './Skeleton';
 import { ArrowUp, Paperclip, ChevronDown, PanelLeft, Square, Check, Sparkles } from 'lucide-react';
@@ -94,7 +95,7 @@ interface ChatInterfaceProps {
     initialChatId?: string;
 }
 
-const ThrottledMessageItem = memo(function ThrottledMessageItem({ message, isThinking }: { message: any, isThinking: boolean }) {
+const ThrottledMessageItem = memo(function ThrottledMessageItem({ message, isThinking, onEdit }: { message: Message, isThinking: boolean, onEdit?: (content: string) => void }) {
     // For AI messages, we use useDeferredValue to prioritize UI responsiveness over immediate text updates.
     // This allows React to interrupt the rendering of text updates if there are more urgent updates (like typing or scrolling),
     // effectively throttling the render cost of fast streams without complex manual logic.
@@ -105,7 +106,7 @@ const ThrottledMessageItem = memo(function ThrottledMessageItem({ message, isThi
     // though deferredValue is usually fast enough. Let's stick to deferred for consistency or direct for user).
     // User messages don't stream, so deferredValue is effectively immediate.
     
-    return <MessageItem role={message.role} content={deferredContent} isThinking={isThinking} />;
+    return <MessageItem role={message.role} content={deferredContent} isThinking={isThinking} onEdit={onEdit} />;
 });
 
 export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
@@ -155,7 +156,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
   const chatIdRef = useRef<string | null>(initialChatId || null);
   
   // Ref to track latest messages for persistence fallback
-  const messagesRef = useRef<any[]>([]);
+  const messagesRef = useRef<Message[]>([]);
   
   // Loading states
   const [isMessagesLoading, setIsMessagesLoading] = useState(false);
@@ -177,7 +178,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
   }, [currentChatId]);
 
   // @ts-expect-error - useChat types mismatch
-  const { messages, isLoading, stop, setMessages, sendMessage } = useChat(useMemo(() => ({
+  const { messages, isLoading, stop, setMessages, sendMessage, append } = useChat(useMemo(() => ({
      api: '/api/chat',
      body: {
         model: currentModelId,
@@ -187,14 +188,14 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
      onError: (err: Error) => {
        console.error("Chat Error:", err);
      },
-     onFinish: async (message: any) => {
+     onFinish: async (message: Message) => {
        console.log("Chat finished:", message);
        // Use ref to ensure we have the latest ID even if closure is stale
        const activeId = chatIdRef.current;
        if (activeId) {
            // Determine the actual content to save. 
-           // We prefer saving 'parts' (JSON) if available to preserve reasoning/structure.
-           let contentToSave: any = null;
+           // We prefer saving 'parts' (JSON) if available to preserve structured "thinking" blocks vs final content.
+           let contentToSave: unknown = null;
 
            // 1. Check if message.parts exists and is non-empty (Priority)
            if (message.parts && Array.isArray(message.parts) && message.parts.length > 0) {
@@ -242,7 +243,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
            console.error("No active chat ID found in onFinish");
        }
      },
-  }), [currentModelId, reasoningEffort]) as unknown as import('@ai-sdk/react').UseChatOptions<any>);
+  }), [currentModelId, reasoningEffort]) as unknown as import('@ai-sdk/react').UseChatOptions<Message>);
 
   // Sync messages ref whenever messages update
   useEffect(() => {
@@ -265,14 +266,14 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
             .then(data => {
                 if (Array.isArray(data)) {
                     // Map DB messages to UI format
-                    const uiMessages = data.map((msg: any) => {
+                    const uiMessages = data.map((msg: { id: string; role: 'user' | 'assistant'; content: string | unknown[]; createdAt: string }) => {
                         const isParts = Array.isArray(msg.content);
                         return {
                             id: msg.id,
                             role: msg.role,
                             // If it's an array (parts), we put it in 'parts' and leave content empty/stringified.
                             // However, MessageItem uses (content || parts), so we need to ensure 'parts' is set if it's an array.
-                            content: isParts ? "" : msg.content, 
+                            content: isParts ? "" : msg.content as string, 
                             parts: isParts ? msg.content : undefined,
                             createdAt: new Date(msg.createdAt)
                         };
@@ -288,6 +289,52 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
       }
   }, [currentChatId, setMessages]);
 
+  // Handle Message Edit
+  const handleEditMessage = async (index: number, newContent: string) => {
+      if (!currentChatId) return;
+
+      try {
+          // 1. Sync with DB: Truncate history (Delete edited message + all subsequent)
+          const messagesToDeleteCount = messages.length - index;
+          await fetch('/api/chat/truncate', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                  chatId: currentChatId,
+                  count: messagesToDeleteCount
+              })
+          });
+
+          // 2. Update Local State (Remove edited + subsequent)
+          const keptMessages = messages.slice(0, index);
+          setMessages(keptMessages);
+          
+          // 3. Save NEW user message to DB
+          await fetch('/api/messages', {
+               method: 'POST',
+               headers: { 'Content-Type': 'application/json' },
+               body: JSON.stringify({
+                   chatId: currentChatId,
+                   role: 'user',
+                   content: newContent
+               })
+           });
+
+          // 4. Send new message (triggers generation)
+          await append({
+              role: 'user', 
+              content: newContent
+          }, {
+              body: {
+                 model: currentModelId,
+                 reasoningEffort: reasoningEffort
+              }
+          });
+
+      } catch (err) {
+          console.error("Failed to edit message:", err);
+      }
+  };
 
   // Handle scroll events to determine if we should stick to bottom
   const handleScroll = () => {
@@ -381,6 +428,11 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                    body: JSON.stringify({ chatId: activeChatId, prompt: finalContent })
                }).then(() => refreshChats());
            }
+      }
+
+      if (!activeChatId) {
+          console.error("Failed to create or retrieve chat ID. Aborting message send.");
+          return;
       }
 
       await sendMessage({ role: 'user', content: finalContent }, {
@@ -543,18 +595,19 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                         </div>
                     )}
                     
-                    {messages.map((m: any, index: number) => (
+                    {messages.map((m: Message, index: number) => (
                         <ThrottledMessageItem 
                             key={m.id} 
                             message={m}
                             isThinking={isLoading && index === messages.length - 1 && m.role === 'assistant'}
+                            onEdit={(newContent) => handleEditMessage(index, newContent)}
                         />
                     ))}
                   </>
               </FadeWrapper>
               
               {/* Explicit generic Thinking indicator if loading but no assistant message yet */}
-              {!isMessagesLoading && isLoading && messages.length > 0 && (messages[messages.length - 1] as any).role === 'user' && (
+              {!isMessagesLoading && isLoading && messages.length > 0 && messages[messages.length - 1].role === 'user' && (
                  <div className="flex justify-start mb-6 w-full animate-in fade-in duration-300">
                     <div className="w-8 h-8 flex-shrink-0 overflow-hidden flex items-center justify-center mr-4">
                          {/* Optional Avatar Placeholder if needed, else hidden */}

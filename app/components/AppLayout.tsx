@@ -6,10 +6,17 @@ import { ChatContext } from './ChatContext';
 import { Sidebar } from './Sidebar';
 import { cn } from '@/lib/utils';
 
+interface Chat {
+  id: string;
+  title: string | null;
+  createdAt: string;
+}
+
 export default function AppLayout({ children }: { children: React.ReactNode }) {
-  const [chats, setChats] = useState<any[]>([]);
+  const [chats, setChats] = useState<Chat[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [remountKey, setRemountKey] = useState(0);
   
   const router = useRouter();
   const params = useParams();
@@ -36,6 +43,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   const handleNewChat = () => {
       setIsSidebarOpen(false);
+      setRemountKey(prev => prev + 1);
       router.push('/');
   };
 
@@ -85,7 +93,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </div>
 
             <div className="flex-1 flex flex-col h-full relative min-w-0">
-                {children}
+                <div key={remountKey} className="h-full w-full">
+                    {children}
+                </div>
             </div>
         </div>
      </ChatContext.Provider>

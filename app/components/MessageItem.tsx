@@ -1,8 +1,8 @@
 'use client';
 
 import React, { memo } from 'react'; // Added memo
-import { useState, useEffect, useMemo } from 'react'; // Added useMemo
-import { Copy, RefreshCw, ThumbsUp, ThumbsDown, Check, Plus, Minus } from 'lucide-react';
+import { useState, useEffect, useMemo, useRef } from 'react'; // Added useMemo, useRef
+import { Copy, RefreshCw, ThumbsUp, ThumbsDown, Check, Plus, Minus, Pencil } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import remarkGfm from 'remark-gfm';
@@ -16,11 +16,6 @@ import { cn } from '@/lib/utils';
 const REMARK_PLUGINS = [remarkMath, remarkGfm];
 const REHYPE_PLUGINS = [rehypeKatex];
 
-// Define components object with useMemo or outside (if static). 
-// Since we use navigator.clipboard inside, it's safer to keep it inside but memoized, 
-// or use a static definition and handle copy via event delegation or just keep it simple but memoized.
-// Let's use a memoized component definition inside the component.
-
 interface MessagePart {
   type: string;
   text?: string;
@@ -31,7 +26,8 @@ interface MessagePart {
 interface MessageItemProps {
   role: string;
   content: string | MessagePart[];
-  isThinking?: boolean; // Helper to indicate if this is the active streaming message
+  isThinking?: boolean;
+  onEdit?: (newContent: string) => void;
 }
 
 const THINKING_LABELS = [
@@ -46,7 +42,6 @@ const THINKING_LABELS = [
 
 // Animated "Thinking" Icon - ASCII Spinner
 function ThinkingIcon({ className }: { className?: string }) {
-    // Replaced star/spinner animation with a simple 3-dot bounce as requested
     return (
         <div className={cn("flex items-center justify-center w-4 h-4 text-[var(--text-secondary)]", className)}>
             <div className="flex space-x-[2px]">
@@ -75,21 +70,17 @@ const preprocessLaTeX = (content: string) => {
     // 2. Replace \( ... \) with $ ... $ (Inline Math)
     processed = processed.replace(/\\\(([\s\S]*?)\\\)/g, '$$$1$$');
     
-    // 3. Ensure $$ is separated by newlines if it looks like a block
-    // Note: This is a heuristic. If $$ is surrounded by text, remark-math might miss it or treat it as inline.
-    // We'll try to add a newline before $$ if it's preceded by a colon or text, but that might be aggressive.
-    // A safer bet is to ensure there's at least a space.
-    // But standard remark-math handles inline $$...$$ as display math inline.
-    
     return processed;
 };
 
-export const MessageItem = memo(function MessageItem({ role, content, isThinking }: MessageItemProps) {
-  const [isThinkingOpen, setIsThinkingOpen] = useState(!!isThinking); // Auto-open if currently thinking
-
+export const MessageItem = memo(function MessageItem({ role, content, isThinking, onEdit }: MessageItemProps) {
+  const [isThinkingOpen, setIsThinkingOpen] = useState(!!isThinking);
   const [thinkingLabel, setThinkingLabel] = useState("Thinking");
-  
-  // Memoize markdown components to prevent full re-renders on every token update
+  const [isEditing, setIsEditing] = useState(false);
+  const [editContent, setEditContent] = useState("");
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Memoize markdown components
   const markdownComponents = useMemo(() => ({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       code(props: any) {
@@ -122,7 +113,6 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
               </code>
           );
       },
-      // Use div instead of p for paragraphs to avoid hydration errors when nesting block math (divs) inside p
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       p: ({children}: any) => <div className="mb-4 last:mb-0 leading-relaxed">{children}</div>,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -139,7 +129,6 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
       h3: ({children}: any) => <h3 className="text-lg font-bold mb-2 mt-4">{children}</h3>,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       blockquote: ({children}: any) => <blockquote className="border-l-2 border-[var(--border-color)] pl-4 italic my-4 text-[var(--text-secondary)]">{children}</blockquote>,
-      // Table components for GFM
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       table: ({children}: any) => (
           <div className="my-4 w-full overflow-x-auto scrollbar-thin scrollbar-thumb-[#424242] scrollbar-track-transparent rounded-lg border border-[var(--border-color)]">
@@ -170,11 +159,17 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
     }
   }, [isThinking]);
 
+  // Auto-resize edit textarea
+  useEffect(() => {
+    if (isEditing && textareaRef.current) {
+        textareaRef.current.style.height = 'auto';
+        textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
+    }
+  }, [editContent, isEditing]);
+
 
   const handleCopy = () => {
-    // Prefer final content, but fallback to thinking content if that's all we have? No, only copy final.
     if (!finalContent) return;
-    
     navigator.clipboard.writeText(finalContent).then(() => {
       setIsCopied(true);
       setTimeout(() => setIsCopied(false), 2000);
@@ -182,21 +177,65 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
   };
 
   const [isCopied, setIsCopied] = useState(false);
-
   const [userCopied, setUserCopied] = useState(false);
 
   const safeContent = content || '';
 
   if (role === 'user') {
     const userText = typeof safeContent === 'string' ? safeContent : safeContent.map(p => p.text || '').join('');
+    
+    if (isEditing) {
+        return (
+            <div className="flex justify-end mb-6 w-full">
+                <div className="max-w-[85%] sm:max-w-[70%] w-full bg-[var(--bg-sidebar)] border border-[var(--border-color)] rounded-xl p-4">
+                    <textarea 
+                        ref={textareaRef}
+                        value={editContent}
+                        onChange={(e) => setEditContent(e.target.value)}
+                        className="w-full bg-transparent text-[var(--text-primary)] resize-none focus:outline-none scrollbar-hide"
+                        rows={1}
+                    />
+                    <div className="flex justify-end gap-2 mt-3">
+                        <button 
+                           onClick={() => setIsEditing(false)}
+                           className="px-3 py-1.5 text-sm rounded-lg text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
+                        >
+                           Cancel
+                        </button>
+                        <button 
+                           onClick={() => {
+                               if (editContent.trim() !== userText) {
+                                   onEdit?.(editContent);
+                               }
+                               setIsEditing(false);
+                           }}
+                           className="px-3 py-1.5 text-sm rounded-lg bg-[#fff] text-black hover:opacity-90 font-medium transition-colors"
+                        >
+                           Send
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
     return (
       <div className="flex justify-end mb-6 group">
         <div className="max-w-[85%] sm:max-w-[70%] flex flex-col items-end">
            <div className="bg-[var(--bubble-user)] text-[var(--text-primary)] px-5 py-2.5 rounded-3xl leading-relaxed whitespace-pre-wrap relative">
              {userText}
            </div>
-           {/* User Copy/Edit actions (simplified) */}
            <div className="flex items-center gap-2 mt-1 opacity-0 group-hover:opacity-100 transition-opacity pr-2 select-none">
+              <button 
+                onClick={() => {
+                   setEditContent(userText);
+                   setIsEditing(true);
+                }}
+                className="p-1 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+                aria-label="Edit"
+              >
+                 <Pencil size={14} />
+              </button>
               <button 
                 onClick={() => {
                    navigator.clipboard.writeText(userText).then(() => {
@@ -205,6 +244,7 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
                    });
                 }}
                 className="p-1 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
+                aria-label="Copy"
               >
                  {userCopied ? <Check size={14} /> : <Copy size={14} />}
               </button>
@@ -218,11 +258,9 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
   let thinkContent = '';
   let finalContent = '';
 
-  // Handle multipart messages (new AI SDK format)
   if (typeof safeContent !== 'string' && Array.isArray(safeContent)) {
     safeContent.forEach((part: MessagePart) => {
         if (part.type === 'reasoning') {
-            // Check both 'reasoning' (Vercel AI SDK standard for ReasoningPart) and 'text' (fallback)
             thinkContent += (part.reasoning || part.text || '');
         } else if (part.type === 'text') {
             finalContent += (part.text || '');
@@ -232,8 +270,6 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
     finalContent = safeContent;
   }
 
-  // Parse <think> tags from text content if reasoning wasn't already found
-  // This handles models that output reasoning as part of the text stream
   if (!thinkContent) {
     const thinkStart = finalContent.indexOf('<think>');
     if (thinkStart !== -1) {
@@ -242,21 +278,17 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
             thinkContent = finalContent.substring(thinkStart + 7, thinkEnd).trim();
             finalContent = (finalContent.substring(0, thinkStart) + finalContent.substring(thinkEnd + 8)).trim();
         } else {
-            // Streaming case: open tag but no close tag
             thinkContent = finalContent.substring(thinkStart + 7).trim();
             finalContent = finalContent.substring(0, thinkStart).trim();
         }
     }
   }
   
-  // Preprocess LaTeX in content
   finalContent = preprocessLaTeX(finalContent);
   thinkContent = preprocessLaTeX(thinkContent);
 
-  const hasThinking = (!!thinkContent || isThinking) && thinkContent.length > 0; // Only show accordion if there is ACTUAL thinking content.
-  // If isThinking is true but thinkContent is empty, we rely on the fallback logic below to show the "Thinking..." dots.
-  
-  const isThinkingValues = isThinking && !finalContent; // Assuming reasoning comes before content
+  const hasThinking = (!!thinkContent || isThinking) && thinkContent.length > 0;
+  const isThinkingValues = isThinking && !finalContent;
 
   return (
     <div className="flex justify-start mb-6 w-full group">
@@ -270,16 +302,10 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
                   onClick={() => setIsThinkingOpen(!isThinkingOpen)}
                   className="flex items-center gap-3 text-xs font-medium text-[var(--text-primary)] opacity-80 hover:opacity-100 transition-opacity select-none group/thinking"
                 >
-                   {/* Show Spinner when thinking, otherwise Toggle Icon */}
-                   {isThinking ? (
-                       <ThinkingIcon />
-                   ) : (
-                       <ToggleIcon isOpen={isThinkingOpen} />
-                   )}
+                   {isThinking ? <ThinkingIcon /> : <ToggleIcon isOpen={isThinkingOpen} />}
                    
                    <span className={isThinking ? "animate-pulse-dot font-semibold tracking-wide text-[var(--text-secondary)] animate-[pulse_2s_ease-in-out_infinite]" : "font-medium"}>{thinkingLabel}</span>
                    
-                   {/* Show 'Thinking...' if streaming and closed */}
                    {isThinking && !isThinkingOpen && (
                      <span className="text-[var(--text-secondary)] ml-1 opacity-60 animate-[pulse_2s_ease-in-out_infinite]">...</span>
                    )}
@@ -295,7 +321,6 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
                             {thinkContent}
                          </ReactMarkdown>
                      </div>
-                     {/* Cursor if still thinking */}
                      {isThinkingValues && <span className="animate-pulse ml-1 inline-block w-1.5 h-3.5 bg-[var(--text-secondary)] align-middle"></span>}
                   </div>
                 )}
@@ -314,13 +339,9 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
                         {finalContent}
                     </ReactMarkdown>
                 </div>
-                
-                {/* Cursor if streaming final content */}
                 {isThinking && finalContent && <span className="animate-pulse ml-1 inline-block w-2 h-4 bg-[var(--text-primary)] align-middle"></span>}
              </div>
           ) : (
-             // Show "Thinking..." only if we are waiting for start or in thinking mode but not showing details
-             // AND we don't have a thinking block that is already showing "Thinking..."
              (isThinking && !hasThinking) ? (
                <div className="flex items-center gap-2 text-[var(--text-secondary)] animate-pulse">
                    <div className="flex space-x-[2px]">

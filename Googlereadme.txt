@@ -1,7 +1,7 @@
 # Project: ChatGPT Clone (Next.js + AI SDK)
 
 ## 🛠 Technical Stack & Tools
-- **Package Manager**: `bun` (Use `bun run dev`, `bun run build`, etc.)
+- **Package Manager**: `bun` (STRICTLY use `bun` for all commands. DO NOT use `npm`.)
 - **Framework**: Next.js 16 (App Router)
 - **Language**: TypeScript
 - **Styling**: Tailwind CSS v4 (Configured via CSS variables in `app/globals.css` - `@theme inline`)
