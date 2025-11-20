@@ -16,32 +16,45 @@ export async function POST(req: Request) {
 
     // Validate messages is an array before converting
     if (!Array.isArray(messages)) {
-        throw new Error("Messages must be an array");
+      throw new Error("Messages must be an array");
     }
 
     console.log(`Starting streamText with ${modelId} (Effort: ${effort})...`);
-    console.log("First message example:", JSON.stringify(messages[0], null, 2));
-    
-    // Manual conversion to ensure compatibility
-    // @ts-expect-error - Typing messages for streamText can be strict
-    const coreMessages = messages.map((m: { role: string; content: unknown; parts?: { text: string }[] }) => ({
+
+    // Manual conversion to ensure compatibility with multimodal content
+    const coreMessages = messages.map((m: { role: string; content: unknown; parts?: { type: string; text?: string; image?: string }[] }) => {
+      // Handle multimodal content array (from useChat with attachments)
+      if (Array.isArray(m.content)) {
+        return {
+          role: m.role as "user" | "assistant" | "system" | "tool",
+          content: m.content.map(part => {
+            if (part.type === 'image') {
+              return { type: 'image', image: part.image };
+            }
+            return { type: 'text', text: part.text };
+          })
+        };
+      }
+
+      // Fallback for text-only content
+      return {
         role: m.role as "user" | "assistant" | "system" | "tool",
         content: (typeof m.content === 'string' ? m.content : "") || m.parts?.map((p) => p.text).join('') || ""
-    }));
+      };
+    });
 
     const result = streamText({
       model: openrouter(modelId),
-      // @ts-expect-error - Typing mismatch for fallback messages
+      // @ts-expect-error - Typing mismatch for multimodal messages
       messages: coreMessages,
       // Enable reasoning tokens for OpenRouter
-      // @ts-expect-error - providerMetadata might not be in the types yet or is experimental
       experimental_providerMetadata: {
         openrouter: {
-            reasoning: {
-              effort: effort,
-              exclude: false,
-              enabled: true
-            }
+          reasoning: {
+            effort: effort,
+            exclude: false,
+            enabled: true
+          }
         }
       },
       onFinish: () => {
@@ -52,16 +65,15 @@ export async function POST(req: Request) {
     console.log("streamText initiated successfully.");
 
     // Use the UI Message Stream response format which works with @ai-sdk/react useChat
-    // @ts-expect-error - toUIMessageStreamResponse might need type assertion or is experimental
     return result.toUIMessageStreamResponse();
   } catch (error: unknown) {
     console.error("API Route Error:", error);
     const err = error as Error;
     return new Response(
-      JSON.stringify({ 
-        error: "Internal Server Error", 
+      JSON.stringify({
+        error: "Internal Server Error",
         details: err.message || String(error),
-        stack: err.stack 
+        stack: err.stack
       }),
       { status: 500 },
     );
