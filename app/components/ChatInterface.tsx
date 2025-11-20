@@ -150,12 +150,12 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
 
     // User Settings State with LocalStorage Persistence
     const [currentModelId, setCurrentModelId] = useState(() => {
-        if (typeof window !== 'undefined') return localStorage.getItem('CHATGPT_MODEL_ID') || "openai/gpt-oss-120b:exacto";
-        return "openai/gpt-oss-120b:exacto";
+        if (typeof window !== 'undefined') return localStorage.getItem('CHATGPT_MODEL_ID') || "x-ai/grok-4.1-fast";
+        return "x-ai/grok-4.1-fast";
     });
     const [currentModelName, setCurrentModelName] = useState(() => {
-        if (typeof window !== 'undefined') return localStorage.getItem('CHATGPT_MODEL_NAME') || "GPT 5.1";
-        return "GPT 5.1";
+        if (typeof window !== 'undefined') return localStorage.getItem('CHATGPT_MODEL_NAME') || "Smart";
+        return "Smart";
     });
     const [reasoningEffort, setReasoningEffort] = useState(() => {
         if (typeof window !== 'undefined') return localStorage.getItem('CHATGPT_REASONING_EFFORT') || "medium";
@@ -397,7 +397,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                 content: newContent
             } as any, {
                 body: {
-                    model: localStorage.getItem('CHATGPT_MODEL_ID') || "openai/gpt-oss-120b:exacto", // Read from localstorage to avoid dep
+                    model: localStorage.getItem('CHATGPT_MODEL_ID') || "x-ai/grok-4.1-fast", // Read from localstorage to avoid dep
                     reasoningEffort: localStorage.getItem('CHATGPT_REASONING_EFFORT') || "medium"
                 }
             });
@@ -595,7 +595,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
             />
             <main className="flex-1 flex flex-col relative h-full">
                 {/* Top Bar */}
-                <div className="absolute top-0 left-0 w-full h-14 flex items-center justify-between px-4 z-30">
+                <div className="absolute top-0 left-0 w-full h-14 flex items-center justify-between px-4 z-50 bg-[var(--bg-main)]/80 backdrop-blur-md">
                     <div className="flex items-center gap-2 md:hidden">
                         <button
                             onClick={toggleSidebar}
@@ -623,14 +623,36 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                                     <div className="px-2 py-2 text-xs font-medium text-[var(--text-secondary)]">Select Model</div>
 
                                     <button
-                                        onClick={() => { setCurrentModelId("openai/gpt-oss-120b:exacto"); setCurrentModelName("GPT 5.1"); setIsModelMenuOpen(false); }}
+                                        onClick={() => { setCurrentModelId("x-ai/grok-4.1-fast"); setCurrentModelName("Smart"); setIsModelMenuOpen(false); }}
                                         className="flex items-center justify-between w-full text-left px-3 py-2.5 rounded-lg hover:bg-[var(--bg-hover)] text-sm transition-colors"
                                     >
                                         <div className="flex flex-col">
-                                            <span className="text-[var(--text-primary)] font-medium">GPT 5.1</span>
-                                            <span className="text-[var(--text-secondary)] text-xs">Great for complex tasks</span>
+                                            <span className="text-[var(--text-primary)] font-medium">Smart</span>
+                                            <span className="text-[var(--text-secondary)] text-xs">Grok 4.1 Fast</span>
                                         </div>
-                                        {currentModelId === "openai/gpt-oss-120b:exacto" && <Check size={16} />}
+                                        {currentModelId === "x-ai/grok-4.1-fast" && <Check size={16} />}
+                                    </button>
+
+                                    <button
+                                        onClick={() => { setCurrentModelId("openai/gpt-oss-safeguard-20b"); setCurrentModelName("Ultra-Fast"); setIsModelMenuOpen(false); }}
+                                        className="flex items-center justify-between w-full text-left px-3 py-2.5 rounded-lg hover:bg-[var(--bg-hover)] text-sm transition-colors"
+                                    >
+                                        <div className="flex flex-col">
+                                            <span className="text-[var(--text-primary)] font-medium">Ultra-Fast</span>
+                                            <span className="text-[var(--text-secondary)] text-xs">GPT OSS 20B</span>
+                                        </div>
+                                        {currentModelId === "openai/gpt-oss-safeguard-20b" && <Check size={16} />}
+                                    </button>
+
+                                    <button
+                                        onClick={() => { setCurrentModelId("deepseek/deepseek-r1-distill-llama-70b"); setCurrentModelName("Chinese"); setIsModelMenuOpen(false); }}
+                                        className="flex items-center justify-between w-full text-left px-3 py-2.5 rounded-lg hover:bg-[var(--bg-hover)] text-sm transition-colors"
+                                    >
+                                        <div className="flex flex-col">
+                                            <span className="text-[var(--text-primary)] font-medium">Chinese</span>
+                                            <span className="text-[var(--text-secondary)] text-xs">DeepSeek R1 Distill</span>
+                                        </div>
+                                        {currentModelId === "deepseek/deepseek-r1-distill-llama-70b" && <Check size={16} />}
                                     </button>
 
                                     <div className="my-1 border-t border-[var(--border-color)]"></div>

@@ -11,7 +11,7 @@ export async function POST(req: Request) {
   console.log("--- API Request Received ---");
   try {
     const { messages, model, reasoningEffort } = await req.json();
-    const modelId = model || "openai/gpt-oss-120b:exacto";
+    const modelId = model || "x-ai/grok-4.1-fast";
     const effort = reasoningEffort || "medium";
 
     // Validate messages is an array before converting
