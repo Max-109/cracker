@@ -408,8 +408,11 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
     const handleScroll = () => {
         if (!scrollContainerRef.current) return;
         const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current;
-        // If user is within 50px of bottom, enable auto-scroll. Otherwise disable it.
-        const isAtBottom = scrollHeight - scrollTop - clientHeight < 50;
+        // If user is within threshold of bottom, enable auto-scroll.
+        // We use a much larger threshold (200px) during loading to ensure we stick to bottom even if stream is fast.
+        // For normal browsing, 100px is sufficient.
+        const threshold = isLoading ? 200 : 100;
+        const isAtBottom = scrollHeight - scrollTop - clientHeight < threshold;
         setShouldAutoScroll(isAtBottom);
     };
 

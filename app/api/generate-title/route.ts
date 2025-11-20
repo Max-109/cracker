@@ -12,20 +12,20 @@ const openrouter = createOpenRouter({
 export async function POST(req: Request) {
   try {
     const { chatId, prompt } = await req.json();
-    
+
     if (!prompt) {
-        return NextResponse.json({ error: 'Prompt required' }, { status: 400 });
+      return NextResponse.json({ error: 'Prompt required' }, { status: 400 });
     }
 
     const { text } = await generateText({
-      model: openrouter("meta-llama/llama-3.2-3b-instruct:free"),
+      model: openrouter("openai/gpt-oss-120b:exacto"),
       prompt: `Summarize this conversation start in 3-5 words for a title. No quotes. Text: "${prompt.substring(0, 300)}..."`,
     });
 
     const title = text.trim().replace(/^["']|["']$/g, ''); // Remove quotes if any
 
     if (chatId) {
-        await db.update(chats).set({ title }).where(eq(chats.id, chatId));
+      await db.update(chats).set({ title }).where(eq(chats.id, chatId));
     }
 
     return NextResponse.json({ title });
