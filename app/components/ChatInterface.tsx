@@ -595,7 +595,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
             />
             <main className="flex-1 flex flex-col relative h-full">
                 {/* Top Bar */}
-                <div className="absolute top-0 left-0 w-full h-14 flex items-center justify-between px-4 z-20">
+                <div className="absolute top-0 left-0 w-full h-14 flex items-center justify-between px-4 z-30">
                     <div className="flex items-center gap-2 md:hidden">
                         <button
                             onClick={toggleSidebar}
@@ -658,7 +658,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                     <div className="max-w-[800px] mx-auto pt-20 pb-40 px-4 md:px-6 relative">
 
                         {/* Loading Skeletons - Smart & Smooth */}
-                        <FadeWrapper show={isMessagesLoading} className="absolute inset-0 pt-20 px-4 md:px-6 z-10 bg-[var(--bg-main)]">
+                        <FadeWrapper show={isMessagesLoading} className="absolute inset-0 pt-20 px-4 md:px-6 z-10">
                             <div className="space-y-10">
                                 {/* User message skeleton - Randomized widths */}
                                 <div className="flex justify-end">

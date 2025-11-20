@@ -329,6 +329,7 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
                   <ReactMarkdown
                     remarkPlugins={REMARK_PLUGINS}
                     rehypePlugins={REHYPE_PLUGINS}
+                    components={markdownComponents}
                   >
                     {thinkContent}
                   </ReactMarkdown>
