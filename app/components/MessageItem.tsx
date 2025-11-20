@@ -222,7 +222,7 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
     return (
       <div className="flex justify-end mb-6 group">
         <div className="max-w-[85%] sm:max-w-[70%] flex flex-col items-end">
-           <div className="bg-[var(--bubble-user)] text-[var(--text-primary)] px-5 py-2.5 rounded-3xl leading-relaxed whitespace-pre-wrap relative">
+           <div className="bg-[var(--bubble-user)] text-[var(--text-primary)] px-5 py-2.5 rounded-3xl leading-relaxed whitespace-pre-wrap break-all relative">
              {userText}
            </div>
            <div className="flex items-center gap-2 mt-1 opacity-0 group-hover:opacity-100 transition-opacity pr-2 select-none">
