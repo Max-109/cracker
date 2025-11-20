@@ -8,6 +8,7 @@ import remarkMath from 'remark-math';
 import remarkGfm from 'remark-gfm';
 import rehypeKatex from 'rehype-katex';
 import { CodeBlock } from './CodeBlock';
+import { LoadingIndicator } from './LoadingIndicator';
 import { cn } from '@/lib/utils';
 import 'katex/dist/katex.min.css';
 const REMARK_PLUGINS = [remarkMath, remarkGfm];
@@ -354,13 +355,8 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
           </div>
         ) : (
           (isThinking && !hasThinking) ? (
-            <div className="flex items-center gap-2 text-[var(--text-secondary)] animate-pulse">
-              <div className="flex space-x-[2px]">
-                <div className="w-1.5 h-1.5 bg-[var(--text-secondary)] rounded-full animate-[bounce_1s_infinite_0ms]"></div>
-                <div className="w-1.5 h-1.5 bg-[var(--text-secondary)] rounded-full animate-[bounce_1s_infinite_200ms]"></div>
-                <div className="w-1.5 h-1.5 bg-[var(--text-secondary)] rounded-full animate-[bounce_1s_infinite_400ms]"></div>
-              </div>
-              <span className="text-sm ml-1">Thinking...</span>
+            <div className="flex items-center gap-2 text-[var(--text-secondary)]">
+              <LoadingIndicator />
             </div>
           ) : null
         )}

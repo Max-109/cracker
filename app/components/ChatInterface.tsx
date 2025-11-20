@@ -13,6 +13,7 @@ export interface Message {
 }
 import { MessageItem } from './MessageItem';
 import { Skeleton } from './Skeleton';
+import { LoadingIndicator } from './LoadingIndicator';
 import { ArrowUp, Paperclip, ChevronDown, PanelLeft, Square, Check, Sparkles, X, File as FileIcon } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { cn } from '@/lib/utils';
@@ -122,9 +123,18 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
     const { refreshChats, toggleSidebar } = useChatContext();
 
     // User Settings State with LocalStorage Persistence
-    const [currentModelId, setCurrentModelId] = useState("openai/gpt-oss-120b:exacto");
-    const [currentModelName, setCurrentModelName] = useState("GPT 5.1");
-    const [reasoningEffort, setReasoningEffort] = useState("medium");
+    const [currentModelId, setCurrentModelId] = useState(() => {
+        if (typeof window !== 'undefined') return localStorage.getItem('CHATGPT_MODEL_ID') || "openai/gpt-oss-120b:exacto";
+        return "openai/gpt-oss-120b:exacto";
+    });
+    const [currentModelName, setCurrentModelName] = useState(() => {
+        if (typeof window !== 'undefined') return localStorage.getItem('CHATGPT_MODEL_NAME') || "GPT 5.1";
+        return "GPT 5.1";
+    });
+    const [reasoningEffort, setReasoningEffort] = useState(() => {
+        if (typeof window !== 'undefined') return localStorage.getItem('CHATGPT_REASONING_EFFORT') || "medium";
+        return "medium";
+    });
 
     // Load settings on mount
     useEffect(() => {
@@ -179,14 +189,8 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
         setCurrentChatId(initialChatId || null);
         chatIdRef.current = initialChatId || null;
     }, [initialChatId]);
-
-    // Update ref whenever state changes
-    useEffect(() => {
-        chatIdRef.current = currentChatId;
-    }, [currentChatId]);
-
-    // @ts-expect-error - useChat types mismatch
-    const { messages, isLoading, stop, setMessages, sendMessage } = useChat(useMemo(() => ({
+    // DEBUG: Inspect useChat return value
+    const chatHelpers = useChat(useMemo(() => ({
         api: '/api/chat',
         body: {
             model: currentModelId,
@@ -196,8 +200,9 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
         onError: (err: Error) => {
             console.error("Chat Error:", err);
         },
-        onFinish: async (message: Message) => {
-            console.log("Chat finished:", message);
+        onFinish: async (result: any) => {
+            // Handle both new (object wrapper) and old (direct message) signatures
+            const message = result.message || result;
             // Use ref to ensure we have the latest ID even if closure is stale
             const activeId = chatIdRef.current;
             if (activeId) {
@@ -223,7 +228,6 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                 if (!contentToSave && messagesRef.current.length > 0) {
                     const lastMsg = messagesRef.current[messagesRef.current.length - 1];
                     if (lastMsg.role === 'assistant') {
-                        console.log("Recovering content from state:", lastMsg);
                         if (lastMsg.parts && Array.isArray(lastMsg.parts) && lastMsg.parts.length > 0) {
                             contentToSave = lastMsg.parts;
                         } else if (lastMsg.content) {
@@ -252,6 +256,15 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
             }
         },
     }), [currentModelId, reasoningEffort]));
+
+    // @ts-expect-error - status might be present instead of isLoading in newer versions
+    const { messages, isLoading: originalIsLoading, status, stop, setMessages } = chatHelpers;
+
+    // Polyfill isLoading if it's missing, based on status
+    const isLoading = originalIsLoading ?? (status === 'submitted' || status === 'streaming');
+
+    // @ts-expect-error - Handle potential missing sendMessage by aliasing append
+    const sendMessage = chatHelpers.sendMessage || chatHelpers.append;
 
     // Sync messages ref whenever messages update
     useEffect(() => {
@@ -490,10 +503,6 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
         }
     };
 
-    // This function is no longer used by sidebar, but keeping it just in case we need a local reset
-    // Actually, we should probably remove it, but let's just leave it unused or use it if we had a "New Chat" button in main area
-    // const handleNewChat = () => { ... }; (Removed to avoid confusion)
-
     const textareaRef = useRef<HTMLTextAreaElement>(null);
 
     // Auto-resize textarea
@@ -522,9 +531,6 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
         // User said "gpt-oss-120b" from "openai/gpt-oss-120b:exacto" -> this logic:
         // 1. split by '/' -> "gpt-oss-120b:exacto"
         // 2. split by ':' -> "gpt-oss-120b"
-        // This seems correct per request.
-
-        setCurrentModelName(name);
         setIsCustomDialogOpen(false);
     };
 
@@ -652,18 +658,8 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
 
                         {/* Explicit generic Thinking indicator if loading but no assistant message yet */}
                         {!isMessagesLoading && isLoading && messages.length > 0 && messages[messages.length - 1].role === 'user' && (
-                            <div className="flex justify-start mb-6 w-full animate-in fade-in duration-300">
-                                <div className="w-8 h-8 flex-shrink-0 overflow-hidden flex items-center justify-center mr-4">
-                                    {/* Optional Avatar Placeholder if needed, else hidden */}
-                                </div>
-                                <div className="flex items-center gap-2 text-[var(--text-secondary)]">
-                                    <div className="flex space-x-[2px]">
-                                        <div className="w-1.5 h-1.5 bg-[var(--text-secondary)] rounded-full animate-[bounce_1s_infinite_0ms]"></div>
-                                        <div className="w-1.5 h-1.5 bg-[var(--text-secondary)] rounded-full animate-[bounce_1s_infinite_200ms]"></div>
-                                        <div className="w-1.5 h-1.5 bg-[var(--text-secondary)] rounded-full animate-[bounce_1s_infinite_400ms]"></div>
-                                    </div>
-                                    <span className="text-sm font-medium tracking-wide animate-pulse">Thinking...</span>
-                                </div>
+                            <div className="flex justify-start mb-6 w-full animate-in fade-in duration-300 px-4 md:px-6">
+                                <LoadingIndicator />
                             </div>
                         )}
 
@@ -801,6 +797,6 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                     </div>
                 </div>
             </main>
-        </div>
+        </div >
     );
 }
