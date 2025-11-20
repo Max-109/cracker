@@ -39,6 +39,8 @@
 - **State Management**: Complex interplay between local state (`currentChatId`) and `useChat` hook.
 - **Settings Persistence**: Uses `localStorage` to persist user preferences (`currentModelId`, `currentModelName`, `reasoningEffort`) across sessions.
 - **Infinite Loop Fix**: Uses `ignoreNextChatIdChangeRef` to prevent `useEffect` from overwriting `useChat` state when a new chat is created locally.
+- **Attachment UI**: Implemented a "ChatGPT-style" card-based preview for file attachments with image thumbnails and remove functionality.
+- **Multimodal Support**: correctly structures messages with mixed content (text + images) for the Vercel AI SDK, using `sendMessage` instead of `append` to fix runtime errors.
 - **Performance**:
   - Implements `ThrottledMessageItem` to throttle AI text updates to ~100ms (10fps) to prevent main thread blocking during high-speed token streaming.
   - Uses `FadeWrapper` for smooth loading transitions (skeleton -> content).
@@ -50,6 +52,7 @@
 
 ### `MessageItem.tsx` (The Core Renderer)
 - **Markdown**: `react-markdown` with `remark-gfm` (tables) and `remark-math` (LaTeX).
+- **Multimodal Rendering**: Supports rendering of image attachments within user messages.
 - **LaTeX Handling**:
   - **Critical Fix**: Preprocesses content to convert `\[...\]` and `\(...\)` to standard `$$` delimiters.
   - **Critical Fix**: Renders paragraphs as `<div>` instead of `<p>` to prevent hydration errors when `$$` blocks (which render as divs) are nested inside.
