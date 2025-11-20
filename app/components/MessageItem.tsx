@@ -7,12 +7,9 @@ import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import remarkGfm from 'remark-gfm';
 import rehypeKatex from 'rehype-katex';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import 'katex/dist/katex.min.css';
+import { CodeBlock } from './CodeBlock';
 import { cn } from '@/lib/utils';
-
-// Define plugins outside to avoid re-creation on every render
+import 'katex/dist/katex.min.css';
 const REMARK_PLUGINS = [remarkMath, remarkGfm];
 const REHYPE_PLUGINS = [rehypeKatex];
 
@@ -88,26 +85,11 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
       const { inline, className, children } = props;
       const match = /language-(\w+)/.exec(className || '');
       return !inline && match ? (
-        <div className="rounded-md overflow-hidden my-2">
-          <div className="flex items-center justify-between bg-[#2d2d2d] px-3 py-1.5 text-xs text-gray-400">
-            <span>{match[1]}</span>
-            <button
-              onClick={() => navigator.clipboard.writeText(String(children).replace(/\n$/, ''))}
-              className="hover:text-white transition-colors"
-            >
-              Copy
-            </button>
-          </div>
-          <SyntaxHighlighter
-            style={oneDark}
-            language={match[1]}
-            PreTag="div"
-            customStyle={{ margin: 0, borderRadius: 0, fontSize: '0.875rem' }}
-            {...props}
-          >
-            {String(children).replace(/\n$/, '')}
-          </SyntaxHighlighter>
-        </div>
+        <CodeBlock
+          language={match[1]}
+          value={String(children).replace(/\n$/, '')}
+          className="my-4"
+        />
       ) : (
         <code className={cn("bg-[var(--bg-hover)] px-1.5 py-0.5 rounded text-sm font-mono text-[var(--text-primary)]", className)} {...props}>
           {children}
