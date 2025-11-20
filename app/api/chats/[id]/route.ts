@@ -13,6 +13,19 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   }
 }
 
+export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const { id } = await params;
+    const { title } = await req.json();
+    if (!title) return NextResponse.json({ error: 'Title required' }, { status: 400 });
+    
+    await db.update(chats).set({ title }).where(eq(chats.id, id));
+    return NextResponse.json({ success: true });
+  } catch {
+    return NextResponse.json({ error: 'Failed to update chat' }, { status: 500 });
+  }
+}
+
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
     try {
         const { id } = await params;

@@ -1,7 +1,18 @@
-import { SquarePen, X } from 'lucide-react';
+import { SquarePen, X, Pencil, Trash2, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Skeleton } from './Skeleton';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { Input } from '@/components/ui/input';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 interface Chat {
   id: string;
@@ -16,6 +27,7 @@ interface SidebarProps {
   onSelectChat: (id: string) => void;
   onClose?: () => void;
   isLoading?: boolean;
+  onRefresh?: () => void;
 }
 
 function groupChatsByDate(chats: Chat[]) {
@@ -82,11 +94,83 @@ function FadeWrapper({ show, children, className, isAbsolute = false }: { show: 
     );
 }
 
-export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose, isLoading, className }: SidebarProps & { className?: string }) {
+export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose, isLoading, onRefresh, className }: SidebarProps & { className?: string }) {
   const groupedChats = groupChatsByDate(chats);
+  
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+      if (editingId && inputRef.current) {
+          inputRef.current.focus();
+      }
+  }, [editingId]);
+
+  const startRenaming = (chat: Chat, e: React.MouseEvent) => {
+      e.stopPropagation();
+      setEditingId(chat.id);
+      setRenameValue(chat.title || 'New Chat');
+  };
+
+  const handleRename = async () => {
+      if (!editingId) return;
+      const id = editingId;
+      const newTitle = renameValue.trim() || "New Chat";
+      
+      // Optimistic Update (optional, but let's wait for server)
+      try {
+         await fetch(`/api/chats/${id}`, {
+             method: 'PATCH',
+             headers: { 'Content-Type': 'application/json' },
+             body: JSON.stringify({ title: newTitle })
+         });
+         onRefresh?.();
+      } catch (e) {
+          console.error("Rename failed", e);
+      }
+      setEditingId(null);
+  };
+
+  const confirmDelete = (id: string, e: React.MouseEvent) => {
+      e.stopPropagation();
+      setDeleteId(id);
+  };
+
+  const handleDelete = async () => {
+      if (!deleteId) return;
+      try {
+          await fetch(`/api/chats/${deleteId}`, { method: 'DELETE' });
+          onRefresh?.();
+          if (currentChatId === deleteId) {
+              onNewChat();
+          }
+      } catch(e) {
+          console.error("Delete failed", e);
+      }
+      setDeleteId(null);
+  };
 
   return (
     <div className={cn("bg-[var(--bg-sidebar)] h-full flex flex-col p-3 border-r border-transparent relative", className)}>
+      
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
+        <AlertDialogContent className="bg-[var(--bg-sidebar)] border border-[var(--border-color)] text-[var(--text-primary)]">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete chat?</AlertDialogTitle>
+            <AlertDialogDescription className="text-[var(--text-secondary)]">
+              This will permanently delete your chat history. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="bg-transparent border-[var(--border-color)] text-[var(--text-primary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]">Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-red-600 text-white hover:bg-red-700 border-none">Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Sticky Header for New Chat */}
       <div className="mb-4 z-10 relative flex items-center gap-2">
          <button 
@@ -138,11 +222,54 @@ export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose
                                         key={chat.id}
                                         onClick={() => onSelectChat(chat.id)}
                                         className={cn(
-                                            "px-2 py-2 text-sm text-[var(--text-primary)] rounded-lg cursor-pointer truncate transition-colors mb-1",
+                                            "group relative px-2 py-2 text-sm text-[var(--text-primary)] rounded-lg cursor-pointer transition-colors mb-1 flex items-center justify-between",
                                             currentChatId === chat.id ? "bg-[var(--bg-hover)]" : "hover:bg-[var(--bg-hover)]"
                                         )}
                                     >
-                                        {chat.title || 'New Chat'}
+                                        {/* Render Title or Input */}
+                                        {editingId === chat.id ? (
+                                            <div className="flex-1 flex items-center gap-1 mr-1" onClick={(e) => e.stopPropagation()}>
+                                                <Input 
+                                                    ref={inputRef}
+                                                    value={renameValue}
+                                                    onChange={(e) => setRenameValue(e.target.value)}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter') handleRename();
+                                                        if (e.key === 'Escape') setEditingId(null);
+                                                    }}
+                                                    onBlur={handleRename}
+                                                    className="h-7 text-sm px-1 py-0 bg-[var(--bg-input)] border-none focus-visible:ring-1 focus-visible:ring-[var(--ring)]"
+                                                />
+                                                <button onClick={handleRename} className="p-1 hover:text-green-400 text-[var(--text-secondary)]">
+                                                    <Check size={14} />
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <>
+                                                <span className="truncate flex-1 pr-2">{chat.title || 'New Chat'}</span>
+                                                
+                                                {/* Hover Actions (Pencil, Trash) */}
+                                                {/* Only show if not editing */}
+                                                {!editingId && (
+                                                    <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-l from-[var(--bg-sidebar)] via-[var(--bg-sidebar)] to-transparent pl-2">
+                                                        <button 
+                                                            onClick={(e) => startRenaming(chat, e)}
+                                                            className="p-1 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[#424242] rounded"
+                                                            title="Rename"
+                                                        >
+                                                            <Pencil size={14} />
+                                                        </button>
+                                                        <button 
+                                                            onClick={(e) => confirmDelete(chat.id, e)}
+                                                            className="p-1 text-[var(--text-secondary)] hover:text-red-400 hover:bg-[#424242] rounded"
+                                                            title="Delete"
+                                                        >
+                                                            <Trash2 size={14} />
+                                                        </button>
+                                                    </div>
+                                                )}
+                                            </>
+                                        )}
                                     </div>
                                 ))}
                             </div>

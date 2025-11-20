@@ -78,7 +78,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             )}
 
             <div className={cn(
-                "fixed inset-y-0 left-0 z-40 w-[260px] transition-transform duration-300 md:relative md:translate-x-0",
+                "fixed inset-y-0 left-0 z-40 w-[240px] transition-transform duration-300 md:relative md:translate-x-0",
                 isSidebarOpen ? "translate-x-0" : "-translate-x-full"
             )}>
                  <Sidebar 
@@ -88,6 +88,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                     onSelectChat={handleSelectChat} 
                     onClose={closeSidebar}
                     isLoading={isLoading}
+                    onRefresh={refreshChats}
                     className="w-full" 
                  />
             </div>
