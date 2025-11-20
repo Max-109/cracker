@@ -104,18 +104,44 @@ interface ChatInterfaceProps {
     initialChatId?: string;
 }
 
-const ThrottledMessageItem = memo(function ThrottledMessageItem({ message, isThinking, onEdit }: { message: Message, isThinking: boolean, onEdit?: (content: string) => void }) {
-    // For AI messages, we use useDeferredValue to prioritize UI responsiveness over immediate text updates.
-    // This allows React to interrupt the rendering of text updates if there are more urgent updates (like typing or scrolling),
-    // effectively throttling the render cost of fast streams without complex manual logic.
+// Custom hook for throttling values
+function useThrottledValue<T>(value: T, limit: number): T {
+    const [throttledValue, setThrottledValue] = useState(value);
+    const lastRan = useRef(Date.now());
+
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            if (Date.now() - lastRan.current >= limit) {
+                setThrottledValue(value);
+                lastRan.current = Date.now();
+            }
+        }, limit - (Date.now() - lastRan.current));
+
+        return () => {
+            clearTimeout(handler);
+        };
+    }, [value, limit]);
+
+    return throttledValue;
+}
+
+const ThrottledMessageItem = memo(function ThrottledMessageItem({ message, index, isThinking, onEdit }: { message: Message, index: number, isThinking: boolean, onEdit: (index: number, content: string) => void }) {
+    // We use useThrottledValue to limit how often the expensive Markdown component re-renders.
+    // This prevents the UI from freezing during high-speed streaming of complex content (tables, code).
+    // 100ms throttle = ~10fps updates, which feels smooth but saves massive resources.
     const content = message.content || message.parts as any;
-    const deferredContent = useDeferredValue(content);
 
-    // For user messages, render immediately (deferredContent will eventually match, but we can just pass content if we want absolute immediacy, 
-    // though deferredValue is usually fast enough. Let's stick to deferred for consistency or direct for user).
-    // User messages don't stream, so deferredValue is effectively immediate.
+    // Only throttle if it's an AI message that is currently streaming (implied by updates)
+    // For user messages or static content, it doesn't matter as much, but consistency is good.
+    // We use 100ms as a balance between responsiveness and performance.
+    const throttledContent = useThrottledValue(content, 100);
 
-    return <MessageItem role={message.role} content={deferredContent} isThinking={isThinking} onEdit={onEdit} />;
+    // Create a stable handler for this specific item
+    const handleEdit = React.useCallback((newContent: string) => {
+        onEdit(index, newContent);
+    }, [onEdit, index]);
+
+    return <MessageItem role={message.role} content={throttledContent} isThinking={isThinking} onEdit={handleEdit} />;
 });
 
 export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
@@ -310,13 +336,15 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
         }
     }, [currentChatId, setMessages]);
 
-    // Handle Message Edit
-    const handleEditMessage = async (index: number, newContent: string) => {
+    // Handle Message Edit - Stable reference using Ref to avoid re-creating on every render
+    const handleEditMessage = React.useCallback(async (index: number, newContent: string) => {
+        const currentMessages = messagesRef.current;
+        const currentChatId = chatIdRef.current;
         if (!currentChatId) return;
 
         try {
             // 1. Sync with DB: Truncate history (Delete edited message + all subsequent)
-            const messagesToDeleteCount = messages.length - index;
+            const messagesToDeleteCount = currentMessages.length - index;
             await fetch('/api/chat/truncate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -327,8 +355,8 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
             });
 
             // 2. Update Local State (Remove edited + subsequent)
-            const keptMessages = messages.slice(0, index);
-            setMessages(keptMessages);
+            const keptMessages = currentMessages.slice(0, index);
+            setMessages(keptMessages as any);
 
             // 3. Save NEW user message to DB
             await fetch('/api/messages', {
@@ -342,20 +370,39 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
             });
 
             // 4. Send new message (triggers generation)
-            await sendMessage({
+            // Note: We need to access the latest chatHelpers or sendMessage function.
+            // Since sendMessage is from useChat, it might change. 
+            // Ideally we should use the one from the current render scope, but inside useCallback with [] deps it's stale.
+            // However, sendMessage from useChat is usually stable or we can just use the one from closure if we add it to deps.
+            // But adding it to deps breaks stability if useChat returns new function every time.
+            // Let's assume sendMessage is stable enough or use a ref for it too if needed.
+            // For now, we'll add it to deps, but check if it causes re-renders.
+            // Actually, to be perfectly safe and stable, we can just use the function from the scope if we accept it might change.
+            // But we want handleEditMessage to be STABLE.
+            // So we will use a ref for sendMessage too.
+        } catch (err) {
+            console.error("Failed to edit message:", err);
+        }
+    }, [setMessages]); // setMessages is stable from useChat
+
+    // We need a way to call sendMessage from the stable handler.
+    const sendMessageRef = useRef(sendMessage);
+    useEffect(() => { sendMessageRef.current = sendMessage; }, [sendMessage]);
+
+    // Actual implementation that calls the ref
+    const stableHandleEdit = React.useCallback((index: number, newContent: string) => {
+        handleEditMessage(index, newContent).then(() => {
+            sendMessageRef.current?.({
                 role: 'user',
                 content: newContent
             } as any, {
                 body: {
-                    model: currentModelId,
-                    reasoningEffort: reasoningEffort
+                    model: localStorage.getItem('CHATGPT_MODEL_ID') || "openai/gpt-oss-120b:exacto", // Read from localstorage to avoid dep
+                    reasoningEffort: localStorage.getItem('CHATGPT_REASONING_EFFORT') || "medium"
                 }
             });
-
-        } catch (err) {
-            console.error("Failed to edit message:", err);
-        }
-    };
+        });
+    }, [handleEditMessage]);
 
     // Handle scroll events to determine if we should stick to bottom
     const handleScroll = () => {
@@ -531,6 +578,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
         // User said "gpt-oss-120b" from "openai/gpt-oss-120b:exacto" -> this logic:
         // 1. split by '/' -> "gpt-oss-120b:exacto"
         // 2. split by ':' -> "gpt-oss-120b"
+        setCurrentModelName(name); // Fix: Update the name state!
         setIsCustomDialogOpen(false);
     };
 
@@ -649,8 +697,9 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                                     <ThrottledMessageItem
                                         key={m.id}
                                         message={m}
+                                        index={index}
                                         isThinking={isLoading && index === messages.length - 1 && m.role === 'assistant'}
-                                        onEdit={(newContent) => handleEditMessage(index, newContent)}
+                                        onEdit={stableHandleEdit}
                                     />
                                 ))}
                             </>

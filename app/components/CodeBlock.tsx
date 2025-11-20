@@ -12,7 +12,7 @@ interface CodeBlockProps {
     className?: string;
 }
 
-export function CodeBlock({ language, value, className }: CodeBlockProps) {
+export const CodeBlock = React.memo(function CodeBlock({ language, value, className }: CodeBlockProps) {
     const [isCopied, setIsCopied] = useState(false);
 
     const handleCopy = async () => {
@@ -80,4 +80,4 @@ export function CodeBlock({ language, value, className }: CodeBlockProps) {
             </div>
         </div>
     );
-}
+});
