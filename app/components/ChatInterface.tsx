@@ -614,7 +614,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                         {isModelMenuOpen && (
                             <>
                                 <div className="fixed inset-0 z-10" onClick={() => setIsModelMenuOpen(false)}></div>
-                                <div className="absolute top-full left-0 mt-1 w-[220px] bg-[var(--bg-sidebar)] border border-[var(--border-color)] rounded-xl shadow-xl overflow-hidden z-20 p-1 animate-in fade-in zoom-in-95 duration-100 origin-top-left">
+                                <div className="absolute top-full right-0 md:left-0 md:right-auto mt-1 w-[220px] bg-[var(--bg-sidebar)] border border-[var(--border-color)] rounded-xl shadow-xl overflow-hidden z-20 p-1 animate-in fade-in zoom-in-95 duration-100 origin-top-right md:origin-top-left">
                                     <div className="px-2 py-2 text-xs font-medium text-[var(--text-secondary)]">Select Model</div>
 
                                     <button
