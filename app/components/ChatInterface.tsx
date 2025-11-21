@@ -149,18 +149,9 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
     const { refreshChats, toggleSidebar } = useChatContext();
 
     // User Settings State with LocalStorage Persistence
-    const [currentModelId, setCurrentModelId] = useState(() => {
-        if (typeof window !== 'undefined') return localStorage.getItem('CHATGPT_MODEL_ID') || "x-ai/grok-4.1-fast";
-        return "x-ai/grok-4.1-fast";
-    });
-    const [currentModelName, setCurrentModelName] = useState(() => {
-        if (typeof window !== 'undefined') return localStorage.getItem('CHATGPT_MODEL_NAME') || "Smart";
-        return "Smart";
-    });
-    const [reasoningEffort, setReasoningEffort] = useState(() => {
-        if (typeof window !== 'undefined') return localStorage.getItem('CHATGPT_REASONING_EFFORT') || "medium";
-        return "medium";
-    });
+    const [currentModelId, setCurrentModelId] = useState("x-ai/grok-4.1-fast");
+    const [currentModelName, setCurrentModelName] = useState("Smart");
+    const [reasoningEffort, setReasoningEffort] = useState("medium");
 
     // Load settings on mount
     useEffect(() => {
