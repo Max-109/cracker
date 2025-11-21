@@ -22,7 +22,7 @@ export async function POST(req: Request) {
     console.log(`Starting streamText with ${modelId} (Effort: ${effort})...`);
 
     // Manual conversion to ensure compatibility with multimodal content
-    const coreMessages = messages.map((m: { role: string; content: unknown; parts?: { type: string; text?: string; image?: string }[] }) => {
+    const coreMessages = messages.map((m: { role: string; content: unknown; parts?: { type: string; text?: string; image?: string; data?: string; mimeType?: string }[] }) => {
       // Handle multimodal content array (from useChat with attachments)
       if (Array.isArray(m.content)) {
         return {
@@ -30,6 +30,17 @@ export async function POST(req: Request) {
           content: m.content.map(part => {
             if (part.type === 'image') {
               return { type: 'image', image: part.image };
+            }
+            if (part.type === 'file') {
+              // FIX: 'file' type is not standard in CoreMessage.
+              // Map to 'image' for PDFs/Images as many providers handle them this way.
+              // If it's text, we should have handled it on client, but if it comes here as file:
+              if (part.mimeType?.startsWith('image/') || part.mimeType === 'application/pdf') {
+                return { type: 'image', image: part.data, mimeType: part.mimeType };
+              }
+              // Fallback: Try sending as image anyway or text?
+              // Let's try sending as image with the mimeType, as that's the most likely way to pass binary data.
+              return { type: 'image', image: part.data, mimeType: part.mimeType };
             }
             return { type: 'text', text: part.text };
           })
@@ -64,7 +75,8 @@ export async function POST(req: Request) {
     });
     console.log("streamText initiated successfully.");
 
-    // Use the UI Message Stream response format which works with @ai-sdk/react useChat
+    // Use the Data Stream response format which is more flexible and handles annotations better
+    // Revert to UIMessageStreamResponse for now as toDataStreamResponse seems unavailable in this environment
     return result.toUIMessageStreamResponse();
   } catch (error: unknown) {
     console.error("API Route Error:", error);

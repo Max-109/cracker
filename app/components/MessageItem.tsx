@@ -2,7 +2,7 @@
 
 import React, { memo } from 'react'; // Added memo
 import { useState, useEffect, useMemo, useRef } from 'react'; // Added useMemo, useRef
-import { Copy, RefreshCw, ThumbsUp, ThumbsDown, Check, Plus, Minus, Pencil } from 'lucide-react';
+import { Copy, RefreshCw, ThumbsUp, ThumbsDown, Check, Plus, Minus, Pencil, File as FileIcon } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import remarkGfm from 'remark-gfm';
@@ -18,6 +18,8 @@ interface MessagePart {
   type: string;
   text?: string;
   image?: string; // Added image property
+  data?: string; // For generic files
+  mimeType?: string;
   reasoning?: string;
   [key: string]: unknown;
 }
@@ -70,6 +72,17 @@ const preprocessLaTeX = (content: string) => {
   processed = processed.replace(/\\\(([\s\S]*?)\\\)/g, '$$$1$$');
 
   return processed;
+};
+
+// Helper to format MIME types
+const formatMimeType = (mime: string) => {
+  if (!mime) return 'FILE';
+  if (mime === 'application/pdf') return 'PDF';
+  if (mime.startsWith('image/')) return mime.split('/')[1].toUpperCase();
+  if (mime.includes('text/')) return 'TXT';
+  if (mime.includes('word')) return 'DOC';
+  if (mime.includes('excel') || mime.includes('spreadsheet')) return 'XLS';
+  return mime.split('/')[1]?.toUpperCase() || 'FILE';
 };
 
 export const MessageItem = memo(function MessageItem({ role, content, isThinking, onEdit }: MessageItemProps) {
@@ -177,6 +190,22 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
           userText += part.text;
         } else if (part.type === 'image' && part.image) {
           userImages.push(part.image);
+        } else if (part.type === 'file' && part.data) {
+          // Treat files as images if they are images (fallback), otherwise store for file rendering
+          // Actually, let's separate files from images for rendering
+          // For now, we'll add a separate array for files
+        }
+      });
+    }
+
+    // Separate extraction for files to keep logic clean
+    const userFiles: { data: string; mimeType: string; name?: string }[] = [];
+    if (Array.isArray(safeContent)) {
+      safeContent.forEach(part => {
+        if (part.type === 'file' && part.data) {
+          // Extract name if available
+          const fileName = part.name || 'File Attachment';
+          userFiles.push({ data: part.data, mimeType: part.mimeType || 'application/octet-stream', name: fileName as string });
         }
       });
     }
@@ -225,6 +254,23 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
               {userImages.map((img, idx) => (
                 <div key={idx} className="relative rounded-xl overflow-hidden border border-[var(--border-color)]">
                   <img src={img} alt={`Attachment ${idx + 1}`} className="max-w-[200px] max-h-[200px] object-cover" />
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Render Files if any */}
+          {userFiles.length > 0 && (
+            <div className="flex flex-wrap justify-end gap-2 mb-2">
+              {userFiles.map((file, idx) => (
+                <div key={idx} className="flex items-center gap-3 bg-[var(--bg-sidebar)] border border-[var(--border-color)] rounded-xl p-3 max-w-[250px]">
+                  <div className="w-10 h-10 bg-[var(--bg-hover)] rounded-lg flex items-center justify-center flex-shrink-0">
+                    <FileIcon className="text-[var(--text-secondary)]" size={20} />
+                  </div>
+                  <div className="flex flex-col overflow-hidden">
+                    <span className="text-sm font-medium text-[var(--text-primary)] truncate">{file.name}</span>
+                    <span className="text-xs text-[var(--text-secondary)] truncate">{formatMimeType(file.mimeType)}</span>
+                  </div>
                 </div>
               ))}
             </div>

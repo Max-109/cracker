@@ -434,13 +434,13 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
         });
     };
 
-    const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const handleFileSelect = React.useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
         if (e.target.files && e.target.files.length > 0) {
             setAttachments(prev => [...prev, ...Array.from(e.target.files!)]);
             // Reset input so same file can be selected again if needed
             e.target.value = '';
         }
-    };
+    }, []);
 
     const removeAttachment = (index: number) => {
         setAttachments(prev => prev.filter((_, i) => i !== index));
@@ -453,11 +453,17 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
 
         // Convert attachments to base64
         const processedAttachments = attachments.length > 0
-            ? await Promise.all(attachments.map(async (file) => ({
-                name: file.name,
-                type: file.type,
-                url: await convertFileToBase64(file)
-            })))
+            ? await Promise.all(attachments.map(async (file) => {
+                const url = await convertFileToBase64(file);
+                const isImage = file.type.startsWith('image/');
+                return {
+                    name: file.name,
+                    type: isImage ? 'image' : 'file',
+                    mimeType: file.type,
+                    data: url, // For files, we send the data URL as 'data'
+                    image: isImage ? url : undefined // For images, we send as 'image'
+                };
+            }))
             : [];
 
         setInput(''); // Clear input immediately
@@ -497,10 +503,13 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                 // Structure for Vercel AI SDK 'user' message with mixed content
                 finalContent = [
                     { type: 'text', text: userMessage },
-                    ...processedAttachments.map(att => ({
-                        type: 'image',
-                        image: att.url // data URL
-                    }))
+                    ...processedAttachments.map(att => {
+                        if (att.type === 'image') {
+                            return { type: 'image', image: att.image };
+                        }
+                        // For generic files, include name
+                        return { type: 'file', data: att.data, mimeType: att.mimeType, name: att.name };
+                    })
                 ];
             }
 
@@ -752,7 +761,10 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                                                 onLoad={(e) => URL.revokeObjectURL(e.currentTarget.src)}
                                             />
                                         ) : (
-                                            <FileIcon className="text-[var(--text-secondary)]" size={24} />
+                                            <div className="flex flex-col items-center justify-center w-full h-full bg-[var(--bg-hover)] p-1">
+                                                <FileIcon className="text-[var(--text-secondary)] mb-1" size={20} />
+                                                <span className="text-[10px] text-[var(--text-secondary)] truncate w-full text-center px-1">{file.name}</span>
+                                            </div>
                                         )}
 
                                         <button
