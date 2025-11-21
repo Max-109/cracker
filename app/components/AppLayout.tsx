@@ -72,13 +72,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 {/* Mobile Overlay */}
                 {isSidebarOpen && (
                     <div
-                        className="fixed inset-0 bg-black/50 z-30 md:hidden fade-in duration-200"
+                        className="fixed inset-0 bg-black/50 z-[55] md:hidden fade-in duration-200"
                         onClick={closeSidebar}
                     />
                 )}
 
                 <div className={cn(
-                    "fixed inset-y-0 left-0 z-40 w-[240px] transition-transform duration-300 md:relative md:translate-x-0",
+                    "fixed inset-y-0 left-0 z-[60] w-[240px] transition-transform duration-300 md:relative md:translate-x-0",
                     isSidebarOpen ? "translate-x-0" : "-translate-x-full"
                 )}>
                     <Sidebar
