@@ -409,8 +409,12 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
 
     // Auto-scroll effect (Moved after messages definition)
     useEffect(() => {
-        if (shouldAutoScroll && messagesEndRef.current) {
-            messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+        if (shouldAutoScroll && scrollContainerRef.current) {
+            const { scrollHeight, clientHeight } = scrollContainerRef.current;
+            scrollContainerRef.current.scrollTo({
+                top: scrollHeight - clientHeight,
+                behavior: "smooth"
+            });
         }
     }, [messages, shouldAutoScroll]);
 
