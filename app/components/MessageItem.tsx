@@ -86,7 +86,7 @@ const formatMimeType = (mime: string) => {
 };
 
 export const MessageItem = memo(function MessageItem({ role, content, isThinking, onEdit }: MessageItemProps) {
-  const [isThinkingOpen, setIsThinkingOpen] = useState(!!isThinking);
+  const [isThinkingOpen, setIsThinkingOpen] = useState(false);
   const [thinkingLabel, setThinkingLabel] = useState("Thinking");
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState("");
@@ -149,14 +149,6 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
     setThinkingLabel(THINKING_LABELS[Math.floor(Math.random() * THINKING_LABELS.length)]);
   }, []);
 
-  useEffect(() => {
-    if (isThinking) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setIsThinkingOpen(true);
-    }
-  }, [isThinking]);
-
-  // Auto-resize edit textarea
   useEffect(() => {
     if (isEditing && textareaRef.current) {
       textareaRef.current.style.height = 'auto';
@@ -354,7 +346,6 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
   thinkContent = preprocessLaTeX(thinkContent);
 
   const hasThinking = (!!thinkContent || isThinking) && thinkContent.length > 0;
-  const isThinkingValues = isThinking && !finalContent;
 
   return (
     <div className="w-full mb-6 group">
@@ -384,11 +375,6 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
                       {thinkContent}
                     </ReactMarkdown>
                   </div>
-                  {isThinkingValues && (
-                    <div className="mt-3">
-                      <LoadingIndicator label="processing" className="scale-90 origin-left" />
-                    </div>
-                  )}
                 </div>
               )}
             </div>
@@ -406,14 +392,11 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
                   {finalContent}
                 </ReactMarkdown>
               </div>
-              {isThinking && finalContent && (
-                <LoadingIndicator label="processing" className="scale-95 origin-left" />
-              )}
             </div>
           ) : (
             (isThinking && !hasThinking) ? (
               <div className="flex items-center gap-3 text-[var(--text-secondary)]">
-                <LoadingIndicator />
+                <ThinkingIcon />
               </div>
             ) : null
           )}

@@ -35,27 +35,27 @@ function groupChatsByDate(chats: Chat[]) {
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
-    const sevenDaysAgo = new Date(today);
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-    const groups: Record<string, Chat[]> = {
-        'Today': [],
-        'Yesterday': [],
-        'Previous 7 Days': [],
-        'Older': []
-    };
+    const sorted = [...chats].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    const groups: { label: string; chats: Chat[] }[] = [];
+    const groupMap = new Map<string, { label: string; chats: Chat[] }>();
 
-    chats.forEach(chat => {
+    sorted.forEach(chat => {
         const chatDate = new Date(chat.createdAt);
+        let label = chatDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
         if (chatDate >= today) {
-            groups['Today'].push(chat);
+            label = 'Today';
         } else if (chatDate >= yesterday) {
-            groups['Yesterday'].push(chat);
-        } else if (chatDate >= sevenDaysAgo) {
-            groups['Previous 7 Days'].push(chat);
-        } else {
-            groups['Older'].push(chat);
+            label = 'Yesterday';
         }
+
+        if (!groupMap.has(label)) {
+            const group = { label, chats: [] as Chat[] };
+            groupMap.set(label, group);
+            groups.push(group);
+        }
+        groupMap.get(label)!.chats.push(chat);
     });
 
     return groups;
@@ -213,11 +213,11 @@ export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose
             {/* Content State - Relative Flow */}
             <FadeWrapper show={!isLoading} isAbsolute={false}>
                 <div className="pb-4">
-                    {Object.entries(groupedChats).map(([label, group]) => (
-                        group.length > 0 && (
+                    {groupedChats.map(({ label, chats }) => (
+                        chats.length > 0 && (
                             <div key={label} className="mb-4">
-                                <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--text-secondary)] px-2 py-2">{label}</div>
-                                {group.map((chat) => (
+                                <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--text-accent)] px-2 py-2">{label}</div>
+                                {chats.map((chat) => (
                                     <div
                                         key={chat.id}
                                         onClick={() => onSelectChat(chat.id)}

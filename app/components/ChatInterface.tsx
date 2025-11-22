@@ -148,24 +148,15 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
     // const router = useRouter(); // Removed unused
     const { refreshChats, toggleSidebar } = useChatContext();
 
+    const getSetting = (key: string, fallback: string) => {
+        if (typeof window === 'undefined') return fallback;
+        return localStorage.getItem(key) || fallback;
+    };
+
     // User Settings State with LocalStorage Persistence
-    const [currentModelId, setCurrentModelId] = useState("x-ai/grok-4.1-fast");
-    const [currentModelName, setCurrentModelName] = useState("Smart");
-    const [reasoningEffort, setReasoningEffort] = useState("medium");
-
-    // Load settings on mount
-    useEffect(() => {
-        const loadSettings = () => {
-            const savedModelId = localStorage.getItem('CHATGPT_MODEL_ID');
-            const savedModelName = localStorage.getItem('CHATGPT_MODEL_NAME');
-            const savedEffort = localStorage.getItem('CHATGPT_REASONING_EFFORT');
-
-            if (savedModelId) setCurrentModelId(savedModelId);
-            if (savedModelName) setCurrentModelName(savedModelName);
-            if (savedEffort) setReasoningEffort(savedEffort);
-        };
-        loadSettings();
-    }, []);
+    const [currentModelId, setCurrentModelId] = useState(() => getSetting('CHATGPT_MODEL_ID', "x-ai/grok-4.1-fast"));
+    const [currentModelName, setCurrentModelName] = useState(() => getSetting('CHATGPT_MODEL_NAME', "Smart"));
+    const [reasoningEffort, setReasoningEffort] = useState(() => getSetting('CHATGPT_REASONING_EFFORT', "medium"));
 
     // Save settings on change
     useEffect(() => {
@@ -795,8 +786,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
 
                             <div className="flex-1">
                                 <div className="border-t border-[var(--border-color)] pt-3">
-                                    <div className="flex items-start gap-2">
-                                        <span className="text-[var(--text-accent)] pt-2">{'>'}</span>
+                                    <div className="flex items-start">
                                         <textarea
                                             ref={textareaRef}
                                             value={input}
