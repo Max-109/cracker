@@ -14,8 +14,9 @@ export interface Message {
 import { MessageItem } from './MessageItem';
 import { Skeleton } from './Skeleton';
 import { LoadingIndicator } from './LoadingIndicator';
-import { ArrowUp, Paperclip, ChevronDown, PanelLeft, Square, Check, Sparkles, X, File as FileIcon } from 'lucide-react';
+import { HexColorPicker } from "react-colorful";
 import { useState, useRef, useEffect } from 'react';
+import { ArrowUp, Paperclip, ChevronDown, PanelLeft, Square, Check, Sparkles, X, File as FileIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 // import { useRouter } from 'next/navigation'; // Removed unused
 import { useChatContext } from './ChatContext';
@@ -100,6 +101,46 @@ function FadeWrapper({ show, children, className }: { show: boolean; children: R
     );
 }
 
+function hexToHSL(hex: string): { h: number, s: number, l: number } | null {
+    let r = 0, g = 0, b = 0;
+    if (hex.length === 4) {
+        r = parseInt("0x" + hex[1] + hex[1]);
+        g = parseInt("0x" + hex[2] + hex[2]);
+        b = parseInt("0x" + hex[3] + hex[3]);
+    } else if (hex.length === 7) {
+        r = parseInt("0x" + hex[1] + hex[2]);
+        g = parseInt("0x" + hex[3] + hex[4]);
+        b = parseInt("0x" + hex[5] + hex[6]);
+    } else {
+        return null;
+    }
+
+    r /= 255;
+    g /= 255;
+    b /= 255;
+    const cmin = Math.min(r, g, b),
+        cmax = Math.max(r, g, b),
+        delta = cmax - cmin;
+    let h = 0,
+        s = 0,
+        l = 0;
+
+    if (delta === 0) h = 0;
+    else if (cmax === r) h = ((g - b) / delta) % 6;
+    else if (cmax === g) h = (b - r) / delta + 2;
+    else h = (r - g) / delta + 4;
+
+    h = Math.round(h * 60);
+    if (h < 0) h += 360;
+
+    l = (cmax + cmin) / 2;
+    s = delta === 0 ? 0 : delta / (1 - Math.abs(2 * l - 1));
+    s = +(s * 100).toFixed(1);
+    l = +(l * 100).toFixed(1);
+
+    return { h, s, l };
+}
+
 interface ChatInterfaceProps {
     initialChatId?: string;
 }
@@ -125,7 +166,7 @@ function useThrottledValue<T>(value: T, limit: number): T {
     return throttledValue;
 }
 
-const ThrottledMessageItem = memo(function ThrottledMessageItem({ message, index, isThinking, onEdit }: { message: Message, index: number, isThinking: boolean, onEdit: (index: number, content: string) => void }) {
+const ThrottledMessageItem = memo(function ThrottledMessageItem({ message, index, isThinking, onEdit, onRetry }: { message: Message, index: number, isThinking: boolean, onEdit: (index: number, content: string) => void, onRetry: () => void }) {
     // We use useThrottledValue to limit how often the expensive Markdown component re-renders.
     // This prevents the UI from freezing during high-speed streaming of complex content (tables, code).
     // 100ms throttle = ~10fps updates, which feels smooth but saves massive resources.
@@ -141,7 +182,7 @@ const ThrottledMessageItem = memo(function ThrottledMessageItem({ message, index
         onEdit(index, newContent);
     }, [onEdit, index]);
 
-    return <MessageItem role={message.role} content={throttledContent} isThinking={isThinking} onEdit={handleEdit} />;
+    return <MessageItem role={message.role} content={throttledContent} isThinking={isThinking} onEdit={handleEdit} onRetry={onRetry} />;
 });
 
 export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
@@ -157,6 +198,29 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
     const [currentModelId, setCurrentModelId] = useState(() => getSetting('CHATGPT_MODEL_ID', "x-ai/grok-4.1-fast"));
     const [currentModelName, setCurrentModelName] = useState(() => getSetting('CHATGPT_MODEL_NAME', "Smart"));
     const [reasoningEffort, setReasoningEffort] = useState(() => getSetting('CHATGPT_REASONING_EFFORT', "medium"));
+
+    // Accent Color State
+    const [accentColor, setAccentColor] = useState(() => getSetting('CHATGPT_ACCENT_COLOR', '#F5C542'));
+    const [isColorMenuOpen, setIsColorMenuOpen] = useState(false);
+
+    // Apply Accent Color
+    useEffect(() => {
+        localStorage.setItem('CHATGPT_ACCENT_COLOR', accentColor);
+        const root = document.documentElement;
+        root.style.setProperty('--text-accent', accentColor);
+        root.style.setProperty('--border-active', accentColor);
+        root.style.setProperty('--primary', accentColor);
+        root.style.setProperty('--accent-foreground', accentColor);
+        root.style.setProperty('--ring', accentColor);
+        root.style.setProperty('--chart-1', accentColor);
+        // Also update thinking loader variables
+        const hsl = hexToHSL(accentColor);
+        if (hsl) {
+            root.style.setProperty('--accent-h', hsl.h.toString());
+            root.style.setProperty('--accent-s', `${hsl.s}%`);
+            root.style.setProperty('--accent-l', `${hsl.l}%`);
+        }
+    }, [accentColor]);
 
     // Save settings on change
     useEffect(() => {
@@ -266,7 +330,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
     }), [currentModelId, reasoningEffort]));
 
     // @ts-expect-error - status might be present instead of isLoading in newer versions
-    const { messages, isLoading: originalIsLoading, status, stop, setMessages } = chatHelpers;
+    const { messages, isLoading: originalIsLoading, status, stop, setMessages, regenerate } = chatHelpers;
 
     // Polyfill isLoading if it's missing, based on status
     const isLoading = originalIsLoading ?? (status === 'submitted' || status === 'streaming');
@@ -601,69 +665,100 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                         </button>
                     </div>
 
-                    {/* Model Selector */}
-                    <div className="relative ml-auto md:ml-0 md:mr-auto">
-                        <button
-                            onClick={() => setIsModelMenuOpen(!isModelMenuOpen)}
-                            className="flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)] px-3 py-2 border border-[var(--border-color)] hover:border-[var(--border-active)] uppercase tracking-[0.16em]"
-                        >
-                            <span>{currentModelName}</span>
-                            <ChevronDown size={16} className="text-[var(--text-secondary)]" />
-                        </button>
+                    {/* Model Selector & Color Picker */}
+                    <div className="flex items-center gap-2 ml-auto md:ml-0 md:mr-auto">
+                        <div className="relative">
+                            <button
+                                onClick={() => setIsModelMenuOpen(!isModelMenuOpen)}
+                                className="flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)] px-3 py-2 border border-[var(--border-color)] hover:border-[var(--border-active)] uppercase tracking-[0.16em]"
+                            >
+                                <span>{currentModelName}</span>
+                                <ChevronDown size={16} className="text-[var(--text-secondary)]" />
+                            </button>
 
-                        {isModelMenuOpen && (
-                            <>
-                                <div className="fixed inset-0 z-10" onClick={() => setIsModelMenuOpen(false)}></div>
-                                <div className="absolute top-full right-0 md:left-0 md:right-auto mt-1 w-[240px] bg-[var(--bg-sidebar)] border border-[var(--border-color)] overflow-hidden z-20 p-2 animate-in fade-in zoom-in-95 duration-100 origin-top-right md:origin-top-left">
-                                    <div className="px-2 py-2 text-[11px] uppercase tracking-[0.16em] font-semibold text-[var(--text-secondary)]">Select Model</div>
+                            {isModelMenuOpen && (
+                                <>
+                                    <div className="fixed inset-0 z-10" onClick={() => setIsModelMenuOpen(false)}></div>
+                                    <div className="absolute top-full right-0 md:left-0 md:right-auto mt-1 w-[240px] bg-[var(--bg-sidebar)] border border-[var(--border-color)] overflow-hidden z-20 p-2 animate-in fade-in zoom-in-95 duration-100 origin-top-right md:origin-top-left">
+                                        <div className="px-2 py-2 text-[11px] uppercase tracking-[0.16em] font-semibold text-[var(--text-secondary)]">Select Model</div>
 
-                                    <button
-                                        onClick={() => { setCurrentModelId("x-ai/grok-4.1-fast"); setCurrentModelName("Smart"); setIsModelMenuOpen(false); }}
-                                        className="flex items-center justify-between w-full text-left px-3 py-2 hover:bg-[#0a0a0a] text-sm transition-colors border border-transparent"
-                                    >
-                                        <div className="flex flex-col">
-                                            <span className="text-[var(--text-primary)] font-semibold uppercase tracking-[0.12em]">Smart</span>
-                                            <span className="text-[var(--text-secondary)] text-[11px]">Grok 4.1 Fast</span>
+                                        <button
+                                            onClick={() => { setCurrentModelId("x-ai/grok-4.1-fast"); setCurrentModelName("Smart"); setIsModelMenuOpen(false); }}
+                                            className="flex items-center justify-between w-full text-left px-3 py-2 hover:bg-[#0a0a0a] text-sm transition-colors border border-transparent"
+                                        >
+                                            <div className="flex flex-col">
+                                                <span className="text-[var(--text-primary)] font-semibold uppercase tracking-[0.12em]">Smart</span>
+                                                <span className="text-[var(--text-secondary)] text-[11px]">Grok 4.1 Fast</span>
+                                            </div>
+                                            {currentModelId === "x-ai/grok-4.1-fast" && <Check size={16} />}
+                                        </button>
+
+                                        <button
+                                            onClick={() => { setCurrentModelId("openai/gpt-oss-safeguard-20b"); setCurrentModelName("Ultra-Fast"); setIsModelMenuOpen(false); }}
+                                            className="flex items-center justify-between w-full text-left px-3 py-2 hover:bg-[#0a0a0a] text-sm transition-colors border border-transparent"
+                                        >
+                                            <div className="flex flex-col">
+                                                <span className="text-[var(--text-primary)] font-semibold uppercase tracking-[0.12em]">Ultra-Fast</span>
+                                                <span className="text-[var(--text-secondary)] text-[11px]">GPT OSS 20B</span>
+                                            </div>
+                                            {currentModelId === "openai/gpt-oss-safeguard-20b" && <Check size={16} />}
+                                        </button>
+
+                                        <button
+                                            onClick={() => { setCurrentModelId("deepseek/deepseek-r1-distill-llama-70b"); setCurrentModelName("Chinese"); setIsModelMenuOpen(false); }}
+                                            className="flex items-center justify-between w-full text-left px-3 py-2 hover:bg-[#0a0a0a] text-sm transition-colors border border-transparent"
+                                        >
+                                            <div className="flex flex-col">
+                                                <span className="text-[var(--text-primary)] font-semibold uppercase tracking-[0.12em]">Chinese</span>
+                                                <span className="text-[var(--text-secondary)] text-[11px]">DeepSeek R1 Distill</span>
+                                            </div>
+                                            {currentModelId === "deepseek/deepseek-r1-distill-llama-70b" && <Check size={16} />}
+                                        </button>
+
+                                        <div className="my-1 border-t border-[var(--border-color)]"></div>
+
+                                        <button
+                                            onClick={() => { setIsModelMenuOpen(false); setIsCustomDialogOpen(true); }}
+                                            className="flex items-center justify-between w-full text-left px-3 py-2 hover:bg-[#0a0a0a] text-sm transition-colors border border-transparent"
+                                        >
+                                            <div className="flex flex-col">
+                                                <span className="text-[var(--text-primary)] font-semibold uppercase tracking-[0.12em]">Custom Model</span>
+                                                <span className="text-[var(--text-secondary)] text-[11px]">Enter ID manually</span>
+                                            </div>
+                                        </button>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+
+                        {/* Color Picker */}
+                        <div className="relative">
+                            <button
+                                onClick={() => setIsColorMenuOpen(!isColorMenuOpen)}
+                                className="w-9 h-9 border border-[var(--border-color)] bg-[#050505] hover:border-[var(--border-active)] flex items-center justify-center"
+                                title="Accent Color"
+                            >
+                                <div className="w-4 h-4 rounded-full border border-white/20" style={{ backgroundColor: accentColor }}></div>
+                            </button>
+
+                            {isColorMenuOpen && (
+                                <>
+                                    <div className="fixed inset-0 z-10" onClick={() => setIsColorMenuOpen(false)}></div>
+                                    <div className="absolute top-full right-0 mt-1 p-3 bg-[var(--bg-sidebar)] border border-[var(--border-color)] shadow-xl z-20 animate-in fade-in zoom-in-95 duration-100 origin-top-right">
+                                        <HexColorPicker color={accentColor} onChange={setAccentColor} />
+                                        <div className="mt-3 flex items-center gap-2">
+                                            <span className="text-[10px] uppercase text-[var(--text-secondary)] font-mono">HEX</span>
+                                            <input 
+                                                type="text" 
+                                                value={accentColor} 
+                                                onChange={(e) => setAccentColor(e.target.value)}
+                                                className="flex-1 bg-[var(--bg-input)] border border-[var(--border-color)] text-[11px] px-2 py-1 text-[var(--text-primary)] font-mono uppercase focus:border-[var(--border-active)] outline-none"
+                                            />
                                         </div>
-                                        {currentModelId === "x-ai/grok-4.1-fast" && <Check size={16} />}
-                                    </button>
-
-                                    <button
-                                        onClick={() => { setCurrentModelId("openai/gpt-oss-safeguard-20b"); setCurrentModelName("Ultra-Fast"); setIsModelMenuOpen(false); }}
-                                        className="flex items-center justify-between w-full text-left px-3 py-2 hover:bg-[#0a0a0a] text-sm transition-colors border border-transparent"
-                                    >
-                                        <div className="flex flex-col">
-                                            <span className="text-[var(--text-primary)] font-semibold uppercase tracking-[0.12em]">Ultra-Fast</span>
-                                            <span className="text-[var(--text-secondary)] text-[11px]">GPT OSS 20B</span>
-                                        </div>
-                                        {currentModelId === "openai/gpt-oss-safeguard-20b" && <Check size={16} />}
-                                    </button>
-
-                                    <button
-                                        onClick={() => { setCurrentModelId("deepseek/deepseek-r1-distill-llama-70b"); setCurrentModelName("Chinese"); setIsModelMenuOpen(false); }}
-                                        className="flex items-center justify-between w-full text-left px-3 py-2 hover:bg-[#0a0a0a] text-sm transition-colors border border-transparent"
-                                    >
-                                        <div className="flex flex-col">
-                                            <span className="text-[var(--text-primary)] font-semibold uppercase tracking-[0.12em]">Chinese</span>
-                                            <span className="text-[var(--text-secondary)] text-[11px]">DeepSeek R1 Distill</span>
-                                        </div>
-                                        {currentModelId === "deepseek/deepseek-r1-distill-llama-70b" && <Check size={16} />}
-                                    </button>
-
-                                    <div className="my-1 border-t border-[var(--border-color)]"></div>
-
-                                    <button
-                                        onClick={() => { setIsModelMenuOpen(false); setIsCustomDialogOpen(true); }}
-                                        className="flex items-center justify-between w-full text-left px-3 py-2 hover:bg-[#0a0a0a] text-sm transition-colors border border-transparent"
-                                    >
-                                        <div className="flex flex-col">
-                                            <span className="text-[var(--text-primary)] font-semibold uppercase tracking-[0.12em]">Custom Model</span>
-                                            <span className="text-[var(--text-secondary)] text-[11px]">Enter ID manually</span>
-                                        </div>
-                                    </button>
-                                </div>
-                            </>
-                        )}
+                                    </div>
+                                </>
+                            )}
+                        </div>
                     </div>
                 </div>
 
@@ -720,6 +815,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                                         index={index}
                                         isThinking={isLoading && index === messages.length - 1 && m.role === 'assistant'}
                                         onEdit={stableHandleEdit}
+                                        onRetry={() => regenerate()}
                                     />
                                 ))}
 
@@ -776,31 +872,29 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                             </div>
                         )}
 
-                        <div className="flex items-start gap-3">
+                        <div className="flex items-end gap-3">
                             <button
                                 onClick={() => fileInputRef.current?.click()}
-                                className="w-10 h-10 border border-[var(--border-color)] bg-[#050505] text-[var(--text-secondary)] hover:border-[var(--border-active)] flex items-center justify-center"
+                                className="w-10 h-10 border border-[var(--border-color)] bg-[#050505] text-[var(--text-secondary)] hover:border-[var(--border-active)] flex items-center justify-center mb-[2px]"
                             >
                                 <Paperclip size={18} strokeWidth={2} />
                             </button>
 
                             <div className="flex-1">
-                                <div className="border-t border-[var(--border-color)] pt-3">
-                                    <div className="flex items-start">
-                                        <textarea
-                                            ref={textareaRef}
-                                            value={input}
-                                            onChange={handleInputChange}
-                                            onKeyDown={handleKeyDown}
-                                            placeholder="// Enter command or prompt..."
-                                            className="w-full bg-transparent text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] placeholder:italic border-b border-[var(--border-color)] focus:border-[var(--border-active)] pb-2 leading-relaxed resize-none focus:outline-none max-h-[200px] min-h-[52px] scrollbar-hide"
-                                            rows={1}
-                                        />
-                                    </div>
+                                <div className="border border-[var(--border-color)] bg-transparent flex items-end p-2 gap-2 focus-within:border-[var(--border-active)] transition-colors">
+                                    <textarea
+                                        ref={textareaRef}
+                                        value={input}
+                                        onChange={handleInputChange}
+                                        onKeyDown={handleKeyDown}
+                                        placeholder="// Enter command or prompt..."
+                                        className="flex-1 bg-transparent text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] placeholder:italic pb-1 leading-relaxed resize-none focus:outline-none max-h-[200px] min-h-[24px] scrollbar-hide"
+                                        rows={1}
+                                    />
                                 </div>
                             </div>
 
-                            <div className="flex items-center gap-2 h-[40px]">
+                            <div className="flex items-center gap-2 h-[40px] mb-[2px]">
                                 {/* Reasoning Effort Selector */}
                                 <div className="relative">
                                     <button

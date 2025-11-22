@@ -32,31 +32,62 @@ interface SidebarProps {
 
 function groupChatsByDate(chats: Chat[]) {
     const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const yesterday = new Date(today);
-    yesterday.setDate(yesterday.getDate() - 1);
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const yesterdayStart = new Date(todayStart);
+    yesterdayStart.setDate(yesterdayStart.getDate() - 1);
 
     const sorted = [...chats].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-    const groups: { label: string; chats: Chat[] }[] = [];
-    const groupMap = new Map<string, { label: string; chats: Chat[] }>();
+    const groups: { label: string; chats: Chat[], order: number }[] = [];
+    const groupMap = new Map<string, { label: string; chats: Chat[], order: number }>();
 
     sorted.forEach(chat => {
         const chatDate = new Date(chat.createdAt);
-        let label = chatDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        let label = '';
+        let order = 0; // Higher order = appears first (since we sort groups later if needed, or rely on insertion order)
 
-        if (chatDate >= today) {
-            label = 'Today';
-        } else if (chatDate >= yesterday) {
-            label = 'Yesterday';
+        if (chatDate >= todayStart) {
+            const diffMs = now.getTime() - chatDate.getTime();
+            const diffMins = Math.floor(diffMs / 60000);
+            
+            if (diffMins < 5) {
+                label = 'Just now';
+                order = 100;
+            } else if (diffMins < 60) {
+                // Bucket into 10, 20, 30, 40, 50
+                const bucket = Math.floor(diffMins / 10) * 10;
+                label = `${bucket} minutes ago`;
+                order = 90 - bucket; 
+            } else {
+                const diffHours = Math.floor(diffMins / 60);
+                if (diffHours === 1) label = '1 hour ago';
+                else label = `${diffHours} hours ago`;
+                order = 50 - diffHours;
+            }
+        } else if (chatDate >= yesterdayStart) {
+             // "11:00 AM", "3 PM"
+             // If minutes is 00, show "3 PM", else "3:30 PM" to be cleaner? 
+             // User asked for "11:00 AM" and "3PM".
+             // Let's standardise on h:mm A for consistency.
+             label = chatDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+             order = 10; // Yesterday comes after Today
+        } else {
+            label = chatDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+            order = 0; // Older
         }
 
         if (!groupMap.has(label)) {
-            const group = { label, chats: [] as Chat[] };
+            const group = { label, chats: [] as Chat[], order };
             groupMap.set(label, group);
             groups.push(group);
         }
         groupMap.get(label)!.chats.push(chat);
     });
+    
+    // Since 'groups' preserves insertion order and 'sorted' is time-descending, 
+    // the groups should naturally be in correct time order (Newest buckets first).
+    // "Just now" (first chats) -> "10 mins ago" (later chats) -> ...
+    // So explicit sorting of groups might not be strictly needed if insertion order is respected,
+    // but let's just return 'groups' as is because 'sorted' loop drives creation order.
 
     return groups;
 }

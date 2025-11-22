@@ -69,6 +69,11 @@
   --sidebar-accent-foreground: var(--text-primary);
   --sidebar-border: var(--border-color);
   --sidebar-ring: var(--border-active);
+
+  /* Thinking Loader Variables (Defaults) */
+  --accent-h: 46;
+  --accent-s: 92%;
+  --accent-l: 62%;
 }
 
 body {
@@ -228,9 +233,6 @@ select {
   --gap: 3px;
   --runner-size: 20px;
   --count: 10;
-  --accent-h: 46;
-  --accent-s: 92%;
-  --accent-l: 62%;
   --track-dot-color: #1f1f1f;
   --step-time: 0.12s;
   --pause-time: 0.3s;
