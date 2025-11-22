@@ -32,13 +32,13 @@ interface MessageItemProps {
 }
 
 const THINKING_LABELS = [
-  "Thinking",
-  "Reasoning",
-  "Simmering",
-  "Pondering",
-  "Analyzing",
+  "Compiling",
   "Processing",
-  "Deliberating"
+  "Linking",
+  "Calibrating",
+  "Simulating",
+  "Analyzing",
+  "Routing"
 ];
 
 // Animated "Thinking" Icon - ASCII Spinner
@@ -46,9 +46,9 @@ function ThinkingIcon({ className }: { className?: string }) {
   return (
     <div className={cn("flex items-center justify-center w-4 h-4 text-[var(--text-secondary)]", className)}>
       <div className="flex space-x-[2px]">
-        <div className="w-1 h-1 bg-[var(--text-secondary)] rounded-full animate-[bounce_1s_infinite_0ms]"></div>
-        <div className="w-1 h-1 bg-[var(--text-secondary)] rounded-full animate-[bounce_1s_infinite_200ms]"></div>
-        <div className="w-1 h-1 bg-[var(--text-secondary)] rounded-full animate-[bounce_1s_infinite_400ms]"></div>
+        <div className="w-1 h-1 bg-[var(--text-secondary)] animate-[bounce_1s_infinite_0ms]"></div>
+        <div className="w-1 h-1 bg-[var(--text-secondary)] animate-[bounce_1s_infinite_200ms]"></div>
+        <div className="w-1 h-1 bg-[var(--text-secondary)] animate-[bounce_1s_infinite_400ms]"></div>
       </div>
     </div>
   );
@@ -105,39 +105,39 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
           className="my-4"
         />
       ) : (
-        <code className={cn("bg-[var(--bg-hover)] px-1.5 py-0.5 rounded text-sm font-mono text-[var(--text-primary)]", className)} {...props}>
+        <code className={cn("bg-[var(--bg-code)] border border-[var(--border-color)] px-1.5 py-[2px] text-sm font-mono text-[var(--text-accent)]", className)} {...props}>
           {children}
         </code>
       );
     },
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    p: ({ children }: any) => <div className="mb-4 last:mb-0 leading-relaxed">{children}</div>,
+    p: ({ children }: any) => <div className="mb-3 last:mb-0 leading-relaxed text-[#E5E5E5]">{children}</div>,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ul: ({ children }: any) => <ul className="list-disc pl-4 mb-4 space-y-1">{children}</ul>,
+    ul: ({ children }: any) => <ul className="list-disc pl-4 mb-4 space-y-1 text-[#E5E5E5]">{children}</ul>,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ol: ({ children }: any) => <ol className="list-decimal pl-4 mb-4 space-y-1">{children}</ol>,
+    ol: ({ children }: any) => <ol className="list-decimal pl-4 mb-4 space-y-1 text-[#E5E5E5]">{children}</ol>,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     li: ({ children }: any) => <li className="mb-1">{children}</li>,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    h1: ({ children }: any) => <h1 className="text-2xl font-bold mb-4 mt-6">{children}</h1>,
+    h1: ({ children }: any) => <h1 className="text-2xl font-bold mb-3 mt-6 text-[#E5E5E5] tracking-tight">{children}</h1>,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    h2: ({ children }: any) => <h2 className="text-xl font-bold mb-3 mt-5">{children}</h2>,
+    h2: ({ children }: any) => <h2 className="text-xl font-bold mb-3 mt-5 text-[#E5E5E5] tracking-tight">{children}</h2>,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    h3: ({ children }: any) => <h3 className="text-lg font-bold mb-2 mt-4">{children}</h3>,
+    h3: ({ children }: any) => <h3 className="text-lg font-bold mb-2 mt-4 text-[#E5E5E5] tracking-tight">{children}</h3>,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    blockquote: ({ children }: any) => <blockquote className="border-l-2 border-[var(--border-color)] pl-4 italic my-4 text-[var(--text-secondary)]">{children}</blockquote>,
+    blockquote: ({ children }: any) => <blockquote className="border-l-2 border-[var(--text-accent)]/70 pl-4 py-2 bg-[#050505] my-4 text-[var(--text-secondary)]">{children}</blockquote>,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     table: ({ children }: any) => (
-      <div className="my-4 w-full overflow-x-auto scrollbar-thin scrollbar-thumb-[#424242] scrollbar-track-transparent rounded-lg border border-[var(--border-color)]">
+      <div className="my-4 w-full overflow-x-auto scrollbar-thin scrollbar-thumb-[#2f2f2f] scrollbar-track-transparent border border-[var(--border-color)] bg-[#050505]">
         <table className="w-full border-collapse text-sm">{children}</table>
       </div>
     ),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    thead: ({ children }: any) => <thead className="bg-[var(--bg-input)] text-left text-[var(--text-secondary)]">{children}</thead>,
+    thead: ({ children }: any) => <thead className="bg-[#0f0f0f] text-left text-[var(--text-secondary)]">{children}</thead>,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     tbody: ({ children }: any) => <tbody className="divide-y divide-[var(--border-color)] bg-transparent">{children}</tbody>,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    tr: ({ children }: any) => <tr className="transition-colors hover:bg-[var(--bg-hover)]/50">{children}</tr>,
+    tr: ({ children }: any) => <tr className="transition-colors hover:bg-[#0a0a0a]">{children}</tr>,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     th: ({ children }: any) => <th className="px-4 py-3 font-medium">{children}</th>,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -212,33 +212,36 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
 
     if (isEditing) {
       return (
-        <div className="flex justify-end mb-6 w-full">
-          <div className="max-w-[85%] sm:max-w-[70%] w-full bg-[var(--bg-sidebar)] border border-[var(--border-color)] rounded-xl p-4">
-            <textarea
-              ref={textareaRef}
-              value={editContent}
-              onChange={(e) => setEditContent(e.target.value)}
-              className="w-full bg-transparent text-[var(--text-primary)] resize-none focus:outline-none scrollbar-hide"
-              rows={1}
-            />
-            <div className="flex justify-end gap-2 mt-3">
-              <button
-                onClick={() => setIsEditing(false)}
-                className="px-3 py-1.5 text-sm rounded-lg text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => {
-                  if (editContent.trim() !== userText) {
-                    onEdit?.(editContent);
-                  }
-                  setIsEditing(false);
-                }}
-                className="px-3 py-1.5 text-sm rounded-lg bg-[#fff] text-black hover:opacity-90 font-medium transition-colors"
-              >
-                Send
-              </button>
+        <div className="w-full mb-6">
+          <div className="flex items-start gap-3">
+            <span className="text-[var(--text-accent)] font-semibold text-lg leading-none mt-[2px]">{'>'}</span>
+            <div className="flex-1 space-y-3">
+              <textarea
+                ref={textareaRef}
+                value={editContent}
+                onChange={(e) => setEditContent(e.target.value)}
+                className="w-full bg-[#050505] border border-[var(--border-active)] text-[var(--text-primary)] resize-none focus:outline-none p-3 min-h-[96px]"
+                rows={3}
+              />
+              <div className="flex justify-end gap-2">
+                <button
+                  onClick={() => setIsEditing(false)}
+                  className="px-3 py-1.5 text-xs uppercase tracking-[0.12em] text-[var(--text-secondary)] border border-[var(--border-color)] hover:border-[var(--border-active)]"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => {
+                    if (editContent.trim() !== userText) {
+                      onEdit?.(editContent);
+                    }
+                    setIsEditing(false);
+                  }}
+                  className="px-3 py-1.5 text-xs uppercase tracking-[0.12em] bg-[var(--text-accent)] text-black border border-[var(--text-accent)] hover:bg-black hover:text-[var(--text-accent)]"
+                >
+                  Send
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -246,66 +249,71 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
     }
 
     return (
-      <div className="flex justify-end mb-6 group">
-        <div className="max-w-[85%] sm:max-w-[70%] flex flex-col items-end">
-          {/* Render Images if any */}
-          {userImages.length > 0 && (
-            <div className="flex flex-wrap justify-end gap-2 mb-2">
-              {userImages.map((img, idx) => (
-                <div key={idx} className="relative rounded-xl overflow-hidden border border-[var(--border-color)]">
-                  <img src={img} alt={`Attachment ${idx + 1}`} className="max-w-[200px] max-h-[200px] object-cover" />
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Render Files if any */}
-          {userFiles.length > 0 && (
-            <div className="flex flex-wrap justify-end gap-2 mb-2">
-              {userFiles.map((file, idx) => (
-                <div key={idx} className="flex items-center gap-3 bg-[var(--bg-sidebar)] border border-[var(--border-color)] rounded-xl p-3 max-w-[250px]">
-                  <div className="w-10 h-10 bg-[var(--bg-hover)] rounded-lg flex items-center justify-center flex-shrink-0">
-                    <FileIcon className="text-[var(--text-secondary)]" size={20} />
+      <div className="w-full mb-6 group">
+        <div className="flex items-start gap-3">
+          <span className="text-[var(--text-accent)] font-semibold text-lg leading-none mt-[2px]">{'>'}</span>
+          <div className="flex-1 space-y-3">
+            {/* Render Images if any */}
+            {userImages.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {userImages.map((img, idx) => (
+                  <div key={idx} className="relative border border-[var(--border-color)] bg-[#050505] overflow-hidden">
+                    <img src={img} alt={`Attachment ${idx + 1}`} className="max-w-[200px] max-h-[200px] object-cover" />
                   </div>
-                  <div className="flex flex-col overflow-hidden">
-                    <span className="text-sm font-medium text-[var(--text-primary)] truncate">{file.name}</span>
-                    <span className="text-xs text-[var(--text-secondary)] truncate">{formatMimeType(file.mimeType)}</span>
+                ))}
+              </div>
+            )}
+
+            {/* Render Files if any */}
+            {userFiles.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {userFiles.map((file, idx) => (
+                  <div key={idx} className="flex items-center gap-3 bg-[#0a0a0a] border border-[var(--border-color)] px-3 py-2 min-w-[220px]">
+                    <div className="w-10 h-10 bg-[#050505] border border-[var(--border-color)] flex items-center justify-center flex-shrink-0">
+                      <FileIcon className="text-[var(--text-secondary)]" size={18} />
+                    </div>
+                    <div className="flex flex-col overflow-hidden">
+                      <span className="text-sm font-medium text-[var(--text-primary)] truncate">{file.name}</span>
+                      <span className="text-xs text-[var(--text-secondary)] truncate">{formatMimeType(file.mimeType)}</span>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          )}
+                ))}
+              </div>
+            )}
 
-          {/* Render Text Bubble if there is text */}
-          {userText && (
-            <div className="bg-[var(--bubble-user)] text-[var(--text-primary)] px-5 py-2.5 rounded-3xl leading-relaxed whitespace-pre-wrap break-all relative">
-              {userText}
-            </div>
-          )}
+            {/* Render Text if there is text */}
+            {userText && (
+              <div className="text-[var(--text-primary)] whitespace-pre-wrap leading-relaxed break-words">
+                {userText}
+              </div>
+            )}
 
-          <div className="flex items-center gap-2 mt-1 opacity-0 group-hover:opacity-100 transition-opacity pr-2 select-none">
-            <button
-              onClick={() => {
-                setEditContent(userText);
-                setIsEditing(true);
-              }}
-              className="p-1 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
-              aria-label="Edit"
-            >
-              <Pencil size={14} />
-            </button>
-            <button
-              onClick={() => {
-                navigator.clipboard.writeText(userText).then(() => {
-                  setUserCopied(true);
-                  setTimeout(() => setUserCopied(false), 2000);
-                });
-              }}
-              className="p-1 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
-              aria-label="Copy"
-            >
-              {userCopied ? <Check size={14} /> : <Copy size={14} />}
-            </button>
+            <div className="flex items-center gap-3 text-[11px] uppercase tracking-[0.14em] text-[var(--text-secondary)] opacity-60 group-hover:opacity-100 transition-opacity select-none">
+              <button
+                onClick={() => {
+                  setEditContent(userText);
+                  setIsEditing(true);
+                }}
+                className="flex items-center gap-1 hover:text-[var(--text-accent)]"
+                aria-label="Edit"
+              >
+                <Pencil size={14} />
+                <span>Edit</span>
+              </button>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(userText).then(() => {
+                    setUserCopied(true);
+                    setTimeout(() => setUserCopied(false), 2000);
+                  });
+                }}
+                className="flex items-center gap-1 hover:text-[var(--text-accent)]"
+                aria-label="Copy"
+              >
+                {userCopied ? <Check size={14} /> : <Copy size={14} />}
+                <span>Copy</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -349,86 +357,93 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
   const isThinkingValues = isThinking && !finalContent;
 
   return (
-    <div className="flex justify-start mb-6 w-full group">
-      <div className="w-0 h-0 flex-shrink-0 overflow-hidden"></div>
+    <div className="w-full mb-6 group">
+      <div className="flex items-start gap-3">
+        <span className="text-[var(--text-secondary)] text-[11px] uppercase tracking-[0.18em] leading-none pt-[2px]">[AI]:</span>
 
-      <div className="flex-1 text-[var(--text-primary)] leading-relaxed space-y-1 overflow-hidden max-w-full">
-        {/* Thinking Accordion */}
-        {hasThinking && (
-          <div className="mb-3">
-            <button
-              onClick={() => setIsThinkingOpen(!isThinkingOpen)}
-              className="flex items-center gap-3 text-xs font-medium text-[var(--text-primary)] opacity-80 hover:opacity-100 transition-opacity select-none group/thinking"
-            >
-              {isThinking ? <ThinkingIcon /> : <ToggleIcon isOpen={isThinkingOpen} />}
-
-              <span className={isThinking ? "animate-pulse-dot font-semibold tracking-wide text-[var(--text-secondary)] animate-[pulse_2s_ease-in-out_infinite]" : "font-medium"}>{thinkingLabel}</span>
-
-              {isThinking && !isThinkingOpen && (
-                <span className="text-[var(--text-secondary)] ml-1 opacity-60 animate-[pulse_2s_ease-in-out_infinite]">...</span>
-              )}
-            </button>
-
-            {isThinkingOpen && (
-              <div className="mt-2 pl-3 border-l-2 border-[var(--border-color)] text-[var(--text-secondary)] text-sm whitespace-pre-wrap animate-in fade-in slide-in-from-top-1 duration-300">
-                <div className="prose dark:prose-invert max-w-none text-sm text-[var(--text-secondary)]">
-                  <ReactMarkdown
-                    remarkPlugins={REMARK_PLUGINS}
-                    rehypePlugins={REHYPE_PLUGINS}
-                    components={markdownComponents}
-                  >
-                    {thinkContent}
-                  </ReactMarkdown>
-                </div>
-                {isThinkingValues && <span className="animate-pulse ml-1 inline-block w-1.5 h-3.5 bg-[var(--text-secondary)] align-middle"></span>}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Final Content */}
-        {finalContent ? (
-          <div className="min-h-[20px]">
-            <div className="prose dark:prose-invert max-w-none break-words">
-              <ReactMarkdown
-                remarkPlugins={REMARK_PLUGINS}
-                rehypePlugins={REHYPE_PLUGINS}
-                components={markdownComponents}
+        <div className="flex-1 text-[#E5E5E5] leading-relaxed space-y-3 overflow-hidden max-w-full">
+          {/* Thinking Accordion */}
+          {hasThinking && (
+            <div className="border border-[var(--border-color)] bg-[#050505] p-3">
+              <button
+                onClick={() => setIsThinkingOpen(!isThinkingOpen)}
+                className="flex items-center gap-2 text-xs uppercase tracking-[0.12em] text-[var(--text-secondary)] hover:text-[var(--text-accent)] transition-colors"
               >
-                {finalContent}
-              </ReactMarkdown>
-            </div>
-            {isThinking && finalContent && <span className="animate-pulse ml-1 inline-block w-2 h-4 bg-[var(--text-primary)] align-middle"></span>}
-          </div>
-        ) : (
-          (isThinking && !hasThinking) ? (
-            <div className="flex items-center gap-2 text-[var(--text-secondary)]">
-              <LoadingIndicator />
-            </div>
-          ) : null
-        )}
+                {isThinking ? <ThinkingIcon /> : <ToggleIcon isOpen={isThinkingOpen} />}
+                <span className="font-semibold">{thinkingLabel}</span>
+              </button>
 
-        {/* Action Buttons (Copy, Regenerate) */}
-        {!isThinking && finalContent && (
-          <div className="flex items-center gap-2 mt-2 opacity-0 group-hover:opacity-100 transition-opacity select-none">
-            <button
-              onClick={handleCopy}
-              className="p-1 text-[var(--text-secondary)] hover:text-[var(--text-primary)] rounded-md hover:bg-[var(--bg-hover)] transition-colors"
-              aria-label="Copy"
-            >
-              {isCopied ? <Check size={16} /> : <Copy size={16} />}
-            </button>
-            <button className="p-1 text-[var(--text-secondary)] hover:text-[var(--text-primary)] rounded-md hover:bg-[var(--bg-hover)] transition-colors" aria-label="Regenerate">
-              <RefreshCw size={16} />
-            </button>
-            <button className="p-1 text-[var(--text-secondary)] hover:text-[var(--text-primary)] rounded-md hover:bg-[var(--bg-hover)] transition-colors" aria-label="Good response">
-              <ThumbsUp size={16} />
-            </button>
-            <button className="p-1 text-[var(--text-secondary)] hover:text-[var(--text-primary)] rounded-md hover:bg-[var(--bg-hover)] transition-colors" aria-label="Bad response">
-              <ThumbsDown size={16} />
-            </button>
-          </div>
-        )}
+              {isThinkingOpen && (
+                <div className="mt-2 text-[var(--text-secondary)] text-sm whitespace-pre-wrap">
+                  <div className="prose dark:prose-invert max-w-none text-sm text-[var(--text-secondary)]">
+                    <ReactMarkdown
+                      remarkPlugins={REMARK_PLUGINS}
+                      rehypePlugins={REHYPE_PLUGINS}
+                      components={markdownComponents}
+                    >
+                      {thinkContent}
+                    </ReactMarkdown>
+                  </div>
+                  {isThinkingValues && (
+                    <div className="mt-3">
+                      <LoadingIndicator label="processing" className="scale-90 origin-left" />
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Final Content */}
+          {finalContent ? (
+            <div className="min-h-[20px] space-y-3">
+              <div className="prose dark:prose-invert max-w-none break-words prose-pre:bg-transparent prose-pre:p-0">
+                <ReactMarkdown
+                  remarkPlugins={REMARK_PLUGINS}
+                  rehypePlugins={REHYPE_PLUGINS}
+                  components={markdownComponents}
+                >
+                  {finalContent}
+                </ReactMarkdown>
+              </div>
+              {isThinking && finalContent && (
+                <LoadingIndicator label="processing" className="scale-95 origin-left" />
+              )}
+            </div>
+          ) : (
+            (isThinking && !hasThinking) ? (
+              <div className="flex items-center gap-3 text-[var(--text-secondary)]">
+                <LoadingIndicator />
+              </div>
+            ) : null
+          )}
+
+          {/* Action Buttons (Copy, Regenerate) */}
+          {!isThinking && finalContent && (
+            <div className="flex items-center gap-3 mt-2 text-[11px] uppercase tracking-[0.14em] text-[var(--text-secondary)] opacity-60 group-hover:opacity-100 transition-opacity select-none">
+              <button
+                onClick={handleCopy}
+                className="flex items-center gap-1 hover:text-[var(--text-accent)]"
+                aria-label="Copy"
+              >
+                {isCopied ? <Check size={14} /> : <Copy size={14} />}
+                <span>Copy</span>
+              </button>
+              <button className="flex items-center gap-1 hover:text-[var(--text-accent)]" aria-label="Regenerate">
+                <RefreshCw size={14} />
+                <span>Re-run</span>
+              </button>
+              <button className="flex items-center gap-1 hover:text-[var(--text-accent)]" aria-label="Good response">
+                <ThumbsUp size={14} />
+                <span>Good</span>
+              </button>
+              <button className="flex items-center gap-1 hover:text-[var(--text-accent)]" aria-label="Bad response">
+                <ThumbsDown size={14} />
+                <span>Bad</span>
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

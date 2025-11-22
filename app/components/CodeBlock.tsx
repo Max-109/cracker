@@ -23,50 +23,51 @@ export const CodeBlock = React.memo(function CodeBlock({ language, value, classN
     };
 
     return (
-        <div className={cn("relative w-full rounded-lg overflow-hidden my-4 border border-[#424242]", className)}>
+        <div className={cn("relative w-full overflow-hidden my-4 border border-[var(--border-color)] bg-[#050505]", className)}>
             {/* Header */}
-            <div className="flex items-center justify-between bg-[#2d2d2d] px-4 py-2 text-xs text-gray-400 select-none">
-                <span className="lowercase font-sans">{language}</span>
+            <div className="flex items-center justify-between bg-[#1A1A1A] px-4 py-2 text-[11px] uppercase tracking-[0.16em] select-none text-[var(--text-secondary)]">
+                <span className="font-semibold text-[var(--text-accent)]">{language || 'code'}</span>
                 <button
                     onClick={handleCopy}
-                    className="flex items-center gap-1.5 hover:text-white transition-all duration-200 focus:outline-none"
+                    className="flex items-center gap-1.5 text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors duration-150 focus:outline-none"
                     aria-label={isCopied ? "Copied" : "Copy code"}
                 >
                     <div className="relative w-3.5 h-3.5">
                         <Copy
                             size={14}
                             className={cn(
-                                "absolute top-0 left-0 transition-all duration-200",
+                                "absolute top-0 left-0 transition-all duration-150",
                                 isCopied ? "opacity-0 scale-0 rotate-90" : "opacity-100 scale-100 rotate-0"
                             )}
                         />
                         <Check
                             size={14}
                             className={cn(
-                                "absolute top-0 left-0 transition-all duration-200",
+                                "absolute top-0 left-0 transition-all duration-150",
                                 isCopied ? "opacity-100 scale-100 rotate-0" : "opacity-0 scale-0 -rotate-90"
                             )}
                         />
                     </div>
-                    <span className={cn("transition-all duration-200", isCopied ? "opacity-0 w-0 overflow-hidden" : "opacity-100 w-auto")}>
+                    <span className={cn("transition-all duration-150", isCopied ? "opacity-0 w-0 overflow-hidden" : "opacity-100 w-auto")}>
                         Copy
                     </span>
                 </button>
             </div>
 
             {/* Code Content */}
-            <div className="relative bg-[#1e1e1e]">
+            <div className="relative bg-[#050505]">
                 <SyntaxHighlighter
                     language={language}
                     style={vscDarkPlus}
                     PreTag="div"
                     customStyle={{
                         margin: 0,
-                        padding: '1.5rem',
+                        padding: '1.25rem',
                         background: 'transparent',
-                        fontSize: '0.875rem',
+                        fontSize: '0.9rem',
                         lineHeight: '1.5',
                         borderRadius: 0,
+                        color: '#E5E5E5',
                     }}
                     codeTagProps={{
                         style: {

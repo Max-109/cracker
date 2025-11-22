@@ -153,7 +153,7 @@ export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose
   };
 
   return (
-    <div className={cn("bg-[var(--bg-sidebar)] h-full flex flex-col p-3 border-r border-transparent relative", className)}>
+    <div className={cn("bg-[var(--bg-sidebar)] h-full flex flex-col p-3 border-r border-[var(--border-color)] relative", className)}>
       
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
@@ -175,7 +175,7 @@ export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose
       <div className="mb-4 z-10 relative flex items-center gap-2">
          <button 
             onClick={onNewChat}
-            className="flex-1 flex items-center gap-2 px-2 py-2 rounded-lg hover:bg-[var(--bg-hover)] transition-colors text-sm font-medium text-[var(--text-primary)] text-left"
+            className="flex-1 flex items-center gap-2 px-3 py-2 border border-[var(--border-color)] bg-[#050505] hover:border-[var(--border-active)] transition-colors text-sm font-semibold text-[var(--text-primary)] uppercase tracking-[0.12em] text-left"
           >
             <SquarePen size={18} strokeWidth={2} />
             <span>New Chat</span>
@@ -183,7 +183,7 @@ export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose
         {/* Mobile Close Button */}
         <button 
             onClick={onClose}
-            className="md:hidden p-2 rounded-lg hover:bg-[var(--bg-hover)] text-[var(--text-secondary)] transition-colors"
+            className="md:hidden px-2 py-1 border border-[var(--border-color)] text-[var(--text-secondary)] hover:border-[var(--border-active)] transition-colors"
             aria-label="Close sidebar"
         >
             <X size={20} />
@@ -216,14 +216,16 @@ export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose
                     {Object.entries(groupedChats).map(([label, group]) => (
                         group.length > 0 && (
                             <div key={label} className="mb-4">
-                                <div className="text-xs font-medium text-[var(--text-secondary)] px-2 py-2">{label}</div>
+                                <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--text-secondary)] px-2 py-2">{label}</div>
                                 {group.map((chat) => (
                                     <div
                                         key={chat.id}
                                         onClick={() => onSelectChat(chat.id)}
                                         className={cn(
-                                            "group relative px-2 py-2 text-sm text-[var(--text-primary)] rounded-lg cursor-pointer transition-colors mb-1 flex items-center justify-between",
-                                            currentChatId === chat.id ? "bg-[var(--bg-hover)]" : "hover:bg-[var(--bg-hover)]"
+                                            "group relative px-3 py-2 text-sm cursor-pointer transition-colors mb-1 flex items-center justify-between border-l-2",
+                                            currentChatId === chat.id
+                                                ? "border-l-[var(--text-accent)] bg-gradient-to-r from-[var(--text-accent)]/10 to-transparent text-[var(--text-primary)]"
+                                                : "border-l-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
                                         )}
                                     >
                                         {/* Render Title or Input */}
@@ -238,9 +240,9 @@ export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose
                                                         if (e.key === 'Escape') setEditingId(null);
                                                     }}
                                                     onBlur={handleRename}
-                                                    className="h-7 text-sm px-1 py-0 bg-[var(--bg-input)] border-none focus-visible:ring-1 focus-visible:ring-[var(--ring)]"
+                                                    className="h-8 text-sm px-2 py-0 bg-[#050505] border border-[var(--border-active)] text-[var(--text-primary)] focus-visible:ring-0"
                                                 />
-                                                <button onClick={handleRename} className="p-1 hover:text-green-400 text-[var(--text-secondary)]">
+                                                <button onClick={handleRename} className="p-1 hover:text-[var(--text-accent)] text-[var(--text-secondary)] border border-[var(--border-color)]">
                                                     <Check size={14} />
                                                 </button>
                                             </div>
@@ -254,14 +256,14 @@ export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose
                                                     <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-l from-[var(--bg-sidebar)] via-[var(--bg-sidebar)] to-transparent pl-2">
                                                         <button 
                                                             onClick={(e) => startRenaming(chat, e)}
-                                                            className="p-1 text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[#424242] rounded"
+                                                            className="p-1 text-[var(--text-secondary)] hover:text-[var(--text-accent)] border border-transparent hover:border-[var(--border-color)]"
                                                             title="Rename"
                                                         >
                                                             <Pencil size={14} />
                                                         </button>
                                                         <button 
                                                             onClick={(e) => confirmDelete(chat.id, e)}
-                                                            className="p-1 text-[var(--text-secondary)] hover:text-red-400 hover:bg-[#424242] rounded"
+                                                            className="p-1 text-[var(--text-secondary)] hover:text-red-400 border border-transparent hover:border-[var(--border-color)]"
                                                             title="Delete"
                                                         >
                                                             <Trash2 size={14} />
@@ -281,16 +283,11 @@ export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose
       </div>
       
       {/* User Profile Section */}
-      <div className="mt-auto pt-2 border-t border-[#2F2F2F] z-10 relative bg-[var(--bg-sidebar)]">
-        <button className="flex items-center gap-3 px-2 py-3 rounded-lg hover:bg-[var(--bg-hover)] w-full text-left transition-colors group">
-          <div className="w-8 h-8 rounded-full bg-white text-black flex items-center justify-center font-semibold text-xs">
-            JD
-          </div>
-          <div className="flex flex-col text-sm">
-            <span className="text-[var(--text-primary)] font-medium">John Doe</span>
-            <span className="text-[var(--text-secondary)] text-xs">Free Plan</span>
-          </div>
-        </button>
+      <div className="mt-auto pt-3 border-t border-[var(--border-color)] z-10 relative bg-[var(--bg-sidebar)]">
+        <div className="flex items-center justify-between px-2 py-2 text-[11px] uppercase tracking-[0.14em] text-[var(--text-secondary)]">
+          <span>OpenCode Terminal</span>
+          <span className="text-[var(--text-accent)]">Live</span>
+        </div>
       </div>
     </div>
   );

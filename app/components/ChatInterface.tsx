@@ -49,7 +49,7 @@ function CustomDialog({ isOpen, onClose, onSubmit, initialValue }: { isOpen: boo
             onTransitionEnd={onAnimationEnd}
         >
             <div className={cn(
-                "bg-[var(--bg-sidebar)] border border-[var(--border-color)] p-6 rounded-xl w-[90%] max-w-md shadow-2xl transition-all duration-200 transform",
+                "bg-[var(--bg-sidebar)] border border-[var(--border-color)] p-6 w-[90%] max-w-md transition-all duration-200 transform",
                 isOpen ? "scale-100 opacity-100" : "scale-95 opacity-0"
             )}>
                 <h3 className="text-lg font-semibold text-[var(--text-primary)] mb-4">Set Custom Model ID</h3>
@@ -57,13 +57,13 @@ function CustomDialog({ isOpen, onClose, onSubmit, initialValue }: { isOpen: boo
                 <input
                     value={val}
                     onChange={(e) => setVal(e.target.value)}
-                    className="w-full bg-[var(--bg-input)] border border-[var(--border-color)] rounded-lg px-3 py-2 text-[var(--text-primary)] focus:outline-none focus:border-[#676767] mb-6"
+                    className="w-full bg-[var(--bg-input)] border border-[var(--border-color)] px-3 py-2 text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-active)] mb-6 tracking-tight"
                     placeholder="openai/gpt-oss-120b:exacto"
                     autoFocus
                 />
                 <div className="flex justify-end gap-2">
-                    <button onClick={onClose} className="px-4 py-2 rounded-lg text-[var(--text-primary)] hover:bg-[var(--bg-hover)] transition-colors">Cancel</button>
-                    <button onClick={() => onSubmit(val)} className="px-4 py-2 rounded-lg bg-white text-black hover:opacity-90 font-medium transition-colors">Save</button>
+                    <button onClick={onClose} className="px-4 py-2 text-[var(--text-primary)] border border-[var(--border-color)] hover:border-[var(--border-active)] transition-colors uppercase tracking-[0.12em] text-xs">Cancel</button>
+                    <button onClick={() => onSubmit(val)} className="px-4 py-2 bg-[var(--text-accent)] text-black border border-[var(--text-accent)] hover:bg-black hover:text-[var(--text-accent)] font-semibold transition-colors uppercase tracking-[0.12em] text-xs">Save</button>
                 </div>
             </div>
         </div>
@@ -599,11 +599,11 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
             />
             <main className="flex-1 flex flex-col relative h-full">
                 {/* Top Bar */}
-                <div className="absolute top-0 left-0 w-full h-14 flex items-center justify-between px-4 z-50 bg-[var(--bg-main)]/80 backdrop-blur-md">
+                <div className="absolute top-0 left-0 w-full h-14 flex items-center justify-between px-4 z-50 bg-[var(--bg-main)] border-b border-[var(--border-color)]">
                     <div className="flex items-center gap-2 md:hidden">
                         <button
                             onClick={toggleSidebar}
-                            className="p-2 hover:bg-[var(--bg-hover)] rounded-md text-[var(--text-secondary)]"
+                            className="px-2 py-1 border border-[var(--border-color)] text-[var(--text-secondary)] hover:border-[var(--border-active)]"
                             aria-label="Toggle sidebar"
                         >
                             <PanelLeft size={20} />
@@ -614,7 +614,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                     <div className="relative ml-auto md:ml-0 md:mr-auto">
                         <button
                             onClick={() => setIsModelMenuOpen(!isModelMenuOpen)}
-                            className="flex items-center gap-1 text-lg font-medium text-[var(--text-secondary)] hover:bg-[var(--bg-hover)] px-3 py-2 rounded-lg transition-colors"
+                            className="flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)] px-3 py-2 border border-[var(--border-color)] hover:border-[var(--border-active)] uppercase tracking-[0.16em]"
                         >
                             <span>{currentModelName}</span>
                             <ChevronDown size={16} className="text-[var(--text-secondary)]" />
@@ -623,38 +623,38 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                         {isModelMenuOpen && (
                             <>
                                 <div className="fixed inset-0 z-10" onClick={() => setIsModelMenuOpen(false)}></div>
-                                <div className="absolute top-full right-0 md:left-0 md:right-auto mt-1 w-[220px] bg-[var(--bg-sidebar)] border border-[var(--border-color)] rounded-xl shadow-xl overflow-hidden z-20 p-1 animate-in fade-in zoom-in-95 duration-100 origin-top-right md:origin-top-left">
-                                    <div className="px-2 py-2 text-xs font-medium text-[var(--text-secondary)]">Select Model</div>
+                                <div className="absolute top-full right-0 md:left-0 md:right-auto mt-1 w-[240px] bg-[var(--bg-sidebar)] border border-[var(--border-color)] overflow-hidden z-20 p-2 animate-in fade-in zoom-in-95 duration-100 origin-top-right md:origin-top-left">
+                                    <div className="px-2 py-2 text-[11px] uppercase tracking-[0.16em] font-semibold text-[var(--text-secondary)]">Select Model</div>
 
                                     <button
                                         onClick={() => { setCurrentModelId("x-ai/grok-4.1-fast"); setCurrentModelName("Smart"); setIsModelMenuOpen(false); }}
-                                        className="flex items-center justify-between w-full text-left px-3 py-2.5 rounded-lg hover:bg-[var(--bg-hover)] text-sm transition-colors"
+                                        className="flex items-center justify-between w-full text-left px-3 py-2 hover:bg-[#0a0a0a] text-sm transition-colors border border-transparent"
                                     >
                                         <div className="flex flex-col">
-                                            <span className="text-[var(--text-primary)] font-medium">Smart</span>
-                                            <span className="text-[var(--text-secondary)] text-xs">Grok 4.1 Fast</span>
+                                            <span className="text-[var(--text-primary)] font-semibold uppercase tracking-[0.12em]">Smart</span>
+                                            <span className="text-[var(--text-secondary)] text-[11px]">Grok 4.1 Fast</span>
                                         </div>
                                         {currentModelId === "x-ai/grok-4.1-fast" && <Check size={16} />}
                                     </button>
 
                                     <button
                                         onClick={() => { setCurrentModelId("openai/gpt-oss-safeguard-20b"); setCurrentModelName("Ultra-Fast"); setIsModelMenuOpen(false); }}
-                                        className="flex items-center justify-between w-full text-left px-3 py-2.5 rounded-lg hover:bg-[var(--bg-hover)] text-sm transition-colors"
+                                        className="flex items-center justify-between w-full text-left px-3 py-2 hover:bg-[#0a0a0a] text-sm transition-colors border border-transparent"
                                     >
                                         <div className="flex flex-col">
-                                            <span className="text-[var(--text-primary)] font-medium">Ultra-Fast</span>
-                                            <span className="text-[var(--text-secondary)] text-xs">GPT OSS 20B</span>
+                                            <span className="text-[var(--text-primary)] font-semibold uppercase tracking-[0.12em]">Ultra-Fast</span>
+                                            <span className="text-[var(--text-secondary)] text-[11px]">GPT OSS 20B</span>
                                         </div>
                                         {currentModelId === "openai/gpt-oss-safeguard-20b" && <Check size={16} />}
                                     </button>
 
                                     <button
                                         onClick={() => { setCurrentModelId("deepseek/deepseek-r1-distill-llama-70b"); setCurrentModelName("Chinese"); setIsModelMenuOpen(false); }}
-                                        className="flex items-center justify-between w-full text-left px-3 py-2.5 rounded-lg hover:bg-[var(--bg-hover)] text-sm transition-colors"
+                                        className="flex items-center justify-between w-full text-left px-3 py-2 hover:bg-[#0a0a0a] text-sm transition-colors border border-transparent"
                                     >
                                         <div className="flex flex-col">
-                                            <span className="text-[var(--text-primary)] font-medium">Chinese</span>
-                                            <span className="text-[var(--text-secondary)] text-xs">DeepSeek R1 Distill</span>
+                                            <span className="text-[var(--text-primary)] font-semibold uppercase tracking-[0.12em]">Chinese</span>
+                                            <span className="text-[var(--text-secondary)] text-[11px]">DeepSeek R1 Distill</span>
                                         </div>
                                         {currentModelId === "deepseek/deepseek-r1-distill-llama-70b" && <Check size={16} />}
                                     </button>
@@ -663,11 +663,11 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
 
                                     <button
                                         onClick={() => { setIsModelMenuOpen(false); setIsCustomDialogOpen(true); }}
-                                        className="flex items-center justify-between w-full text-left px-3 py-2.5 rounded-lg hover:bg-[var(--bg-hover)] text-sm transition-colors"
+                                        className="flex items-center justify-between w-full text-left px-3 py-2 hover:bg-[#0a0a0a] text-sm transition-colors border border-transparent"
                                     >
                                         <div className="flex flex-col">
-                                            <span className="text-[var(--text-primary)] font-medium">Custom Model</span>
-                                            <span className="text-[var(--text-secondary)] text-xs">Enter ID manually</span>
+                                            <span className="text-[var(--text-primary)] font-semibold uppercase tracking-[0.12em]">Custom Model</span>
+                                            <span className="text-[var(--text-secondary)] text-[11px]">Enter ID manually</span>
                                         </div>
                                     </button>
                                 </div>
@@ -688,7 +688,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                             <div className="space-y-10">
                                 {/* User message skeleton - Randomized widths */}
                                 <div className="flex justify-end">
-                                    <Skeleton className="h-12 w-[60%] rounded-[26px]" />
+                                    <Skeleton className="h-12 w-[60%]" />
                                 </div>
                                 {/* AI message skeleton - Randomized blocks to look smart */}
                                 <div className="flex justify-start gap-4">
@@ -708,7 +708,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                                 </div>
                                 {/* User message skeleton 2 */}
                                 <div className="flex justify-end">
-                                    <Skeleton className="h-10 w-[40%] rounded-[26px]" />
+                                    <Skeleton className="h-10 w-[40%]" />
                                 </div>
                             </div>
                         </FadeWrapper>
@@ -731,28 +731,35 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                                         onEdit={stableHandleEdit}
                                     />
                                 ))}
+
+                                {isLoading && (
+                                    <div className="mt-8 border-t border-[var(--border-color)] pt-4">
+                                        <LoadingIndicator label="processing" />
+                                    </div>
+                                )}
                             </>
                         </FadeWrapper>
-
-                        {/* Explicit generic Thinking indicator if loading but no assistant message yet */}
-                        {!isMessagesLoading && isLoading && messages.length > 0 && messages[messages.length - 1].role === 'user' && (
-                            <div className="flex justify-start mb-6 w-full animate-in fade-in duration-300 px-4 md:px-6">
-                                <LoadingIndicator />
-                            </div>
-                        )}
 
                         <div ref={messagesEndRef} />
                     </div>
                 </div>
 
                 {/* Input Area */}
-                <div className="absolute bottom-0 left-0 w-full bg-gradient-to-t from-[var(--bg-main)] via-[var(--bg-main)] to-transparent pt-10 pb-6">
-                    <div className="max-w-[800px] mx-auto px-4">
+                <div className="absolute bottom-0 left-0 w-full bg-[var(--bg-main)] border-t border-[var(--border-color)] pt-6 pb-5">
+                    <div className="max-w-[900px] mx-auto px-4 space-y-3">
+                        <input
+                            type="file"
+                            ref={fileInputRef}
+                            onChange={handleFileSelect}
+                            className="hidden"
+                            multiple
+                        />
+
                         {/* Attachments Preview */}
                         {attachments.length > 0 && (
-                            <div className="flex gap-3 mb-3 overflow-x-auto px-1 py-1">
+                            <div className="flex gap-3 overflow-x-auto px-1 py-1">
                                 {attachments.map((file, i) => (
-                                    <div key={i} className="relative group flex-shrink-0 w-16 h-16 bg-[var(--bg-sidebar)] border border-[var(--border-color)] rounded-xl overflow-hidden flex items-center justify-center">
+                                    <div key={i} className="relative group flex-shrink-0 w-16 h-16 bg-[#050505] border border-[var(--border-color)] flex items-center justify-center">
                                         {file.type.startsWith('image/') ? (
                                             <img
                                                 src={URL.createObjectURL(file)}
@@ -761,7 +768,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                                                 onLoad={(e) => URL.revokeObjectURL(e.currentTarget.src)}
                                             />
                                         ) : (
-                                            <div className="flex flex-col items-center justify-center w-full h-full bg-[var(--bg-hover)] p-1">
+                                            <div className="flex flex-col items-center justify-center w-full h-full bg-[#0a0a0a] p-1">
                                                 <FileIcon className="text-[var(--text-secondary)] mb-1" size={20} />
                                                 <span className="text-[10px] text-[var(--text-secondary)] truncate w-full text-center px-1">{file.name}</span>
                                             </div>
@@ -769,7 +776,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
 
                                         <button
                                             onClick={() => removeAttachment(i)}
-                                            className="absolute top-0.5 right-0.5 bg-black/50 hover:bg-black/70 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                                            className="absolute top-0 right-0 bg-black text-[var(--text-accent)] border border-[var(--border-color)] px-1 py-[2px] opacity-0 group-hover:opacity-100 transition-opacity"
                                         >
                                             <X size={12} />
                                         </button>
@@ -778,67 +785,53 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                             </div>
                         )}
 
-                        <div className="relative bg-[var(--bg-input)] rounded-[26px] flex flex-col border border-[var(--border-color)] shadow-sm focus-within:border-[#676767] transition-colors">
-                            <input
-                                type="file"
-                                ref={fileInputRef}
-                                onChange={handleFileSelect}
-                                className="hidden"
-                                multiple
-                            />
+                        <div className="flex items-start gap-3">
+                            <button
+                                onClick={() => fileInputRef.current?.click()}
+                                className="w-10 h-10 border border-[var(--border-color)] bg-[#050505] text-[var(--text-secondary)] hover:border-[var(--border-active)] flex items-center justify-center"
+                            >
+                                <Paperclip size={18} strokeWidth={2} />
+                            </button>
 
-                            <textarea
-                                ref={textareaRef}
-                                value={input}
-                                onChange={handleInputChange}
-                                onKeyDown={handleKeyDown}
-                                placeholder="Ask Chai"
-                                className="w-full bg-transparent text-[var(--text-primary)] placeholder-[var(--text-secondary)] pl-14 pr-12 py-3.5 resize-none focus:outline-none max-h-[200px] min-h-[52px] leading-relaxed scrollbar-hide"
-                                rows={1}
-                            />
-
-                            {/* Left Icons: Attach */}
-                            <div className="absolute bottom-2 left-2 flex items-center gap-2 z-20">
-                                <button
-                                    onClick={() => fileInputRef.current?.click()}
-                                    className="text-[#b4b4b4] hover:text-white transition-colors p-1 rounded-full w-fit"
-                                >
-                                    <div className="w-8 h-8 rounded-full hover:bg-[#424242] flex items-center justify-center transition-colors">
-                                        <Paperclip size={20} strokeWidth={2} />
+                            <div className="flex-1">
+                                <div className="border-t border-[var(--border-color)] pt-3">
+                                    <div className="flex items-start gap-2">
+                                        <span className="text-[var(--text-accent)] pt-2">{'>'}</span>
+                                        <textarea
+                                            ref={textareaRef}
+                                            value={input}
+                                            onChange={handleInputChange}
+                                            onKeyDown={handleKeyDown}
+                                            placeholder="// Enter command or prompt..."
+                                            className="w-full bg-transparent text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] placeholder:italic border-b border-[var(--border-color)] focus:border-[var(--border-active)] pb-2 leading-relaxed resize-none focus:outline-none max-h-[200px] min-h-[52px] scrollbar-hide"
+                                            rows={1}
+                                        />
                                     </div>
-                                </button>
+                                </div>
                             </div>
 
-                            {/* Right Icons: Send / Stop / Reasoning */}
-                            <div className="absolute bottom-2 right-2 flex items-center gap-2 h-[32px]">
+                            <div className="flex items-center gap-2 h-[40px]">
                                 {/* Reasoning Effort Selector */}
                                 <div className="relative">
                                     <button
                                         onClick={() => setIsEffortMenuOpen(!isEffortMenuOpen)}
-                                        className="text-[#b4b4b4] hover:text-white transition-colors p-1 rounded-full w-fit group"
+                                        className="w-10 h-10 border border-[var(--border-color)] bg-[#050505] text-[var(--text-secondary)] hover:border-[var(--border-active)] flex items-center justify-center"
                                         title={`Reasoning Effort: ${reasoningEffort}`}
                                     >
-                                        <div className={cn(
-                                            "w-8 h-8 rounded-full flex items-center justify-center transition-all",
-                                            isEffortMenuOpen || reasoningEffort !== 'medium'
-                                                ? "bg-[#424242] text-white"
-                                                : "hover:bg-[#424242]"
-                                        )}>
-                                            <Sparkles size={18} strokeWidth={2} />
-                                        </div>
+                                        <Sparkles size={18} strokeWidth={2} />
                                     </button>
 
                                     {isEffortMenuOpen && (
                                         <>
                                             <div className="fixed inset-0 z-10" onClick={() => setIsEffortMenuOpen(false)}></div>
-                                            <div className="absolute bottom-full right-0 mb-2 w-[160px] bg-[var(--bg-sidebar)] border border-[var(--border-color)] rounded-xl shadow-xl overflow-hidden z-20 p-1 animate-in fade-in slide-in-from-bottom-2 duration-100 origin-bottom-right">
-                                                <div className="px-2 py-1.5 text-[10px] uppercase tracking-wider font-semibold text-[var(--text-secondary)]">Reasoning Effort</div>
+                                            <div className="absolute bottom-full right-0 mb-2 w-[180px] bg-[var(--bg-sidebar)] border border-[var(--border-color)] overflow-hidden z-20 p-1 animate-in fade-in slide-in-from-bottom-2 duration-100 origin-bottom-right">
+                                                <div className="px-2 py-1.5 text-[10px] uppercase tracking-[0.16em] font-semibold text-[var(--text-secondary)]">Reasoning Effort</div>
 
                                                 {(['low', 'medium', 'high'] as const).map((effort) => (
                                                     <button
                                                         key={effort}
                                                         onClick={() => { setReasoningEffort(effort); setIsEffortMenuOpen(false); }}
-                                                        className="flex items-center justify-between w-full text-left px-2 py-2 rounded-lg hover:bg-[var(--bg-hover)] text-sm transition-colors"
+                                                        className="flex items-center justify-between w-full text-left px-2 py-2 hover:bg-[#0a0a0a] text-sm transition-colors"
                                                     >
                                                         <span className="text-[var(--text-primary)] capitalize">{effort}</span>
                                                         {reasoningEffort === effort && <Check size={14} />}
@@ -852,7 +845,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                                 {isLoading ? (
                                     <button
                                         onClick={() => stop()}
-                                        className="p-1 rounded-full bg-white text-black hover:opacity-90 transition-all duration-200 flex items-center justify-center w-8 h-8"
+                                        className="w-10 h-10 border border-[var(--text-accent)] bg-black text-[var(--text-accent)] hover:bg-[var(--text-accent)] hover:text-black transition-all duration-150 flex items-center justify-center"
                                     >
                                         <Square size={14} fill="currentColor" />
                                     </button>
@@ -861,10 +854,10 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                                         onClick={() => handleSendMessage()}
                                         disabled={!input.trim() && attachments.length === 0}
                                         className={cn(
-                                            "p-1 rounded-full transition-all duration-200 flex items-center justify-center w-8 h-8",
+                                            "w-10 h-10 transition-all duration-150 flex items-center justify-center border",
                                             (input.trim() || attachments.length > 0)
-                                                ? "bg-white text-black hover:opacity-90"
-                                                : "bg-[#676767] text-[#2F2F2F] cursor-default opacity-50"
+                                                ? "bg-[var(--text-accent)] text-black border-[var(--text-accent)] hover:bg-black hover:text-[var(--text-accent)]"
+                                                : "bg-[#1a1a1a] text-[var(--text-secondary)] border-[var(--border-color)] cursor-not-allowed"
                                         )}
                                     >
                                         <ArrowUp size={18} strokeWidth={3} />
@@ -872,8 +865,9 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                                 )}
                             </div>
                         </div>
-                        <div className="text-center text-xs text-[var(--text-secondary)] mt-3">
-                            ChatGPT can make mistakes. Check important info.
+
+                        <div className="text-left text-[11px] uppercase tracking-[0.16em] text-[var(--text-secondary)]">
+                            System ready for next instruction.
                         </div>
                     </div>
                 </div>
