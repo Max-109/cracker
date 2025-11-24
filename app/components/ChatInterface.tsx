@@ -137,6 +137,37 @@ interface ChatInterfaceProps {
     initialChatId?: string;
 }
 
+type ReasoningEffortLevel = 'low' | 'medium' | 'high';
+
+const isBrowser = typeof window !== 'undefined';
+
+function usePersistedSetting(key: string, fallback: string) {
+    const [value, setValue] = useState(fallback);
+
+    useEffect(() => {
+        if (!isBrowser) return;
+        const stored = window.localStorage.getItem(key);
+        if (stored !== null) {
+            // eslint-disable-next-line react-hooks/set-state-in-effect
+            setValue(stored);
+        }
+    }, [key]);
+
+    const updateValue = React.useCallback((nextValue: React.SetStateAction<string>) => {
+        setValue(prev => {
+            const resolved = typeof nextValue === 'function'
+                ? (nextValue as (val: string) => string)(prev)
+                : nextValue;
+            if (isBrowser) {
+                window.localStorage.setItem(key, resolved);
+            }
+            return resolved;
+        });
+    }, [key]);
+
+    return [value, updateValue] as const;
+}
+
 // Custom hook for throttling values
 function useThrottledValue<T>(value: T, limit: number): T {
     const [throttledValue, setThrottledValue] = useState(value);
@@ -191,21 +222,19 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
     // const router = useRouter(); // Removed unused
     const { refreshChats, toggleSidebar } = useChatContext();
 
-    const resolveSetting = (key: string, fallback: string) => {
-        if (typeof window === 'undefined') return fallback;
-        return localStorage.getItem(key) || fallback;
-    };
-
     // User Settings State with LocalStorage Persistence
-    const [currentModelId, setCurrentModelId] = useState(() => resolveSetting('CHATGPT_MODEL_ID', "x-ai/grok-4.1-fast"));
-    const [currentModelName, setCurrentModelName] = useState(() => resolveSetting('CHATGPT_MODEL_NAME', "Smart"));
-    const [reasoningEffort, setReasoningEffort] = useState(() => resolveSetting('CHATGPT_REASONING_EFFORT', "medium"));
-    const [accentColor, setAccentColor] = useState(() => resolveSetting('CHATGPT_ACCENT_COLOR', '#7dcc3c'));
+    const [currentModelId, setCurrentModelId] = usePersistedSetting('CHATGPT_MODEL_ID', "x-ai/grok-4.1-fast");
+    const [currentModelName, setCurrentModelName] = usePersistedSetting('CHATGPT_MODEL_NAME', "Smart");
+    const [rawReasoningEffort, setRawReasoningEffort] = usePersistedSetting('CHATGPT_REASONING_EFFORT', "medium");
+    const [accentColor, setAccentColor] = usePersistedSetting('CHATGPT_ACCENT_COLOR', '#7dcc3c');
+    const reasoningEffort = (rawReasoningEffort as ReasoningEffortLevel) ?? 'medium';
+    const setReasoningEffort = React.useCallback((value: ReasoningEffortLevel) => {
+        setRawReasoningEffort(value);
+    }, [setRawReasoningEffort]);
     const [isColorMenuOpen, setIsColorMenuOpen] = useState(false);
 
     // Apply Accent Color
     useEffect(() => {
-        localStorage.setItem('CHATGPT_ACCENT_COLOR', accentColor);
         const root = document.documentElement;
         root.style.setProperty('--text-accent', accentColor);
         root.style.setProperty('--border-active', accentColor);
@@ -242,16 +271,6 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
 
     }, [accentColor]);
 
-    // Save settings on change
-    useEffect(() => {
-        localStorage.setItem('CHATGPT_MODEL_ID', currentModelId);
-        localStorage.setItem('CHATGPT_MODEL_NAME', currentModelName);
-    }, [currentModelId, currentModelName]);
-
-    useEffect(() => {
-        localStorage.setItem('CHATGPT_REASONING_EFFORT', reasoningEffort);
-    }, [reasoningEffort]);
-
     const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
     const [isCustomDialogOpen, setIsCustomDialogOpen] = useState(false);
     const [isEffortMenuOpen, setIsEffortMenuOpen] = useState(false);
@@ -267,6 +286,16 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
 
     // Ref to track latest messages for persistence fallback
     const messagesRef = useRef<ChatMessage[]>([]);
+    const currentModelIdRef = useRef(currentModelId);
+    const reasoningEffortRef = useRef(reasoningEffort);
+
+    useEffect(() => {
+        currentModelIdRef.current = currentModelId;
+    }, [currentModelId]);
+
+    useEffect(() => {
+        reasoningEffortRef.current = reasoningEffort;
+    }, [reasoningEffort]);
 
     // Loading states
     const [isMessagesLoading, setIsMessagesLoading] = useState(false);
@@ -462,13 +491,16 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
     // Actual implementation that calls the ref
     const stableHandleEdit = React.useCallback((index: number, newContent: string) => {
         handleEditMessage(index, newContent).then(() => {
+            const modelOverride = currentModelIdRef.current || "x-ai/grok-4.1-fast";
+            const effortOverride = reasoningEffortRef.current || "medium";
+
             sendMessageRef.current?.({
                 role: 'user',
                 content: newContent
             }, {
                 body: {
-                    model: localStorage.getItem('CHATGPT_MODEL_ID') || "x-ai/grok-4.1-fast", // Read from localstorage to avoid dep
-                    reasoningEffort: localStorage.getItem('CHATGPT_REASONING_EFFORT') || "medium"
+                    model: modelOverride,
+                    reasoningEffort: effortOverride
                 }
             });
         });
@@ -834,7 +866,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                             {isColorMenuOpen && (
                                 <>
                                     <div className="fixed inset-0 z-10" onClick={() => setIsColorMenuOpen(false)}></div>
-                                    <div className="absolute top-full right-[-60px] mt-1 p-3 bg-[var(--bg-sidebar)] border border-[var(--border-color)] shadow-xl z-20 animate-in fade-in zoom-in-95 duration-100 origin-top-right">
+                                    <div className="absolute top-full right-0 md:right-[-60px] mt-1 p-3 bg-[var(--bg-sidebar)] border border-[var(--border-color)] shadow-xl z-20 animate-in fade-in zoom-in-95 duration-100 origin-top-right">
                                         <HexColorPicker color={accentColor} onChange={setAccentColor} />
                                         <div className="mt-3 flex items-center gap-2">
                                             <span className="text-[10px] uppercase text-[var(--text-secondary)] font-mono">HEX</span>
