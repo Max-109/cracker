@@ -1,5 +1,5 @@
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
-import { streamText } from "ai";
+import { streamText, createUIMessageStreamResponse } from "ai";
 
 export const maxDuration = 300;
 
@@ -21,36 +21,64 @@ export async function POST(req: Request) {
 
     console.log(`Starting streamText with ${modelId} (Effort: ${effort})...`);
 
-    // Manual conversion to ensure compatibility with multimodal content
-    const coreMessages = messages.map((m: { role: string; content: unknown; parts?: { type: string; text?: string; image?: string; data?: string; mimeType?: string }[] }) => {
+    const attachments: any[] = [];
+
+    // Manual conversion to ensure compatibility with multimodal content and extract attachments
+    const coreMessages = messages.map((m: { role: string; content: unknown; parts?: any[] }, index: number) => {
+      const isLastMessage = index === messages.length - 1;
+      
       // Handle multimodal content array (from useChat with attachments)
       if (Array.isArray(m.content)) {
+        const newContent: any[] = [];
+        
+        m.content.forEach((part: any) => {
+          if (part.type === 'image') {
+            // Keep images as standard image content
+            newContent.push({ type: 'image', image: part.image });
+          } else if (part.type === 'file') {
+             // Handle PDF
+             if (part.mimeType === 'application/pdf') {
+               if (isLastMessage) {
+                 // Extract base64 data (remove data URL prefix if present)
+                 const base64Data = part.data?.toString().includes(',') 
+                    ? part.data.toString().split(',')[1] 
+                    : part.data;
+                 
+                 if (base64Data) {
+                   attachments.push({
+                     type: 'application/pdf',
+                     data: base64Data
+                   });
+                 }
+                 // Don't add to content to avoid type errors
+               }
+             } else if (part.mimeType?.startsWith('image/')) {
+                // Fallback for image files sent as 'file' type
+                newContent.push({ type: 'image', image: part.data });
+             } else {
+                // Other files? Treat as text or ignore
+                newContent.push({ type: 'text', text: `[File: ${part.name || 'unknown'}]` });
+             }
+          } else if (part.type === 'text') {
+            newContent.push({ type: 'text', text: part.text });
+          }
+        });
+
+        // If content is empty after extraction (e.g. only PDF), add empty text
+        if (newContent.length === 0) {
+            newContent.push({ type: 'text', text: ' ' });
+        }
+
         return {
           role: m.role as "user" | "assistant" | "system" | "tool",
-          content: m.content.map(part => {
-            if (part.type === 'image') {
-              return { type: 'image', image: part.image };
-            }
-            if (part.type === 'file') {
-              // FIX: 'file' type is not standard in CoreMessage.
-              // Map to 'image' for PDFs/Images as many providers handle them this way.
-              // If it's text, we should have handled it on client, but if it comes here as file:
-              if (part.mimeType?.startsWith('image/') || part.mimeType === 'application/pdf') {
-                return { type: 'image', image: part.data, mimeType: part.mimeType };
-              }
-              // Fallback: Try sending as image anyway or text?
-              // Let's try sending as image with the mimeType, as that's the most likely way to pass binary data.
-              return { type: 'image', image: part.data, mimeType: part.mimeType };
-            }
-            return { type: 'text', text: part.text };
-          })
+          content: newContent
         };
       }
 
       // Fallback for text-only content
       return {
         role: m.role as "user" | "assistant" | "system" | "tool",
-        content: (typeof m.content === 'string' ? m.content : "") || m.parts?.map((p) => p.text).join('') || ""
+        content: (typeof m.content === 'string' ? m.content : "") || m.parts?.map((p: any) => p.text).join('') || ""
       };
     });
 
@@ -58,9 +86,10 @@ export async function POST(req: Request) {
       model: openrouter(modelId),
       // @ts-expect-error - Typing mismatch for multimodal messages
       messages: coreMessages,
-      // Enable reasoning tokens for OpenRouter
+      // Enable reasoning tokens for OpenRouter and pass attachments
       experimental_providerMetadata: {
         openrouter: {
+          attachments: attachments.length > 0 ? attachments : undefined,
           reasoning: {
             effort: effort,
             exclude: false,
@@ -75,9 +104,42 @@ export async function POST(req: Request) {
     });
     console.log("streamText initiated successfully.");
 
-    // Use the Data Stream response format which is more flexible and handles annotations better
-    // Revert to UIMessageStreamResponse for now as toDataStreamResponse seems unavailable in this environment
-    return result.toUIMessageStreamResponse();
+    // Filter out invalid annotations that xAI/OpenRouter might send
+    const stream = result.toUIMessageStream();
+    const filteredStream = new ReadableStream({
+      async start(controller) {
+        try {
+          for await (const chunk of stream) {
+            let cleanChunk = chunk;
+            if (chunk && typeof chunk === 'object') {
+              const c = chunk as any;
+              // Remove raw OpenAI-style annotations if they leak through
+              if (c.choices && Array.isArray(c.choices) && c.choices[0]?.delta?.annotations) {
+                 const newChunk = { ...c };
+                 const newChoices = [...newChunk.choices];
+                 const newDelta = { ...newChoices[0].delta };
+                 delete newDelta.annotations;
+                 newChoices[0] = { ...newChoices[0], delta: newDelta };
+                 newChunk.choices = newChoices;
+                 cleanChunk = newChunk;
+              }
+              // Remove top-level annotations
+              if ('annotations' in c) {
+                const { annotations, ...rest } = c;
+                cleanChunk = rest;
+              }
+            }
+            controller.enqueue(cleanChunk);
+          }
+          controller.close();
+        } catch (err) {
+          controller.error(err);
+        }
+      }
+    });
+
+    // Use the filtered stream
+    return createUIMessageStreamResponse({ stream: filteredStream });
   } catch (error: unknown) {
     console.error("API Route Error:", error);
     const err = error as Error;

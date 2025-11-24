@@ -29,38 +29,38 @@
   /* Shadcn/Tailwind Theme Mapped to OpenCode Colors */
   --background: var(--bg-main);
   --foreground: var(--text-primary);
-  
+
   --card: var(--bg-main);
   --card-foreground: var(--text-primary);
-  
+
   --popover: var(--bg-main);
   --popover-foreground: var(--text-primary);
-  
+
   --primary: var(--text-accent);
   --primary-foreground: #000000;
-  
+
   --secondary: var(--bg-code);
   --secondary-foreground: var(--text-primary);
-  
+
   --muted: #0d0d0d;
   --muted-foreground: var(--text-secondary);
-  
+
   --accent: #0f0f0f;
   --accent-foreground: var(--text-accent);
-  
+
   --destructive: #ef4444;
   --destructive-foreground: #000000;
-  
+
   --border: var(--border-color);
   --input: var(--border-color);
   --ring: var(--border-active);
-  
+
   --chart-1: #F5C542;
   --chart-2: #d4a62f;
   --chart-3: #a67e1f;
   --chart-4: #7f5f14;
   --chart-5: #f5c542;
-  
+
   --sidebar: var(--bg-sidebar);
   --sidebar-foreground: var(--text-primary);
   --sidebar-primary: #0f0f0f;
@@ -145,7 +145,7 @@ select {
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
-  
+
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar-primary: var(--sidebar-primary);
@@ -183,7 +183,7 @@ select {
 /* Custom Scrollbar - Thin & Dark */
 .scrollbar-custom {
   /* Hides standard scrollbar in Firefox */
-  scrollbar-width: thin; 
+  scrollbar-width: thin;
   scrollbar-color: #424242 transparent;
 }
 
@@ -195,11 +195,13 @@ select {
 
 .scrollbar-custom::-webkit-scrollbar-track {
   background: transparent;
-  margin-block: 4px; /* Optional: margin at ends */
+  margin-block: 4px;
+  /* Optional: margin at ends */
 }
 
 .scrollbar-custom::-webkit-scrollbar-thumb {
-  background-color: transparent; /* Hidden by default */
+  background-color: transparent;
+  /* Hidden by default */
   border-radius: 10px;
   transition: background-color 0.2s ease;
 }
@@ -222,6 +224,7 @@ select {
   * {
     @apply border-border;
   }
+
   body {
     @apply bg-background text-foreground;
   }
@@ -307,9 +310,66 @@ select {
 }
 
 @keyframes thinking-move-cycle {
-  0% { transform: translateX(0); }
-  29% { transform: translateX(calc(var(--step-size) * (var(--count) - 1))); }
-  50% { transform: translateX(calc(var(--step-size) * (var(--count) - 1))); }
-  79% { transform: translateX(0); }
-  100% { transform: translateX(0); }
+  0% {
+    transform: translateX(0);
+  }
+
+  29% {
+    transform: translateX(calc(var(--step-size) * (var(--count) - 1)));
+  }
+
+  50% {
+    transform: translateX(calc(var(--step-size) * (var(--count) - 1)));
+  }
+
+  79% {
+    transform: translateX(0);
+  }
+
+  100% {
+    transform: translateX(0);
+  }
+}
+
+/* Cyberpunk Hover Utilities */
+.hover-invert {
+  transition: all 0.2s ease;
+}
+
+.hover-invert:hover {
+  background-color: var(--text-accent) !important;
+  color: #000000 !important;
+  border-color: var(--text-accent) !important;
+}
+
+.hover-glow:focus-within,
+.hover-glow:hover {
+  box-shadow: 0 0 15px -3px var(--border-active);
+  border-color: var(--border-active);
+}
+
+/* Scanline Animation for Attachments */
+@keyframes scanline-move {
+  0% {
+    transform: translateY(-100%);
+  }
+
+  100% {
+    transform: translateY(100%);
+  }
+}
+
+.scanline-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom, transparent, var(--text-accent), transparent);
+  opacity: 0;
+  transform: translateY(-100%);
+  transition: opacity 0.2s;
+  pointer-events: none;
+}
+
+.group:hover .scanline-overlay {
+  opacity: 0.2;
+  animation: scanline-move 1.5s linear infinite;
 }

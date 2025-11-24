@@ -195,12 +195,20 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
     };
 
     // User Settings State with LocalStorage Persistence
-    const [currentModelId, setCurrentModelId] = useState(() => getSetting('CHATGPT_MODEL_ID', "x-ai/grok-4.1-fast"));
-    const [currentModelName, setCurrentModelName] = useState(() => getSetting('CHATGPT_MODEL_NAME', "Smart"));
-    const [reasoningEffort, setReasoningEffort] = useState(() => getSetting('CHATGPT_REASONING_EFFORT', "medium"));
+    const [currentModelId, setCurrentModelId] = useState("x-ai/grok-4.1-fast");
+    const [currentModelName, setCurrentModelName] = useState("Smart");
+    const [reasoningEffort, setReasoningEffort] = useState("medium");
+    const [accentColor, setAccentColor] = useState('#F5C542');
 
-    // Accent Color State
-    const [accentColor, setAccentColor] = useState(() => getSetting('CHATGPT_ACCENT_COLOR', '#F5C542'));
+    // Initialize settings from localStorage on mount (client-side only) to prevent hydration mismatch
+    useEffect(() => {
+        if (typeof window !== 'undefined') {
+            setCurrentModelId(localStorage.getItem('CHATGPT_MODEL_ID') || "x-ai/grok-4.1-fast");
+            setCurrentModelName(localStorage.getItem('CHATGPT_MODEL_NAME') || "Smart");
+            setReasoningEffort(localStorage.getItem('CHATGPT_REASONING_EFFORT') || "medium");
+            setAccentColor(localStorage.getItem('CHATGPT_ACCENT_COLOR') || '#F5C542');
+        }
+    }, []);
     const [isColorMenuOpen, setIsColorMenuOpen] = useState(false);
 
     // Apply Accent Color
@@ -670,7 +678,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                         <div className="relative">
                             <button
                                 onClick={() => setIsModelMenuOpen(!isModelMenuOpen)}
-                                className="flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)] px-3 py-2 border border-[var(--border-color)] hover:border-[var(--border-active)] uppercase tracking-[0.16em]"
+                                className="flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)] px-3 py-2 border border-[var(--border-color)] hover-invert uppercase tracking-[0.16em]"
                             >
                                 <span>{currentModelName}</span>
                                 <ChevronDown size={16} className="text-[var(--text-secondary)]" />
@@ -718,6 +726,19 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                                         <div className="my-1 border-t border-[var(--border-color)]"></div>
 
                                         <button
+                                            onClick={() => { setCurrentModelId("openrouter/auto"); setCurrentModelName("Auto (Best)"); setIsModelMenuOpen(false); }}
+                                            className="flex items-center justify-between w-full text-left px-3 py-2 hover:bg-[#0a0a0a] text-sm transition-colors border border-transparent"
+                                        >
+                                            <div className="flex flex-col">
+                                                <span className="text-[var(--text-primary)] font-semibold uppercase tracking-[0.12em]">Auto (Best)</span>
+                                                <span className="text-[var(--text-secondary)] text-[11px]">OpenRouter Auto</span>
+                                            </div>
+                                            {currentModelId === "openrouter/auto" && <Check size={16} />}
+                                        </button>
+
+                                        <div className="my-1 border-t border-[var(--border-color)]"></div>
+
+                                        <button
                                             onClick={() => { setIsModelMenuOpen(false); setIsCustomDialogOpen(true); }}
                                             className="flex items-center justify-between w-full text-left px-3 py-2 hover:bg-[#0a0a0a] text-sm transition-colors border border-transparent"
                                         >
@@ -748,9 +769,9 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                                         <HexColorPicker color={accentColor} onChange={setAccentColor} />
                                         <div className="mt-3 flex items-center gap-2">
                                             <span className="text-[10px] uppercase text-[var(--text-secondary)] font-mono">HEX</span>
-                                            <input 
-                                                type="text" 
-                                                value={accentColor} 
+                                            <input
+                                                type="text"
+                                                value={accentColor}
                                                 onChange={(e) => setAccentColor(e.target.value)}
                                                 className="flex-1 bg-[var(--bg-input)] border border-[var(--border-color)] text-[11px] px-2 py-1 text-[var(--text-primary)] font-mono uppercase focus:border-[var(--border-active)] outline-none"
                                             />
@@ -846,7 +867,8 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                         {attachments.length > 0 && (
                             <div className="flex gap-3 overflow-x-auto px-1 py-1">
                                 {attachments.map((file, i) => (
-                                    <div key={i} className="relative group flex-shrink-0 w-16 h-16 bg-[#050505] border border-[var(--border-color)] flex items-center justify-center">
+                                    <div key={i} className="relative group flex-shrink-0 w-16 h-16 bg-[#050505] border border-[var(--border-color)] flex items-center justify-center overflow-hidden">
+                                        <div className="scanline-overlay z-10"></div>
                                         {file.type.startsWith('image/') ? (
                                             <img
                                                 src={URL.createObjectURL(file)}
@@ -875,13 +897,13 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                         <div className="flex items-end gap-3">
                             <button
                                 onClick={() => fileInputRef.current?.click()}
-                                className="w-10 h-10 border border-[var(--border-color)] bg-[#050505] text-[var(--text-secondary)] hover:border-[var(--border-active)] flex items-center justify-center mb-[2px]"
+                                className="w-10 h-10 border border-[var(--border-color)] bg-[#050505] text-[var(--text-secondary)] hover-invert flex items-center justify-center mb-[2px]"
                             >
                                 <Paperclip size={18} strokeWidth={2} />
                             </button>
 
                             <div className="flex-1">
-                                <div className="border border-[var(--border-color)] bg-transparent flex items-end p-2 gap-2 focus-within:border-[var(--border-active)] transition-colors">
+                                <div className="border border-[var(--border-color)] bg-transparent flex items-end p-2 gap-2 hover-glow transition-all duration-300">
                                     <textarea
                                         ref={textareaRef}
                                         value={input}
@@ -899,10 +921,10 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                                 <div className="relative">
                                     <button
                                         onClick={() => setIsEffortMenuOpen(!isEffortMenuOpen)}
-                                        className="w-10 h-10 border border-[var(--border-color)] bg-[#050505] text-[var(--text-secondary)] hover:border-[var(--border-active)] flex items-center justify-center"
+                                        className="w-10 h-10 border border-[var(--border-color)] bg-[#050505] text-[var(--text-secondary)] hover-invert flex items-center justify-center group"
                                         title={`Reasoning Effort: ${reasoningEffort}`}
                                     >
-                                        <Sparkles size={18} strokeWidth={2} />
+                                        <Sparkles size={18} strokeWidth={2} className="group-hover:rotate-12 transition-transform duration-300" />
                                     </button>
 
                                     {isEffortMenuOpen && (
