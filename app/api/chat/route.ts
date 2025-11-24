@@ -82,20 +82,25 @@ export async function POST(req: Request) {
       };
     });
 
+    const openrouterOptions: any = {
+        reasoning: {
+          effort: effort,
+          exclude: false,
+          enabled: true
+        }
+    };
+    
+    if (attachments.length > 0) {
+        openrouterOptions.attachments = attachments;
+    }
+
     const result = streamText({
       model: openrouter(modelId),
       // @ts-expect-error - Typing mismatch for multimodal messages
       messages: coreMessages,
       // Enable reasoning tokens for OpenRouter and pass attachments
-      experimental_providerMetadata: {
-        openrouter: {
-          attachments: attachments.length > 0 ? attachments : undefined,
-          reasoning: {
-            effort: effort,
-            exclude: false,
-            enabled: true
-          }
-        }
+      providerOptions: {
+        openrouter: openrouterOptions
       },
       onFinish: () => {
         // console.log("Stream finished. Tokens:", event.usage.completionTokens);

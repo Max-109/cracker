@@ -342,10 +342,21 @@ select {
   border-color: var(--text-accent) !important;
 }
 
+.hover-glow {
+  transition: all 0.3s ease;
+}
+
 .hover-glow:focus-within,
 .hover-glow:hover {
   box-shadow: 0 0 15px -3px var(--border-active);
   border-color: var(--border-active);
+}
+
+/* Fix for double outline on prompt box */
+.no-outline:focus,
+.no-outline:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
 }
 
 /* Scanline Animation for Attachments */

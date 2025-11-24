@@ -206,7 +206,7 @@ export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose
             <div className="mb-4 z-10 relative flex items-center gap-2">
                 <button
                     onClick={onNewChat}
-                    className="flex-1 flex items-center gap-2 px-3 py-2 border border-[var(--border-color)] bg-[#050505] hover-invert transition-colors text-sm font-semibold text-[var(--text-primary)] uppercase tracking-[0.12em] text-left"
+                    className="flex-1 flex items-center gap-2 px-3 py-2 border border-[var(--border-color)] bg-[#050505] hover-glow transition-colors text-sm font-semibold text-[var(--text-primary)] uppercase tracking-[0.12em] text-left"
                 >
                     <SquarePen size={18} strokeWidth={2} />
                     <span>New Chat</span>

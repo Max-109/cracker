@@ -63,8 +63,8 @@ function CustomDialog({ isOpen, onClose, onSubmit, initialValue }: { isOpen: boo
                     autoFocus
                 />
                 <div className="flex justify-end gap-2">
-                    <button onClick={onClose} className="px-4 py-2 text-[var(--text-primary)] border border-[var(--border-color)] hover:border-[var(--border-active)] transition-colors uppercase tracking-[0.12em] text-xs">Cancel</button>
-                    <button onClick={() => onSubmit(val)} className="px-4 py-2 bg-[var(--text-accent)] text-black border border-[var(--text-accent)] hover:bg-black hover:text-[var(--text-accent)] font-semibold transition-colors uppercase tracking-[0.12em] text-xs">Save</button>
+                    <button onClick={onClose} className="px-4 py-2 text-[var(--text-primary)] border border-[var(--border-color)] hover-glow transition-colors uppercase tracking-[0.12em] text-xs">Cancel</button>
+                    <button onClick={() => onSubmit(val)} className="px-4 py-2 bg-[var(--text-accent)] text-black border border-[var(--text-accent)] hover:bg-black hover:text-[var(--text-accent)] hover-glow font-semibold transition-colors uppercase tracking-[0.12em] text-xs">Save</button>
                 </div>
             </div>
         </div>
@@ -678,7 +678,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                         <div className="relative">
                             <button
                                 onClick={() => setIsModelMenuOpen(!isModelMenuOpen)}
-                                className="flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)] px-3 py-2 border border-[var(--border-color)] hover-invert uppercase tracking-[0.16em]"
+                                className="flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)] px-3 py-2 border border-[var(--border-color)] hover-glow uppercase tracking-[0.16em]"
                             >
                                 <span>{currentModelName}</span>
                                 <ChevronDown size={16} className="text-[var(--text-secondary)]" />
@@ -756,7 +756,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                         <div className="relative">
                             <button
                                 onClick={() => setIsColorMenuOpen(!isColorMenuOpen)}
-                                className="w-9 h-9 border border-[var(--border-color)] bg-[#050505] hover:border-[var(--border-active)] flex items-center justify-center"
+                                className="w-9 h-9 border border-[var(--border-color)] bg-[#050505] hover-glow flex items-center justify-center"
                                 title="Accent Color"
                             >
                                 <div className="w-4 h-4 rounded-full border border-white/20" style={{ backgroundColor: accentColor }}></div>
@@ -765,7 +765,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                             {isColorMenuOpen && (
                                 <>
                                     <div className="fixed inset-0 z-10" onClick={() => setIsColorMenuOpen(false)}></div>
-                                    <div className="absolute top-full right-0 mt-1 p-3 bg-[var(--bg-sidebar)] border border-[var(--border-color)] shadow-xl z-20 animate-in fade-in zoom-in-95 duration-100 origin-top-right">
+                                    <div className="absolute top-full right-[-60px] mt-1 p-3 bg-[var(--bg-sidebar)] border border-[var(--border-color)] shadow-xl z-20 animate-in fade-in zoom-in-95 duration-100 origin-top-right">
                                         <HexColorPicker color={accentColor} onChange={setAccentColor} />
                                         <div className="mt-3 flex items-center gap-2">
                                             <span className="text-[10px] uppercase text-[var(--text-secondary)] font-mono">HEX</span>
@@ -897,7 +897,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                         <div className="flex items-end gap-3">
                             <button
                                 onClick={() => fileInputRef.current?.click()}
-                                className="w-10 h-10 border border-[var(--border-color)] bg-[#050505] text-[var(--text-secondary)] hover-invert flex items-center justify-center mb-[2px]"
+                                className="w-10 h-10 border border-[var(--border-color)] bg-[#050505] text-[var(--text-secondary)] hover-glow flex items-center justify-center mb-[2px]"
                             >
                                 <Paperclip size={18} strokeWidth={2} />
                             </button>
@@ -910,7 +910,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                                         onChange={handleInputChange}
                                         onKeyDown={handleKeyDown}
                                         placeholder="// Enter command or prompt..."
-                                        className="flex-1 bg-transparent text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] placeholder:italic pb-1 leading-relaxed resize-none focus:outline-none max-h-[200px] min-h-[24px] scrollbar-hide"
+                                        className="flex-1 bg-transparent text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] placeholder:italic pb-1 leading-relaxed resize-none focus:outline-none no-outline max-h-[200px] min-h-[24px] scrollbar-hide"
                                         rows={1}
                                     />
                                 </div>
@@ -921,7 +921,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                                 <div className="relative">
                                     <button
                                         onClick={() => setIsEffortMenuOpen(!isEffortMenuOpen)}
-                                        className="w-10 h-10 border border-[var(--border-color)] bg-[#050505] text-[var(--text-secondary)] hover-invert flex items-center justify-center group"
+                                        className="w-10 h-10 border border-[var(--border-color)] bg-[#050505] text-[var(--text-secondary)] hover-glow flex items-center justify-center group"
                                         title={`Reasoning Effort: ${reasoningEffort}`}
                                     >
                                         <Sparkles size={18} strokeWidth={2} className="group-hover:rotate-12 transition-transform duration-300" />
