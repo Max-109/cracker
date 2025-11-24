@@ -416,9 +416,12 @@ select {
 .cursor-aware-button {
   --tw-clip-radius: 0px;
   clip-path: circle(var(--tw-clip-radius) at var(--x) var(--y));
-  transition: --tw-clip-radius 1s cubic-bezier(0.979, 0.31, 0.2, 0.404);
+  /* Leave Animation: Fast start (ease-out), short duration to reduce delay */
+  transition: --tw-clip-radius 0.2s cubic-bezier(0, 0, 0.2, 1);
 }
 
 .group:hover .cursor-aware-button {
-  --tw-clip-radius: 1500px;
+  --tw-clip-radius: 400px;
+  /* Enter Animation: Slow start, fast end (ease-in), longer duration */
+  transition: --tw-clip-radius 0.5s cubic-bezier(0.4, 0, 1, 1);
 }
