@@ -198,7 +198,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
     const [currentModelId, setCurrentModelId] = useState("x-ai/grok-4.1-fast");
     const [currentModelName, setCurrentModelName] = useState("Smart");
     const [reasoningEffort, setReasoningEffort] = useState("medium");
-    const [accentColor, setAccentColor] = useState('#F5C542');
+    const [accentColor, setAccentColor] = useState('#7dcc3c');
 
     // Initialize settings from localStorage on mount (client-side only) to prevent hydration mismatch
     useEffect(() => {
@@ -206,7 +206,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
             setCurrentModelId(localStorage.getItem('CHATGPT_MODEL_ID') || "x-ai/grok-4.1-fast");
             setCurrentModelName(localStorage.getItem('CHATGPT_MODEL_NAME') || "Smart");
             setReasoningEffort(localStorage.getItem('CHATGPT_REASONING_EFFORT') || "medium");
-            setAccentColor(localStorage.getItem('CHATGPT_ACCENT_COLOR') || '#F5C542');
+            setAccentColor(localStorage.getItem('CHATGPT_ACCENT_COLOR') || '#7dcc3c');
         }
     }, []);
     const [isColorMenuOpen, setIsColorMenuOpen] = useState(false);
@@ -776,6 +776,12 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                                                 className="flex-1 bg-[var(--bg-input)] border border-[var(--border-color)] text-[11px] px-2 py-1 text-[var(--text-primary)] font-mono uppercase focus:border-[var(--border-active)] outline-none"
                                             />
                                         </div>
+                                        <button
+                                            onClick={() => setAccentColor('#7dcc3c')}
+                                            className="mt-2 w-full px-2 py-1 text-[10px] uppercase tracking-[0.12em] font-semibold text-[var(--text-secondary)] border border-[var(--border-color)] hover:text-[var(--text-primary)] hover:border-[var(--border-active)] transition-colors"
+                                        >
+                                            Reset to Default
+                                        </button>
                                     </div>
                                 </>
                             )}

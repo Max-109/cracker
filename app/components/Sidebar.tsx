@@ -49,14 +49,12 @@ function groupChatsByDate(chats: Chat[]) {
             const diffMs = now.getTime() - chatDate.getTime();
             const diffMins = Math.floor(diffMs / 60000);
 
-            if (diffMins < 5) {
+            if (diffMins === 0) {
                 label = 'Just now';
                 order = 100;
             } else if (diffMins < 60) {
-                // Bucket into 10, 20, 30, 40, 50
-                const bucket = Math.floor(diffMins / 10) * 10;
-                label = `${bucket} minutes ago`;
-                order = 90 - bucket;
+                label = `${diffMins} minute${diffMins === 1 ? '' : 's'} ago`;
+                order = 90 - diffMins;
             } else {
                 const diffHours = Math.floor(diffMins / 60);
                 if (diffHours === 1) label = '1 hour ago';

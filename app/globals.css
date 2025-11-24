@@ -15,11 +15,11 @@
   /* TEXT */
   --text-primary: #FFFFFF;
   --text-secondary: #555555;
-  --text-accent: #F5C542;
+  --text-accent: #7dcc3c;
 
   /* BORDERS */
   --border-color: #333333;
-  --border-active: #F5C542;
+  --border-active: #7dcc3c;
 
   /* UTILITIES */
   --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
@@ -55,11 +55,11 @@
   --input: var(--border-color);
   --ring: var(--border-active);
 
-  --chart-1: #F5C542;
-  --chart-2: #d4a62f;
-  --chart-3: #a67e1f;
-  --chart-4: #7f5f14;
-  --chart-5: #f5c542;
+  --chart-1: #7dcc3c;
+  --chart-2: #6bb032;
+  --chart-3: #5a9428;
+  --chart-4: #48781e;
+  --chart-5: #7dcc3c;
 
   --sidebar: var(--bg-sidebar);
   --sidebar-foreground: var(--text-primary);
@@ -71,9 +71,9 @@
   --sidebar-ring: var(--border-active);
 
   /* Thinking Loader Variables (Defaults) */
-  --accent-h: 46;
-  --accent-s: 92%;
-  --accent-l: 62%;
+  --accent-h: 93;
+  --accent-s: 59%;
+  --accent-l: 52%;
 }
 
 body {
