@@ -347,8 +347,8 @@ export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose
             {/* User Profile Section */}
             <div className="mt-auto pt-3 border-t border-[var(--border-color)] z-10 relative bg-[var(--bg-sidebar)]">
                 <div className="flex items-center justify-between px-2 py-2 text-[11px] uppercase tracking-[0.14em] text-[var(--text-secondary)]">
-                    <span>OpenCode Terminal</span>
-                    <span className="text-[var(--text-accent)]">Live</span>
+                    <span>Cracker</span>
+                    <span className="text-[var(--text-accent)]">{process.env.NODE_ENV === 'development' ? 'DEV' : 'PRODUCTION'}</span>
                 </div>
             </div>
         </div>

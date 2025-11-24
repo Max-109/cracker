@@ -228,6 +228,26 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
             root.style.setProperty('--accent-s', `${hsl.s}%`);
             root.style.setProperty('--accent-l', `${hsl.l}%`);
         }
+
+        // Update Favicon dynamically to match icon.svg structure with accent color
+        const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 291 291">
+            <rect x="3.252" y="3.252" width="283.465" height="283.465" rx="60" ry="60" 
+                style="fill:#262626;stroke:#7c7c7c;stroke-width:6.5px;"/>
+            <circle cx="144.985" cy="144.985" r="70.866" 
+                style="fill:${accentColor};stroke:#7c7c7c;stroke-width:6.5px;"/>
+        </svg>`;
+        const dataUrl = `data:image/svg+xml,${encodeURIComponent(svg)}`;
+        
+        // Remove all existing icon links to ensure clean replacement
+        document.querySelectorAll("link[rel*='icon']").forEach(link => link.remove());
+        
+        // Create new favicon link
+        const link = document.createElement('link');
+        link.rel = 'icon';
+        link.type = 'image/svg+xml';
+        link.href = dataUrl;
+        document.head.appendChild(link);
+
     }, [accentColor]);
 
     // Save settings on change
@@ -269,8 +289,9 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
         setCurrentChatId(initialChatId || null);
         chatIdRef.current = initialChatId || null;
     }, [initialChatId]);
-    // DEBUG: Inspect useChat return value
-    const chatHelpers = useChat(useMemo(() => ({
+    
+    // Memoize chat config to avoid recreating on every render
+    const chatConfig = useMemo(() => ({
         api: '/api/chat',
         body: {
             model: currentModelId,
@@ -335,7 +356,9 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                 console.error("No active chat ID found in onFinish");
             }
         },
-    }), [currentModelId, reasoningEffort]));
+    }), [currentModelId, reasoningEffort]);
+    
+    const chatHelpers = useChat(chatConfig);
 
     // @ts-expect-error - status might be present instead of isLoading in newer versions
     const { messages, isLoading: originalIsLoading, status, stop, setMessages, regenerate } = chatHelpers;

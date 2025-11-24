@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "ChatGPT",
+  title: "Cracker",
   description: "AI-powered chat interface",
 };
 
