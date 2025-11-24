@@ -332,6 +332,27 @@ select {
 }
 
 /* Cyberpunk Hover Utilities */
+.hover-pulse:hover {
+  animation: pulse-glow 2s infinite cubic-bezier(0.979, 0.31, 0.2, 0.404);
+}
+
+/* Cursor Aware Fill Animation */
+.cursor-fill-circle {
+  position: absolute;
+  width: 400px;
+  height: 400px;
+  background-color: var(--text-accent);
+  border-radius: 50%;
+  pointer-events: none;
+  transform: translate(-50%, -50%) scale(0);
+  transition: transform 0.5s cubic-bezier(0.979, 0.31, 0.2, 0.404);
+  /* Use snake easing for consistency */
+}
+
+.group:hover .cursor-fill-circle {
+  transform: translate(-50%, -50%) scale(1);
+}
+
 .hover-invert {
   transition: all 0.2s ease;
 }

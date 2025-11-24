@@ -206,10 +206,36 @@ export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose
             <div className="mb-4 z-10 relative flex items-center gap-2">
                 <button
                     onClick={onNewChat}
-                    className="flex-1 flex items-center gap-2 px-3 py-2 border border-[var(--border-color)] bg-[#050505] hover-glow transition-colors text-sm font-semibold text-[var(--text-primary)] uppercase tracking-[0.12em] text-left"
+                    onMouseMove={(e) => {
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        const x = e.clientX - rect.left;
+                        const y = e.clientY - rect.top;
+                        e.currentTarget.style.setProperty('--x', `${x}px`);
+                        e.currentTarget.style.setProperty('--y', `${y}px`);
+                    }}
+                    onMouseLeave={(e) => {
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        const x = e.clientX - rect.left;
+                        const y = e.clientY - rect.top;
+                        e.currentTarget.style.setProperty('--x', `${x}px`);
+                        e.currentTarget.style.setProperty('--y', `${y}px`);
+                    }}
+                    style={{ '--x': '50%', '--y': '50%' } as React.CSSProperties}
+                    className="group relative flex-1 flex items-center gap-2 px-3 py-2 border border-[var(--border-color)] bg-[#050505] overflow-hidden transition-colors text-sm font-semibold text-[var(--text-primary)] hover:text-black uppercase tracking-[0.12em] text-left"
                 >
-                    <SquarePen size={18} strokeWidth={2} />
-                    <span>New Chat</span>
+                    {/* Base Layer (White Text, Dark BG) */}
+                    <span className="relative z-10 flex items-center gap-2 text-[var(--text-primary)]">
+                        <SquarePen size={18} strokeWidth={2} />
+                        <span>New Chat</span>
+                    </span>
+
+                    {/* Overlay Layer (Black Text, Orange BG) - Revealed by Clip Path */}
+                    <div
+                        className="absolute inset-0 flex items-center gap-2 px-3 py-2 bg-[var(--text-accent)] text-black z-20 pointer-events-none [clip-path:circle(0px_at_var(--x)_var(--y))] group-hover:[clip-path:circle(1500px_at_var(--x)_var(--y))] transition-[clip-path] duration-500 ease-[cubic-bezier(0.979,0.31,0.2,0.404)]"
+                    >
+                        <SquarePen size={18} strokeWidth={2} />
+                        <span>New Chat</span>
+                    </div>
                 </button>
                 {/* Mobile Close Button */}
                 <button
