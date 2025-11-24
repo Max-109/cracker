@@ -206,6 +206,13 @@ export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose
             <div className="mb-4 z-10 relative flex items-center gap-2">
                 <button
                     onClick={onNewChat}
+                    onMouseEnter={(e) => {
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        const x = e.clientX - rect.left;
+                        const y = e.clientY - rect.top;
+                        e.currentTarget.style.setProperty('--x', `${x}px`);
+                        e.currentTarget.style.setProperty('--y', `${y}px`);
+                    }}
                     onMouseMove={(e) => {
                         const rect = e.currentTarget.getBoundingClientRect();
                         const x = e.clientX - rect.left;
@@ -231,7 +238,7 @@ export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose
 
                     {/* Overlay Layer (Black Text, Orange BG) - Revealed by Clip Path */}
                     <div
-                        className="absolute inset-0 flex items-center gap-2 px-3 py-2 bg-[var(--text-accent)] text-black z-20 pointer-events-none [clip-path:circle(0px_at_var(--x)_var(--y))] group-hover:[clip-path:circle(1500px_at_var(--x)_var(--y))] transition-[clip-path] duration-500 ease-[cubic-bezier(0.979,0.31,0.2,0.404)]"
+                        className="absolute inset-0 flex items-center gap-2 px-3 py-2 bg-[var(--text-accent)] text-black z-20 pointer-events-none cursor-aware-button"
                     >
                         <SquarePen size={18} strokeWidth={2} />
                         <span>New Chat</span>

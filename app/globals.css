@@ -405,3 +405,20 @@ select {
   opacity: 0.2;
   animation: scanline-move 1.5s linear infinite;
 }
+
+/* Cursor Aware Button Fix */
+@property --tw-clip-radius {
+  syntax: '<length>';
+  initial-value: 0px;
+  inherits: false;
+}
+
+.cursor-aware-button {
+  --tw-clip-radius: 0px;
+  clip-path: circle(var(--tw-clip-radius) at var(--x) var(--y));
+  transition: --tw-clip-radius 1s cubic-bezier(0.979, 0.31, 0.2, 0.404);
+}
+
+.group:hover .cursor-aware-button {
+  --tw-clip-radius: 1500px;
+}
