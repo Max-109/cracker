@@ -1,10 +1,10 @@
-import React, { useMemo } from 'react';
+import React from 'react';
 import { cn } from '@/lib/utils';
 
 const STATES = ["PROCESSING", "BUILDING", "COMPILING", "DEPLOYING"];
 
 export function LoadingIndicator({ label, className }: { label?: string; className?: string }) {
-  const status = useMemo(() => label || STATES[Math.floor(Math.random() * STATES.length)], [label]);
+  const status = label || STATES[0];
 
   return (
     <div className={cn("flex items-center gap-4", className)}>

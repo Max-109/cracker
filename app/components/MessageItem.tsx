@@ -8,21 +8,11 @@ import remarkMath from 'remark-math';
 import remarkGfm from 'remark-gfm';
 import rehypeKatex from 'rehype-katex';
 import { CodeBlock } from './CodeBlock';
-import { LoadingIndicator } from './LoadingIndicator';
 import { cn } from '@/lib/utils';
+import type { MessagePart } from '@/lib/chat-types';
 import 'katex/dist/katex.min.css';
 const REMARK_PLUGINS = [remarkMath, remarkGfm];
 const REHYPE_PLUGINS = [rehypeKatex];
-
-interface MessagePart {
-  type: string;
-  text?: string;
-  image?: string; // Added image property
-  data?: string; // For generic files
-  mimeType?: string;
-  reasoning?: string;
-  [key: string]: unknown;
-}
 
 interface MessageItemProps {
   role: string;
@@ -76,7 +66,7 @@ const preprocessLaTeX = (content: string) => {
 };
 
 // Helper to format MIME types
-const formatMimeType = (mime: string) => {
+const formatMimeType = (mime?: string) => {
   if (!mime) return 'FILE';
   if (mime === 'application/pdf') return 'PDF';
   if (mime.startsWith('image/')) return mime.split('/')[1].toUpperCase();
@@ -173,7 +163,7 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
 
   if (role === 'user') {
     let userText = '';
-    let userImages: string[] = [];
+    const userImages: string[] = [];
 
     if (typeof safeContent === 'string') {
       userText = safeContent;
@@ -197,8 +187,9 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
       safeContent.forEach(part => {
         if (part.type === 'file' && part.data) {
           // Extract name if available
-          const fileName = part.name || 'File Attachment';
-          userFiles.push({ data: part.data, mimeType: part.mimeType || 'application/octet-stream', name: fileName as string });
+          const fileName = (part.filename || part.name || 'File Attachment') as string;
+          const mime = part.mediaType || part.mimeType || 'application/octet-stream';
+          userFiles.push({ data: part.data, mimeType: mime, name: fileName });
         }
       });
     }
@@ -254,6 +245,7 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
                 <div className="flex flex-wrap gap-2 justify-end">
                   {userImages.map((img, idx) => (
                     <div key={idx} className="relative border border-[var(--border-color)] bg-[#050505] overflow-hidden">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={img} alt={`Attachment ${idx + 1}`} className="max-w-[200px] max-h-[200px] object-cover" />
                     </div>
                   ))}

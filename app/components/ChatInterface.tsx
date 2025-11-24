@@ -1,16 +1,8 @@
 'use client';
 
-import React, { memo, useMemo, useDeferredValue } from 'react';
+import React, { memo, useMemo } from 'react';
 import { useChat } from '@ai-sdk/react';
-// import { type Message } from 'ai'; // Message not exported in v5
-
-export interface Message {
-    id: string;
-    role: 'function' | 'data' | 'system' | 'user' | 'assistant' | 'tool';
-    content: string;
-    createdAt?: Date;
-    parts?: any[]; // For multimodal/reasoning
-}
+import type { ChatMessage, MessagePart } from '@/lib/chat-types';
 import { MessageItem } from './MessageItem';
 import { Skeleton } from './Skeleton';
 import { LoadingIndicator } from './LoadingIndicator';
@@ -148,15 +140,23 @@ interface ChatInterfaceProps {
 // Custom hook for throttling values
 function useThrottledValue<T>(value: T, limit: number): T {
     const [throttledValue, setThrottledValue] = useState(value);
-    const lastRan = useRef(Date.now());
+    const lastRanRef = useRef<number>(0);
 
     useEffect(() => {
-        const handler = setTimeout(() => {
-            if (Date.now() - lastRan.current >= limit) {
-                setThrottledValue(value);
-                lastRan.current = Date.now();
-            }
-        }, limit - (Date.now() - lastRan.current));
+        const now = Date.now();
+
+        if (lastRanRef.current === 0) {
+            lastRanRef.current = now;
+            return;
+        }
+
+        const elapsed = now - lastRanRef.current;
+        const delay = Math.max(limit - elapsed, 0);
+
+        const handler = window.setTimeout(() => {
+            setThrottledValue(value);
+            lastRanRef.current = Date.now();
+        }, delay);
 
         return () => {
             clearTimeout(handler);
@@ -166,16 +166,18 @@ function useThrottledValue<T>(value: T, limit: number): T {
     return throttledValue;
 }
 
-const ThrottledMessageItem = memo(function ThrottledMessageItem({ message, index, isThinking, onEdit, onRetry }: { message: Message, index: number, isThinking: boolean, onEdit: (index: number, content: string) => void, onRetry: () => void }) {
+const ThrottledMessageItem = memo(function ThrottledMessageItem({ message, index, isThinking, onEdit, onRetry }: { message: ChatMessage, index: number, isThinking: boolean, onEdit: (index: number, content: string) => void, onRetry: () => void }) {
     // We use useThrottledValue to limit how often the expensive Markdown component re-renders.
     // This prevents the UI from freezing during high-speed streaming of complex content (tables, code).
     // 100ms throttle = ~10fps updates, which feels smooth but saves massive resources.
-    const content = message.content || message.parts as any;
+    const combinedContent: ChatMessage['content'] = Array.isArray(message.content)
+        ? message.content
+        : (Array.isArray(message.parts) ? message.parts : (message.content ?? ''));
 
     // Only throttle if it's an AI message that is currently streaming (implied by updates)
     // For user messages or static content, it doesn't matter as much, but consistency is good.
     // We use 100ms as a balance between responsiveness and performance.
-    const throttledContent = useThrottledValue(content, 100);
+    const throttledContent = useThrottledValue(combinedContent, 100);
 
     // Create a stable handler for this specific item
     const handleEdit = React.useCallback((newContent: string) => {
@@ -189,26 +191,16 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
     // const router = useRouter(); // Removed unused
     const { refreshChats, toggleSidebar } = useChatContext();
 
-    const getSetting = (key: string, fallback: string) => {
+    const resolveSetting = (key: string, fallback: string) => {
         if (typeof window === 'undefined') return fallback;
         return localStorage.getItem(key) || fallback;
     };
 
     // User Settings State with LocalStorage Persistence
-    const [currentModelId, setCurrentModelId] = useState("x-ai/grok-4.1-fast");
-    const [currentModelName, setCurrentModelName] = useState("Smart");
-    const [reasoningEffort, setReasoningEffort] = useState("medium");
-    const [accentColor, setAccentColor] = useState('#7dcc3c');
-
-    // Initialize settings from localStorage on mount (client-side only) to prevent hydration mismatch
-    useEffect(() => {
-        if (typeof window !== 'undefined') {
-            setCurrentModelId(localStorage.getItem('CHATGPT_MODEL_ID') || "x-ai/grok-4.1-fast");
-            setCurrentModelName(localStorage.getItem('CHATGPT_MODEL_NAME') || "Smart");
-            setReasoningEffort(localStorage.getItem('CHATGPT_REASONING_EFFORT') || "medium");
-            setAccentColor(localStorage.getItem('CHATGPT_ACCENT_COLOR') || '#7dcc3c');
-        }
-    }, []);
+    const [currentModelId, setCurrentModelId] = useState(() => resolveSetting('CHATGPT_MODEL_ID', "x-ai/grok-4.1-fast"));
+    const [currentModelName, setCurrentModelName] = useState(() => resolveSetting('CHATGPT_MODEL_NAME', "Smart"));
+    const [reasoningEffort, setReasoningEffort] = useState(() => resolveSetting('CHATGPT_REASONING_EFFORT', "medium"));
+    const [accentColor, setAccentColor] = useState(() => resolveSetting('CHATGPT_ACCENT_COLOR', '#7dcc3c'));
     const [isColorMenuOpen, setIsColorMenuOpen] = useState(false);
 
     // Apply Accent Color
@@ -274,7 +266,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
     const chatIdRef = useRef<string | null>(initialChatId || null);
 
     // Ref to track latest messages for persistence fallback
-    const messagesRef = useRef<Message[]>([]);
+    const messagesRef = useRef<ChatMessage[]>([]);
 
     // Loading states
     const [isMessagesLoading, setIsMessagesLoading] = useState(false);
@@ -301,9 +293,9 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
         onError: (err: Error) => {
             console.error("Chat Error:", err);
         },
-        onFinish: async (result: any) => {
+        onFinish: async (result: ChatMessage | { message: ChatMessage }) => {
             // Handle both new (object wrapper) and old (direct message) signatures
-            const message = result.message || result;
+            const message = 'message' in result ? result.message : result;
             // Use ref to ensure we have the latest ID even if closure is stale
             const activeId = chatIdRef.current;
             if (activeId) {
@@ -362,17 +354,18 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
 
     // @ts-expect-error - status might be present instead of isLoading in newer versions
     const { messages, isLoading: originalIsLoading, status, stop, setMessages, regenerate } = chatHelpers;
+    const typedMessages = messages as unknown as ChatMessage[];
 
     // Polyfill isLoading if it's missing, based on status
     const isLoading = originalIsLoading ?? (status === 'submitted' || status === 'streaming');
 
-    // @ts-expect-error - Handle potential missing sendMessage by aliasing append
-    const sendMessage = chatHelpers.sendMessage || chatHelpers.append;
+    type SendMessageFn = (message: { role: string; content: unknown }, options?: Record<string, unknown>) => Promise<void>;
+    const sendMessage = (chatHelpers.sendMessage || chatHelpers.append) as SendMessageFn;
 
     // Sync messages ref whenever messages update
     useEffect(() => {
-        messagesRef.current = messages as any;
-    }, [messages]);
+        messagesRef.current = typedMessages;
+    }, [typedMessages]);
 
     // Load messages when chat ID changes
     useEffect(() => {
@@ -390,19 +383,19 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                 .then(data => {
                     if (Array.isArray(data)) {
                         // Map DB messages to UI format
-                        const uiMessages = data.map((msg: { id: string; role: 'user' | 'assistant'; content: string | unknown[]; createdAt: string }) => {
+                        const uiMessages: ChatMessage[] = data.map((msg: { id: string; role: 'user' | 'assistant'; content: string | unknown[]; createdAt: string }) => {
                             const isParts = Array.isArray(msg.content);
                             return {
                                 id: msg.id,
                                 role: msg.role,
                                 // If it's an array (parts), we put it in 'parts' and leave content empty/stringified.
                                 // However, MessageItem uses (content || parts), so we need to ensure 'parts' is set if it's an array.
-                                content: isParts ? "" : msg.content as string,
-                                parts: isParts ? msg.content : undefined,
+                                content: isParts ? "" : (msg.content as string),
+                                parts: isParts ? (msg.content as MessagePart[]) : undefined,
                                 createdAt: new Date(msg.createdAt)
                             };
                         });
-                        setMessages(uiMessages as any);
+                        setMessages(uiMessages as Parameters<typeof setMessages>[0]);
                     }
                 })
                 .catch(err => console.error("Failed to fetch messages:", err))
@@ -433,7 +426,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
 
             // 2. Update Local State (Remove edited + subsequent)
             const keptMessages = currentMessages.slice(0, index);
-            setMessages(keptMessages as any);
+            setMessages(keptMessages as Parameters<typeof setMessages>[0]);
 
             // 3. Save NEW user message to DB
             await fetch('/api/messages', {
@@ -463,7 +456,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
     }, [setMessages]); // setMessages is stable from useChat
 
     // We need a way to call sendMessage from the stable handler.
-    const sendMessageRef = useRef(sendMessage);
+    const sendMessageRef = useRef<SendMessageFn | null>(sendMessage);
     useEffect(() => { sendMessageRef.current = sendMessage; }, [sendMessage]);
 
     // Actual implementation that calls the ref
@@ -472,7 +465,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
             sendMessageRef.current?.({
                 role: 'user',
                 content: newContent
-            } as any, {
+            }, {
                 body: {
                     model: localStorage.getItem('CHATGPT_MODEL_ID') || "x-ai/grok-4.1-fast", // Read from localstorage to avoid dep
                     reasoningEffort: localStorage.getItem('CHATGPT_REASONING_EFFORT') || "medium"
@@ -502,7 +495,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                 behavior: "smooth"
             });
         }
-    }, [messages, shouldAutoScroll]);
+    }, [typedMessages, shouldAutoScroll]);
 
     const [input, setInput] = useState('');
 
@@ -518,6 +511,37 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
             reader.onload = () => resolve(reader.result as string);
             reader.onerror = error => reject(error);
         });
+    };
+
+    const inferMediaType = (file: File): string => {
+        if (file.type) return file.type;
+        const extension = file.name.split('.').pop()?.toLowerCase();
+        const fallbackMap: Record<string, string> = {
+            pdf: 'application/pdf',
+            txt: 'text/plain',
+            md: 'text/markdown',
+            json: 'application/json',
+            csv: 'text/csv',
+            yml: 'text/yaml',
+            yaml: 'text/yaml',
+            html: 'text/html',
+            css: 'text/css',
+            js: 'application/javascript',
+            ts: 'text/typescript',
+            tsx: 'text/typescript',
+            jsx: 'text/jsx',
+            py: 'text/x-python',
+            java: 'text/x-java-source',
+            c: 'text/x-c',
+            cpp: 'text/x-c++',
+            sql: 'application/sql',
+            ico: 'image/x-icon',
+            svg: 'image/svg+xml'
+        };
+        if (extension && fallbackMap[extension]) {
+            return fallbackMap[extension];
+        }
+        return 'application/octet-stream';
     };
 
     const handleFileSelect = React.useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -538,17 +562,32 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
         const userMessage = input;
 
         // Convert attachments to base64
-        const processedAttachments = attachments.length > 0
+        type PreparedAttachment =
+            | { type: 'image'; name: string; image: string; mediaType: string }
+            | { type: 'file'; name: string; data: string; mediaType: string; mimeType: string; filename?: string };
+
+        const processedAttachments: PreparedAttachment[] = attachments.length > 0
             ? await Promise.all(attachments.map(async (file) => {
-                const url = await convertFileToBase64(file);
-                const isImage = file.type.startsWith('image/');
+                const dataUrl = await convertFileToBase64(file);
+                const mediaType = inferMediaType(file);
+
+                if (mediaType.startsWith('image/')) {
+                    return {
+                        name: file.name,
+                        type: 'image',
+                        image: dataUrl,
+                        mediaType
+                    } as PreparedAttachment;
+                }
+
                 return {
                     name: file.name,
-                    type: isImage ? 'image' : 'file',
-                    mimeType: file.type,
-                    data: url, // For files, we send the data URL as 'data'
-                    image: isImage ? url : undefined // For images, we send as 'image'
-                };
+                    type: 'file',
+                    data: dataUrl,
+                    mediaType,
+                    mimeType: mediaType,
+                    filename: file.name
+                } as PreparedAttachment;
             }))
             : [];
 
@@ -581,22 +620,29 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
             }
 
             // Construct Message Content (Multimodal or Text)
-            let finalContent: any = userMessage;
+            let finalContent: string | MessagePart[] = userMessage;
 
             // If we have attachments, format for Vercel AI SDK (experimental_attachments) or mixed content
             // Since AI SDK `append` supports mixed content (text + images), we construct that.
             if (processedAttachments.length > 0) {
                 // Structure for Vercel AI SDK 'user' message with mixed content
-                finalContent = [
+                const structuredParts: MessagePart[] = [
                     { type: 'text', text: userMessage },
                     ...processedAttachments.map(att => {
                         if (att.type === 'image') {
-                            return { type: 'image', image: att.image };
+                            return { type: 'image', image: att.image, mediaType: att.mediaType, name: att.name };
                         }
-                        // For generic files, include name
-                        return { type: 'file', data: att.data, mimeType: att.mimeType, name: att.name };
+                        return {
+                            type: 'file',
+                            data: att.data,
+                            mediaType: att.mediaType,
+                            mimeType: att.mimeType,
+                            filename: att.filename || att.name,
+                            name: att.name
+                        } satisfies MessagePart;
                     })
                 ];
+                finalContent = structuredParts;
             }
 
             // Save User Message (store as JSON if multimodal)
@@ -630,8 +676,8 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
             // Note: sendMessage() automatically handles the optimistic UI update
             await sendMessage({
                 role: 'user',
-                content: finalContent as string | any[], // Force type or use proper typing
-            } as any, {
+                content: finalContent,
+            }, {
                 body: {
                     model: currentModelId,
                     reasoningEffort: reasoningEffort
@@ -852,18 +898,18 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                         {/* Actual Content */}
                         <FadeWrapper show={!isMessagesLoading} className="relative z-0">
                             <>
-                                {messages.length === 0 && (
+                                {typedMessages.length === 0 && (
                                     <div className="flex flex-col items-center justify-center h-[60vh] text-center opacity-100">
                                         <h2 className="text-2xl font-semibold text-[var(--text-primary)]">Where should we begin?</h2>
                                     </div>
                                 )}
 
-                                {(messages as any[]).map((m: Message, index: number) => (
+                                {typedMessages.map((m: ChatMessage, index: number) => (
                                     <ThrottledMessageItem
                                         key={m.id}
                                         message={m}
                                         index={index}
-                                        isThinking={isLoading && index === messages.length - 1 && m.role === 'assistant'}
+                                        isThinking={isLoading && index === typedMessages.length - 1 && m.role === 'assistant'}
                                         onEdit={stableHandleEdit}
                                         onRetry={() => regenerate()}
                                     />
@@ -899,6 +945,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                                     <div key={i} className="relative group flex-shrink-0 w-16 h-16 bg-[#050505] border border-[var(--border-color)] flex items-center justify-center overflow-hidden">
                                         <div className="scanline-overlay z-10"></div>
                                         {file.type.startsWith('image/') ? (
+                                                    /* eslint-disable-next-line @next/next/no-img-element */
                                             <img
                                                 src={URL.createObjectURL(file)}
                                                 alt={file.name}

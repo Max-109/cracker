@@ -1,6 +1,6 @@
 import { db } from '@/db';
 import { messages } from '@/db/schema';
-import { eq, desc, inArray, and } from 'drizzle-orm';
+import { eq, desc, inArray } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
 export async function POST(req: Request) {

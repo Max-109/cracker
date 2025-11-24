@@ -7,6 +7,111 @@ const openrouter = createOpenRouter({
   apiKey: "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",
 });
 
+const base64Regex = /^[A-Za-z0-9+/=\s]+$/;
+type Role = "user" | "assistant" | "system" | "tool";
+
+type TextContentPart = {
+  type: "text";
+  text?: string;
+};
+
+type ImageContentPart = {
+  type: "image";
+  image?: string;
+  mediaType?: string;
+  mimeType?: string;
+};
+
+type RawFileDescriptor = {
+  filename?: string;
+  file_data?: string;
+  fileData?: string;
+  mime_type?: string;
+};
+
+type FileContentPart = {
+  type: "file";
+  data?: string;
+  mediaType?: string;
+  mimeType?: string;
+  filename?: string;
+  name?: string;
+  file?: RawFileDescriptor;
+  file_data?: string;
+  providerOptions?: Record<string, unknown>;
+};
+
+type ReasoningContentPart = {
+  type: "reasoning";
+  text?: string;
+};
+
+type MixedContentPart =
+  | TextContentPart
+  | ImageContentPart
+  | FileContentPart
+  | ReasoningContentPart
+  | string
+  | null
+  | undefined;
+
+type IncomingMessage = {
+  role: Role | string;
+  content?: MixedContentPart[] | string;
+  parts?: Array<{ text?: string }>;
+};
+
+type NormalizedFilePart = {
+  type: "file";
+  data: string;
+  mediaType: string;
+  filename?: string;
+  providerOptions?: Record<string, unknown>;
+};
+
+const toDataUrl = (rawData: MixedContentPart, mediaType: string): string | null => {
+  if (!rawData || typeof rawData !== "string") return null;
+
+  if (rawData.startsWith("data:")) return rawData;
+  const trimmed = rawData.trim();
+  if (base64Regex.test(trimmed)) {
+    return `data:${mediaType || "application/octet-stream"};base64,${trimmed.replace(/\s/g, "")}`;
+  }
+  return trimmed;
+};
+
+const normalizeFilePart = (part: FileContentPart | string | null | undefined): NormalizedFilePart | null => {
+  if (!part || typeof part === "string") return null;
+  const mediaType = part.mediaType || part.mimeType || part.file?.mime_type || "application/octet-stream";
+  const rawData = part.data || part.file?.file_data || part.file?.fileData || part.file_data;
+  const filename = part.filename || part.name || part.file?.filename;
+  const normalizedData = toDataUrl(rawData, mediaType);
+
+  if (!normalizedData) return null;
+
+  return {
+    type: "file",
+    data: normalizedData,
+    mediaType,
+    filename,
+    providerOptions: part.providerOptions,
+  };
+};
+
+type NormalizedContentPart = TextContentPart | ImageContentPart | NormalizedFilePart | ReasoningContentPart;
+
+interface OpenRouterProviderOptions {
+  reasoning: {
+    effort: string;
+    exclude: boolean;
+    enabled: boolean;
+  };
+  plugins?: Array<{
+    id: "file-parser";
+    pdf: { engine: "pdf-text" | "mistral-ocr" | "native" };
+  }>;
+}
+
 export async function POST(req: Request) {
   console.log("--- API Request Received ---");
   try {
@@ -21,77 +126,89 @@ export async function POST(req: Request) {
 
     console.log(`Starting streamText with ${modelId} (Effort: ${effort})...`);
 
-    const attachments: any[] = [];
+    let hasPdfAttachment = false;
 
-    // Manual conversion to ensure compatibility with multimodal content and extract attachments
-    const coreMessages = messages.map((m: { role: string; content: unknown; parts?: any[] }, index: number) => {
-      const isLastMessage = index === messages.length - 1;
-      
-      // Handle multimodal content array (from useChat with attachments)
-      if (Array.isArray(m.content)) {
-        const newContent: any[] = [];
-        
-        m.content.forEach((part: any) => {
-          if (part.type === 'image') {
-            // Keep images as standard image content
-            newContent.push({ type: 'image', image: part.image });
-          } else if (part.type === 'file') {
-             // Handle PDF
-             if (part.mimeType === 'application/pdf') {
-               if (isLastMessage) {
-                 // Extract base64 data (remove data URL prefix if present)
-                 const base64Data = part.data?.toString().includes(',') 
-                    ? part.data.toString().split(',')[1] 
-                    : part.data;
-                 
-                 if (base64Data) {
-                   attachments.push({
-                     type: 'application/pdf',
-                     data: base64Data
-                   });
-                 }
-                 // Don't add to content to avoid type errors
-               }
-             } else if (part.mimeType?.startsWith('image/')) {
-                // Fallback for image files sent as 'file' type
-                newContent.push({ type: 'image', image: part.data });
-             } else {
-                // Other files? Treat as text or ignore
-                newContent.push({ type: 'text', text: `[File: ${part.name || 'unknown'}]` });
-             }
-          } else if (part.type === 'text') {
-            newContent.push({ type: 'text', text: part.text });
+    // Manual conversion to ensure compatibility with multimodal content
+    const coreMessages = (messages as IncomingMessage[]).map((message) => {
+      if (Array.isArray(message.content)) {
+        const newContent: NormalizedContentPart[] = [];
+
+        message.content.forEach((part) => {
+          if (!part) return;
+
+          if (typeof part === "string") {
+            newContent.push({ type: "text", text: part });
+            return;
+          }
+
+          if (part.type === "image" && part.image) {
+            newContent.push({
+              type: "image",
+              image: part.image,
+              mediaType: part.mediaType || part.mimeType,
+            });
+            return;
+          }
+
+          if (part.type === "file") {
+            const normalizedFile = normalizeFilePart(part);
+            if (normalizedFile) {
+              if (normalizedFile.mediaType === "application/pdf") {
+                hasPdfAttachment = true;
+              }
+              newContent.push(normalizedFile);
+            } else {
+              const fallbackLabel = part.name || part.filename || "attachment";
+              newContent.push({ type: "text", text: `[Attachment unavailable: ${fallbackLabel}]` });
+            }
+            return;
+          }
+
+          if (part.type === "text") {
+            newContent.push({ type: "text", text: part.text ?? "" });
+            return;
+          }
+
+          if (part.type === "reasoning") {
+            newContent.push({ type: "reasoning", text: part.text ?? "" });
           }
         });
 
-        // If content is empty after extraction (e.g. only PDF), add empty text
         if (newContent.length === 0) {
-            newContent.push({ type: 'text', text: ' ' });
+          newContent.push({ type: "text", text: " " });
         }
 
         return {
-          role: m.role as "user" | "assistant" | "system" | "tool",
-          content: newContent
+          role: (message.role as Role) ?? "user",
+          content: newContent,
         };
       }
 
-      // Fallback for text-only content
+      const fallbackContent = typeof message.content === "string"
+        ? message.content
+        : (Array.isArray(message.parts) ? message.parts.map((part) => part?.text || "").join("") : "");
+
       return {
-        role: m.role as "user" | "assistant" | "system" | "tool",
-        content: (typeof m.content === 'string' ? m.content : "") || m.parts?.map((p: any) => p.text).join('') || ""
+        role: (message.role as Role) ?? "user",
+        content: fallbackContent || "",
       };
     });
 
-    const openrouterOptions: any = {
+    const openrouterOptions: OpenRouterProviderOptions = {
         reasoning: {
           effort: effort,
           exclude: false,
           enabled: true
         }
     };
-    
-    if (attachments.length > 0) {
-        openrouterOptions.attachments = attachments;
+
+    if (hasPdfAttachment) {
+      openrouterOptions.plugins = [
+        {
+          id: 'file-parser',
+          pdf: { engine: 'pdf-text' }
+        }
+      ];
     }
 
     const result = streamText({
@@ -117,7 +234,10 @@ export async function POST(req: Request) {
           for await (const chunk of stream) {
             let cleanChunk = chunk;
             if (chunk && typeof chunk === 'object') {
-              const c = chunk as any;
+              type ChoiceDelta = { annotations?: unknown } & Record<string, unknown>;
+              type Choice = { delta?: ChoiceDelta } & Record<string, unknown>;
+              type ChunkWithAnnotations = { choices?: Choice[]; annotations?: unknown } & Record<string, unknown>;
+              const c = chunk as ChunkWithAnnotations;
               // Remove raw OpenAI-style annotations if they leak through
               if (c.choices && Array.isArray(c.choices) && c.choices[0]?.delta?.annotations) {
                  const newChunk = { ...c };
@@ -130,7 +250,8 @@ export async function POST(req: Request) {
               }
               // Remove top-level annotations
               if ('annotations' in c) {
-                const { annotations, ...rest } = c;
+                const rest = { ...c } as Record<string, unknown>;
+                delete rest.annotations;
                 cleanChunk = rest;
               }
             }
