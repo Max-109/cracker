@@ -663,17 +663,37 @@ select {
 }
 
 /* Ender Pearl Eye Animation for Color Picker */
+.ender-eye-container {
+  position: relative;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .ender-eye {
   width: 16px;
   height: 16px;
   border-radius: 50%;
   border: 1px solid rgba(255, 255, 255, 0.2);
   transition: all 0.15s ease-out;
+  position: relative;
 }
 
 .color-picker-btn:hover .ender-eye {
   animation: ender-blink 0.5s ease-in-out;
-  box-shadow: 0 0 10px -2px currentColor;
+  box-shadow: 0 0 12px -2px currentColor;
+}
+
+.color-picker-btn:hover .ender-eye-container::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  border: 1px solid currentColor;
+  opacity: 0;
+  animation: ender-ring 1.5s ease-out infinite;
 }
 
 @keyframes ender-blink {
@@ -704,5 +724,16 @@ select {
   100% {
     transform: scaleY(1) scaleX(1);
     border-radius: 50%;
+  }
+}
+
+@keyframes ender-ring {
+  0% {
+    transform: scale(1);
+    opacity: 0.6;
+  }
+  100% {
+    transform: scale(1.8);
+    opacity: 0;
   }
 }

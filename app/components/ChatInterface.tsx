@@ -1052,10 +1052,9 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                                 title="Accent Color"
                                 style={{ color: accentColor }}
                             >
-                                <div 
-                                    className={cn("ender-eye", !isSettingsHydrated && "opacity-0")} 
-                                    style={{ backgroundColor: accentColor }}
-                                ></div>
+                                <div className={cn("ender-eye-container", !isSettingsHydrated && "opacity-0")}>
+                                    <div className="ender-eye" style={{ backgroundColor: accentColor }}></div>
+                                </div>
                             </button>
 
                             {isColorMenuOpen && (
