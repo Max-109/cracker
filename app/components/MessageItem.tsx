@@ -107,7 +107,7 @@ function ModelBadge({ name, fullName, tokensPerSecond }: { name: string; fullNam
   return (
     <button
       onClick={handleClick}
-      className="transition-all duration-200 cursor-pointer flex items-center gap-1 text-[8px]"
+      className="transition-all duration-200 cursor-pointer flex items-center gap-1 text-[9px]"
       title={`Click to copy: ${fullName}`}
     >
       {copied ? (
@@ -121,7 +121,7 @@ function ModelBadge({ name, fullName, tokensPerSecond }: { name: string; fullNam
           {tokensPerSecond !== undefined && tokensPerSecond > 0 && (
             <>
               <span className="opacity-30">|</span>
-              <span><span className="text-[var(--text-accent)]">{Math.round(tokensPerSecond)}</span> t/s</span>
+              <span><span className="text-[var(--text-accent)]">{tokensPerSecond.toFixed(1)}</span> t/s</span>
             </>
           )}
         </>
@@ -556,7 +556,7 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
                 </div>
               )}
 
-              <div className="flex items-center gap-3 text-[11px] uppercase tracking-[0.14em] text-[var(--text-secondary)] opacity-60 group-hover:opacity-100 transition-opacity select-none justify-end w-full">
+              <div className="flex items-center gap-3 text-[11px] uppercase tracking-[0.14em] text-[var(--text-secondary)] opacity-0 group-hover:opacity-100 transition-opacity select-none justify-end w-full">
                 <button
                   onClick={() => {
                     setEditContent(userText);

@@ -389,7 +389,8 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
         api: '/api/chat',
         body: () => ({
             model: currentModelIdRef.current,
-            reasoningEffort: reasoningEffortRef.current
+            reasoningEffort: reasoningEffortRef.current,
+            chatId: chatIdRef.current
         }),
     }), []);
 
@@ -432,15 +433,38 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                     contentToSave = " ";
                 }
 
+                // Fetch real stats from server (OpenRouter metadata)
+                let serverStats: { modelId: string | null; tokensPerSecond: number | null } = { modelId: null, tokensPerSecond: null };
+                try {
+                    const statsRes = await fetch(`/api/chat?chatId=${activeId}`);
+                    if (statsRes.ok) {
+                        serverStats = await statsRes.json();
+                        console.log(`[Chat] Got stats:`, serverStats);
+                    }
+                } catch (e) {
+                    console.error('Failed to fetch completion stats:', e);
+                }
+
+                const modelToSave = serverStats.modelId || currentModelIdRef.current;
+                const tpsToSave = serverStats.tokensPerSecond;
+                console.log(`[Chat] Saving message with model: ${modelToSave}, TPS: ${tpsToSave}`);
+
                 await fetch('/api/messages', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         chatId: activeId,
                         role: 'assistant',
-                        content: contentToSave
+                        content: contentToSave,
+                        model: modelToSave,
+                        tokensPerSecond: tpsToSave
                     })
                 });
+                
+                // Update local streaming stats for immediate display
+                if (tpsToSave) {
+                    setStreamingStats({ modelId: modelToSave, tokensPerSecond: tpsToSave });
+                }
             }
         },
     });
@@ -450,46 +474,15 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
     const isLoading = status === 'submitted' || status === 'streaming';
     const [dismissedError, setDismissedError] = React.useState(false);
 
-    // Track streaming start time and capture model ID
+    // Track streaming start and reset ref when done
     useEffect(() => {
         if (status === 'streaming' && !streamingStartTimeRef.current) {
             streamingStartTimeRef.current = Date.now();
-            // Capture the model ID when generation starts
-            setStreamingStats(prev => ({ ...prev, modelId: currentModelId }));
+            setStreamingStats({ modelId: currentModelId, tokensPerSecond: 0 });
         } else if (status === 'ready') {
             streamingStartTimeRef.current = null;
         }
     }, [status, currentModelId]);
-
-    // Calculate tokens per second during streaming
-    useEffect(() => {
-        if (status === 'streaming' && streamingStartTimeRef.current && typedMessages.length > 0) {
-            const lastMessage = typedMessages[typedMessages.length - 1];
-            if (lastMessage.role === 'assistant') {
-                const elapsed = (Date.now() - streamingStartTimeRef.current) / 1000;
-                
-                if (elapsed > 0.5) {
-                    let charCount = 0;
-                    const parts = (lastMessage as { parts?: unknown[] }).parts;
-                    if (Array.isArray(parts)) {
-                        parts.forEach((p: unknown) => {
-                            const part = p as { type?: string; text?: string };
-                            if (part.type === 'text' && part.text) charCount += part.text.length;
-                            if (part.type === 'reasoning' && part.text) charCount += part.text.length;
-                        });
-                    } else if (typeof lastMessage.content === 'string') {
-                        charCount = lastMessage.content.length;
-                    }
-                    
-                    if (charCount > 0) {
-                        const estimatedTokens = charCount / 4;
-                        const tps = estimatedTokens / elapsed;
-                        setStreamingStats(prev => ({ ...prev, tokensPerSecond: tps }));
-                    }
-                }
-            }
-        }
-    }, [status, typedMessages]);
     
     // Reset dismissed error when a new error occurs
     React.useEffect(() => {
@@ -550,6 +543,9 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                                 id: msg.id,
                                 role: msg.role,
                                 parts,
+                                // Preserve model and TPS from DB
+                                model: msg.model,
+                                tokensPerSecond: msg.tokensPerSecond,
                             };
                         });
                         setMessages(uiMessages as Parameters<typeof setMessages>[0]);
@@ -1184,8 +1180,16 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
 
                                 {typedMessages.map((m: ChatMessage, index: number) => {
                                     const isLastAssistant = index === typedMessages.length - 1 && m.role === 'assistant';
-                                    const usedModelId = streamingStats.modelId || currentModelId;
-                                    const modelShortName = usedModelId.split('/').pop()?.split(':')[0] || usedModelId;
+                                    // Get model and TPS from message (DB) or from streaming stats (current session)
+                                    const messageModel = (m as { model?: string }).model;
+                                    const messageTps = (m as { tokensPerSecond?: string }).tokensPerSecond;
+                                    const displayModelId = m.role === 'assistant' 
+                                        ? (messageModel || (isLastAssistant ? streamingStats.modelId : null) || null)
+                                        : null;
+                                    const displayTps = m.role === 'assistant'
+                                        ? (messageTps ? parseFloat(messageTps) : (isLastAssistant ? streamingStats.tokensPerSecond : undefined))
+                                        : undefined;
+                                    const modelShortName = displayModelId ? (displayModelId.split('/').pop()?.split(':')[0] || displayModelId) : undefined;
                                     return (
                                         <ThrottledMessageItem
                                             key={m.id}
@@ -1197,9 +1201,9 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                                                 isRegeneratingRef.current = true;
                                                 regenerate();
                                             }}
-                                            modelName={isLastAssistant ? modelShortName : undefined}
-                                            fullModelName={isLastAssistant ? usedModelId : undefined}
-                                            tokensPerSecond={isLastAssistant ? streamingStats.tokensPerSecond : undefined}
+                                            modelName={modelShortName}
+                                            fullModelName={displayModelId || undefined}
+                                            tokensPerSecond={displayTps}
                                         />
                                     );
                                 })}

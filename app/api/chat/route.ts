@@ -212,9 +212,74 @@ When providing code:
 - Distinguish between facts and opinions/recommendations
 - If unsure, say so clearly rather than guessing`;
 
+// Store the last completion stats for retrieval by chatId
+const completionStatsStore = new Map<string, { modelId: string; tokensPerSecond: number; timestamp: number }>();
+
+// Clean up old entries (older than 5 minutes)
+function cleanupStatsStore() {
+  const now = Date.now();
+  for (const [key, value] of completionStatsStore.entries()) {
+    if (now - value.timestamp > 5 * 60 * 1000) {
+      completionStatsStore.delete(key);
+    }
+  }
+}
+
+// Fetch generation stats from OpenRouter API with retry
+async function fetchGenerationStats(generationId: string, maxRetries = 3, delayMs = 1000): Promise<{ nativeTokensCompletion: number; generationTime: number } | null> {
+  const url = `https://openrouter.ai/api/v1/generation?id=${encodeURIComponent(generationId)}`;
+  
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      // Wait before fetching (generation stats may not be immediately available)
+      if (attempt > 1) {
+        await new Promise(resolve => setTimeout(resolve, delayMs * attempt));
+      } else {
+        // Initial delay to let OpenRouter process the generation
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+      
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${process.env.OPENROUTER_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (response.status === 404 && attempt < maxRetries) {
+        continue;
+      }
+      
+      if (!response.ok) {
+        if (attempt === maxRetries) return null;
+        continue;
+      }
+      
+      const data = await response.json();
+      
+      // Response format: { data: { generation_time, native_tokens_completion, ... } }
+      const genData = data.data || data;
+      const nativeTokensCompletion = genData.native_tokens_completion || genData.tokens_completion || 0;
+      const generationTime = genData.generation_time || 0;
+      
+      if (nativeTokensCompletion > 0 && generationTime > 0) {
+        return { nativeTokensCompletion, generationTime };
+      }
+      
+      if (attempt === maxRetries) return { nativeTokensCompletion, generationTime };
+      
+    } catch {
+      if (attempt === maxRetries) return null;
+    }
+  }
+  
+  return null;
+}
+
 export async function POST(req: Request) {
   try {
-    const { messages, model, reasoningEffort } = await req.json();
+    const { messages, model, reasoningEffort, chatId } = await req.json();
     const modelId = model || "x-ai/grok-4.1-fast";
     const effort = reasoningEffort || "medium";
 
@@ -224,6 +289,16 @@ export async function POST(req: Request) {
 
     // Convert UI messages to model messages using the SDK helper
     const modelMessages = convertToModelMessages(messages as UIMessage[]);
+
+    // Store the model immediately for this chat
+    if (chatId) {
+      cleanupStatsStore();
+      completionStatsStore.set(chatId, {
+        modelId,
+        tokensPerSecond: 0,
+        timestamp: Date.now()
+      });
+    }
 
     const result = streamText({
       model: openrouter(modelId),
@@ -237,9 +312,58 @@ export async function POST(req: Request) {
           },
         },
       },
+      onFinish: async ({ response, providerMetadata, usage }) => {
+        let tps = 0;
+        let generationId: string | undefined;
+        
+        // Try to get generation ID from response
+        generationId = response?.id;
+        
+        // Check providerMetadata for ID fallback
+        const meta = providerMetadata?.openrouter as Record<string, unknown> | undefined;
+        if (meta && !generationId) {
+          generationId = (meta.id || meta.generationId) as string | undefined;
+        }
+        
+        // Fetch stats from OpenRouter Generation API
+        if (generationId) {
+          const stats = await fetchGenerationStats(generationId);
+          if (stats && stats.generationTime > 0 && stats.nativeTokensCompletion > 0) {
+            // TPS = native_tokens_completion / (generation_time_ms / 1000)
+            tps = stats.nativeTokensCompletion / (stats.generationTime / 1000);
+            const modelShort = modelId.split('/').pop() || modelId;
+            console.log(`[${modelShort}] ${stats.nativeTokensCompletion} tokens / ${(stats.generationTime / 1000).toFixed(2)}s = ${tps.toFixed(1)} t/s`);
+          }
+        }
+        
+        // Fallback: try to get stats from metadata if API didn't work
+        if (tps === 0 && meta) {
+          const genTime = (meta.generationTime || meta.generation_time) as number | undefined;
+          const nativeTokens = (meta.nativeTokensCompletion || meta.native_tokens_completion || 
+            (usage as Record<string, unknown>)?.completionTokens || 
+            (usage as Record<string, unknown>)?.outputTokens) as number | undefined;
+          
+          if (genTime && genTime > 0 && nativeTokens && nativeTokens > 0) {
+            tps = nativeTokens / (genTime / 1000);
+            const modelShort = modelId.split('/').pop() || modelId;
+            console.log(`[${modelShort}] ${nativeTokens} tokens / ${(genTime / 1000).toFixed(2)}s = ${tps.toFixed(1)} t/s (fallback)`);
+          }
+        }
+        
+        // Update stats for client retrieval
+        if (chatId) {
+          completionStatsStore.set(chatId, {
+            modelId,
+            tokensPerSecond: Math.round(tps * 10) / 10,
+            timestamp: Date.now()
+          });
+        }
+      },
     });
 
-    return result.toUIMessageStreamResponse();
+    return result.toUIMessageStreamResponse({
+      sendReasoning: true,
+    });
   } catch (error: unknown) {
     console.error("API Route Error:", error);
     const err = error as Error;
@@ -251,4 +375,22 @@ export async function POST(req: Request) {
       { status: 500, headers: { "Content-Type": "application/json" } }
     );
   }
+}
+
+// GET endpoint to retrieve completion stats
+export async function GET(req: Request) {
+  const url = new URL(req.url);
+  const chatId = url.searchParams.get('chatId');
+  
+  if (!chatId) {
+    return new Response(JSON.stringify({ error: 'chatId required' }), { status: 400 });
+  }
+  
+  const stats = completionStatsStore.get(chatId);
+  if (stats) {
+    completionStatsStore.delete(chatId); // One-time retrieval
+    return new Response(JSON.stringify(stats), { headers: { 'Content-Type': 'application/json' } });
+  }
+  
+  return new Response(JSON.stringify({ modelId: null, tokensPerSecond: null }), { headers: { 'Content-Type': 'application/json' } });
 }

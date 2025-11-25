@@ -13,5 +13,7 @@ export const messages = pgTable('messages', {
   chatId: uuid('chat_id').references(() => chats.id).notNull(),
   role: text('role').notNull(),
   content: jsonb('content').notNull(),
+  model: text('model'),
+  tokensPerSecond: text('tokens_per_second'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });

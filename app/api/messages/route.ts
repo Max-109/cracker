@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server';
 
 export async function POST(req: Request) {
   try {
-    const { chatId, role, content } = await req.json();
+    const { chatId, role, content, model, tokensPerSecond } = await req.json();
     if (!chatId || !role || !content) {
         return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
@@ -13,6 +13,8 @@ export async function POST(req: Request) {
         chatId,
         role,
         content,
+        model: model || null,
+        tokensPerSecond: tokensPerSecond ? String(tokensPerSecond) : null,
     }).returning();
     
     return NextResponse.json(newMessage);
