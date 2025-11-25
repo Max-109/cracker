@@ -990,7 +990,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                         {/* Actual Content */}
                         <FadeWrapper show={!isMessagesLoading} className="relative z-0">
                             <>
-                                {typedMessages.length === 0 && (
+                                {typedMessages.length === 0 && !currentChatId && (
                                     <div className="flex flex-col items-center justify-center h-[60vh] text-center opacity-100">
                                         <h2 className="text-2xl font-semibold text-[var(--text-primary)]">Where should we begin?</h2>
                                     </div>
