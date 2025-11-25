@@ -206,17 +206,26 @@ export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose
                     onClick={onNewChat}
                     onMouseEnter={(e) => {
                         const btn = e.currentTarget;
+                        const overlay = btn.querySelector('.cursor-aware-button') as HTMLElement;
                         const rect = btn.getBoundingClientRect();
                         const x = e.clientX - rect.left;
                         const y = e.clientY - rect.top;
-                        // Remove hover class, set position, then add class back
-                        btn.classList.remove('is-hovered');
-                        btn.style.setProperty('--x', `${x}px`);
-                        btn.style.setProperty('--y', `${y}px`);
-                        // Force reflow then add class
-                        requestAnimationFrame(() => {
+                        
+                        // Disable transition, reset to new position, then animate
+                        if (overlay) {
+                            overlay.style.transition = 'none';
+                            btn.style.setProperty('--x', `${x}px`);
+                            btn.style.setProperty('--y', `${y}px`);
+                            overlay.style.clipPath = `circle(0% at ${x}px ${y}px)`;
+                            
+                            // Force reflow
+                            void overlay.offsetHeight;
+                            
+                            // Re-enable transition and expand
+                            overlay.style.transition = '';
+                            overlay.style.clipPath = '';
                             btn.classList.add('is-hovered');
-                        });
+                        }
                     }}
                     onMouseLeave={(e) => {
                         const btn = e.currentTarget;
