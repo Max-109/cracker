@@ -757,7 +757,18 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
 
             // Send to AI SDK v5
             // sendMessage takes { text: string } for text, or { text, files } for attachments
-            sendMessage({ text: userMessage });
+            if (processedAttachments.length > 0) {
+                // Convert to FileUIPart format for v5
+                const fileUIParts = processedAttachments.map(att => ({
+                    type: 'file' as const,
+                    filename: att.name,
+                    mediaType: att.type === 'image' ? att.mediaType : att.mediaType,
+                    url: att.type === 'image' ? att.image : att.data,
+                }));
+                sendMessage({ text: userMessage, files: fileUIParts });
+            } else {
+                sendMessage({ text: userMessage });
+            }
 
         } catch (err) {
             console.error("Failed to send message:", err);
