@@ -420,22 +420,56 @@ select {
   animation: scanline-move 1.5s linear infinite;
 }
 
-/* Cursor Aware Button Fix */
-@property --tw-clip-radius {
-  syntax: '<length>';
-  initial-value: 0px;
+/* Cursor Aware Button - Diagonal Wipe Effect */
+@property --wipe-progress {
+  syntax: '<percentage>';
+  initial-value: 0%;
   inherits: false;
 }
 
 .cursor-aware-button {
-  --tw-clip-radius: 0px;
-  clip-path: circle(var(--tw-clip-radius) at var(--x) var(--y));
-  /* Leave Animation: Fast start (ease-out), short duration to reduce delay */
-  transition: --tw-clip-radius 0.2s cubic-bezier(0, 0, 0.2, 1);
+  --wipe-progress: 0%;
+  clip-path: polygon(
+    0 0,
+    calc(var(--wipe-progress) * 2) 0,
+    var(--wipe-progress) 100%,
+    0 100%
+  );
+  transition: --wipe-progress 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .group:hover .cursor-aware-button {
-  --tw-clip-radius: 400px;
-  /* Enter Animation: Slow start, fast end (ease-in), longer duration */
-  transition: --tw-clip-radius 0.5s cubic-bezier(0.4, 0, 1, 1);
+  --wipe-progress: 100%;
+  transition: --wipe-progress 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* Glitch scanline on hover */
+.cursor-aware-button::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.8), transparent);
+  transform: translateY(-100%);
+  opacity: 0;
+}
+
+.group:hover .cursor-aware-button::before {
+  animation: glitch-scanline 0.6s ease-out forwards;
+}
+
+@keyframes glitch-scanline {
+  0% {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(calc(100% + 40px));
+    opacity: 0;
+  }
 }
