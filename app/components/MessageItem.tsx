@@ -132,7 +132,7 @@ function ModelBadge({ name, fullName, tokensPerSecond }: { name: string; fullNam
 
 export const MessageItem = memo(function MessageItem({ role, content, isThinking, onEdit, onRetry, modelName, fullModelName, tokensPerSecond }: MessageItemProps) {
   const [isThinkingOpen, setIsThinkingOpen] = useState(false);
-  const [thinkingLabel, setThinkingLabel] = useState("Thinking");
+  const [randomLabel] = useState(() => THINKING_LABELS[Math.floor(Math.random() * THINKING_LABELS.length)]);
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState("");
   const [editAttachments, setEditAttachments] = useState<EditAttachment[]>([]);
@@ -308,16 +308,6 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     td: ({ children }: any) => <td className="px-4 py-3 align-top">{children}</td>,
   }), []);
-
-  useEffect(() => {
-    if (isThinking) {
-      // Show random thinking label while processing
-      setThinkingLabel(THINKING_LABELS[Math.floor(Math.random() * THINKING_LABELS.length)]);
-    } else {
-      // Show "Cracked" when finished
-      setThinkingLabel("Cracked");
-    }
-  }, [isThinking]);
 
   useEffect(() => {
     if (isEditing && textareaRef.current) {
@@ -638,9 +628,16 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
   finalContent = preprocessLaTeX(finalContent);
   thinkContent = preprocessLaTeX(thinkContent);
 
+  // If we have finalContent, we're done thinking regardless of what isThinking prop says
+  // This handles fast models where SDK status lags behind actual content
+  const actuallyThinking = isThinking && !finalContent.trim();
+  
+  // Derive thinking label from actuallyThinking for immediate updates
+  const thinkingLabel = actuallyThinking ? randomLabel : "Cracked";
+
   // Don't show thinking section if it only contains [REDACTED]
   const isRedactedOnly = thinkContent.trim() === '[REDACTED]' || thinkContent.trim() === '';
-  const hasThinking = (!!thinkContent || isThinking) && thinkContent.length > 0 && !isRedactedOnly;
+  const hasThinking = (!!thinkContent || actuallyThinking) && thinkContent.length > 0 && !isRedactedOnly;
 
   return (
     <div className="w-full mb-6 group">
@@ -655,8 +652,8 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
                 onClick={() => setIsThinkingOpen(!isThinkingOpen)}
                 className="flex items-center gap-2 text-xs uppercase tracking-[0.12em] text-[var(--text-secondary)] hover:text-[var(--text-accent)] transition-colors"
               >
-                {isThinking ? <ThinkingIcon /> : <ToggleIcon isOpen={isThinkingOpen} />}
-                <span className={cn("font-semibold", isThinking && "animate-thinking-glow")}>{thinkingLabel}</span>
+                {actuallyThinking ? <ThinkingIcon /> : <ToggleIcon isOpen={isThinkingOpen} />}
+                <span className={cn("font-semibold", actuallyThinking && "animate-thinking-glow")}>{thinkingLabel}</span>
               </button>
 
               {isThinkingOpen && (
@@ -689,7 +686,7 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
               </div>
             </div>
           ) : (
-            (isThinking && !hasThinking) ? (
+            (actuallyThinking && !hasThinking) ? (
               <div className="flex items-center gap-3 text-[var(--text-secondary)]">
                 <ThinkingIcon />
               </div>
