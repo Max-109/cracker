@@ -315,20 +315,20 @@ export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose
                                                         {/* Hover Actions (Pencil, Trash) */}
                                                         {/* Only show if not editing */}
                                                         {!editingId && (
-                                                            <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-gradient-to-l from-[var(--bg-sidebar)] via-[var(--bg-sidebar)] to-transparent pl-2">
+                                                            <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                                                 <button
                                                                     onClick={(e) => startRenaming(chat, e)}
-                                                                    className="p-1 text-[var(--text-secondary)] hover:text-[var(--text-accent)] border border-transparent hover:border-[var(--border-color)]"
+                                                                    className="p-1.5 text-[var(--text-secondary)] hover:text-[var(--text-accent)] bg-[var(--bg-sidebar)] border border-[var(--border-color)]"
                                                                     title="Rename"
                                                                 >
-                                                                    <Pencil size={14} />
+                                                                    <Pencil size={12} />
                                                                 </button>
                                                                 <button
                                                                     onClick={(e) => confirmDelete(chat.id, e)}
-                                                                    className="p-1 text-[var(--text-secondary)] hover:text-red-400 border border-transparent hover:border-[var(--border-color)]"
+                                                                    className="p-1.5 text-[var(--text-secondary)] hover:text-red-400 bg-[var(--bg-sidebar)] border border-[var(--border-color)]"
                                                                     title="Delete"
                                                                 >
-                                                                    <Trash2 size={14} />
+                                                                    <Trash2 size={12} />
                                                                 </button>
                                                             </div>
                                                         )}

@@ -29,7 +29,8 @@ const THINKING_LABELS = [
   "Calibrating",
   "Simulating",
   "Analyzing",
-  "Routing"
+  "Routing",
+  "Cracking"
 ];
 
 // Animated "Thinking" Icon - ASCII Spinner
@@ -136,9 +137,14 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
   }), []);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setThinkingLabel(THINKING_LABELS[Math.floor(Math.random() * THINKING_LABELS.length)]);
-  }, []);
+    if (isThinking) {
+      // Show random thinking label while processing
+      setThinkingLabel(THINKING_LABELS[Math.floor(Math.random() * THINKING_LABELS.length)]);
+    } else {
+      // Show "Cracked" when finished
+      setThinkingLabel("Cracked");
+    }
+  }, [isThinking]);
 
   useEffect(() => {
     if (isEditing && textareaRef.current) {
@@ -342,7 +348,9 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
   finalContent = preprocessLaTeX(finalContent);
   thinkContent = preprocessLaTeX(thinkContent);
 
-  const hasThinking = (!!thinkContent || isThinking) && thinkContent.length > 0;
+  // Don't show thinking section if it only contains [REDACTED]
+  const isRedactedOnly = thinkContent.trim() === '[REDACTED]' || thinkContent.trim() === '';
+  const hasThinking = (!!thinkContent || isThinking) && thinkContent.length > 0 && !isRedactedOnly;
 
   return (
     <div className="w-full mb-6 group">
@@ -358,7 +366,7 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
                 className="flex items-center gap-2 text-xs uppercase tracking-[0.12em] text-[var(--text-secondary)] hover:text-[var(--text-accent)] transition-colors"
               >
                 {isThinking ? <ThinkingIcon /> : <ToggleIcon isOpen={isThinkingOpen} />}
-                <span className="font-semibold">{thinkingLabel}</span>
+                <span className={cn("font-semibold", isThinking && "animate-thinking-glow")}>{thinkingLabel}</span>
               </button>
 
               {isThinkingOpen && (

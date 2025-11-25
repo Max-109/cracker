@@ -331,6 +331,20 @@ select {
   }
 }
 
+/* Thinking Label Glow Animation */
+@keyframes thinking-glow {
+  0%, 100% {
+    color: var(--text-secondary);
+  }
+  50% {
+    color: var(--text-accent);
+  }
+}
+
+.animate-thinking-glow {
+  animation: thinking-glow 2s ease-in-out infinite;
+}
+
 /* Cyberpunk Hover Utilities */
 .hover-pulse:hover {
   animation: pulse-glow 2s infinite cubic-bezier(0.979, 0.31, 0.2, 0.404);
