@@ -2,6 +2,7 @@
 
 import React, { memo, useMemo } from 'react';
 import { useChat } from '@ai-sdk/react';
+import { DefaultChatTransport } from 'ai';
 import type { ChatMessage, MessagePart } from '@/lib/chat-types';
 import { MessageItem } from './MessageItem';
 import { Skeleton } from './Skeleton';
@@ -211,19 +212,40 @@ function useThrottledValue<T>(value: T, limit: number): T {
 }
 
 const ThrottledMessageItem = memo(function ThrottledMessageItem({ message, index, isThinking, onEdit, onRetry }: { message: ChatMessage, index: number, isThinking: boolean, onEdit: (index: number, content: string) => void, onRetry: () => void }) {
-    // We use useThrottledValue to limit how often the expensive Markdown component re-renders.
-    // This prevents the UI from freezing during high-speed streaming of complex content (tables, code).
-    // 100ms throttle = ~10fps updates, which feels smooth but saves massive resources.
-    const combinedContent: ChatMessage['content'] = Array.isArray(message.content)
-        ? message.content
-        : (Array.isArray(message.parts) ? message.parts : (message.content ?? ''));
+    // AI SDK v5 uses `parts` array with { type: 'text', text: '...' } structure
+    // We need to convert this to our MessagePart format or extract text
+    const extractContent = (): string | MessagePart[] => {
+        // Check for AI SDK v5 parts format (UIMessagePart[])
+        const msgParts = (message as { parts?: unknown[] }).parts;
+        if (Array.isArray(msgParts) && msgParts.length > 0) {
+            // Convert v5 parts to our format
+            const converted: MessagePart[] = [];
+            for (const part of msgParts) {
+                if (typeof part === 'object' && part !== null) {
+                    const p = part as Record<string, unknown>;
+                    if (p.type === 'text' && typeof p.text === 'string') {
+                        converted.push({ type: 'text', text: p.text });
+                    } else if (p.type === 'reasoning' && typeof p.text === 'string') {
+                        converted.push({ type: 'reasoning', text: p.text });
+                    } else if (p.type === 'image') {
+                        converted.push({ type: 'image', image: p.image as string, mediaType: p.mediaType as string });
+                    } else if (p.type === 'file') {
+                        converted.push({ type: 'file', data: p.data as string, mediaType: p.mediaType as string, name: p.filename as string });
+                    }
+                }
+            }
+            if (converted.length > 0) return converted;
+        }
+        
+        // Fallback to legacy format
+        if (Array.isArray(message.content)) return message.content;
+        if (typeof message.content === 'string') return message.content;
+        return '';
+    };
 
-    // Only throttle if it's an AI message that is currently streaming (implied by updates)
-    // For user messages or static content, it doesn't matter as much, but consistency is good.
-    // We use 100ms as a balance between responsiveness and performance.
-    const throttledContent = useThrottledValue(combinedContent, 100);
+    const combinedContent = extractContent();
+    const throttledContent = useThrottledValue(combinedContent, 50);
 
-    // Create a stable handler for this specific item
     const handleEdit = React.useCallback((newContent: string) => {
         onEdit(index, newContent);
     }, [onEdit, index]);
@@ -328,59 +350,41 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
         chatIdRef.current = initialChatId || null;
     }, [initialChatId]);
     
-    // Memoize chat config to avoid recreating on every render
-    const chatConfig = useMemo(() => ({
+    // Create transport with dynamic body for model/reasoning
+    const transport = useMemo(() => new DefaultChatTransport({
         api: '/api/chat',
-        body: {
-            model: currentModelId,
-            reasoningEffort: reasoningEffort
-        },
-        initialMessages: [],
+        body: () => ({
+            model: currentModelIdRef.current,
+            reasoningEffort: reasoningEffortRef.current
+        }),
+    }), []);
+
+    // useChat hook with v5 configuration
+    const chatHelpers = useChat({
+        transport,
+        experimental_throttle: 50, // Throttle updates for smoother streaming
         onError: (err: Error) => {
             console.error("Chat Error:", err);
         },
-        onFinish: async (result: unknown) => {
-            // Handle both new (object wrapper) and old (direct message) signatures
-            const messageCandidate = (typeof result === 'object' && result && 'message' in (result as Record<string, unknown>))
-                ? (result as { message: unknown }).message
-                : result;
-            const message = messageCandidate as Partial<ChatMessage> & { parts?: MessagePart[] };
-            // Use ref to ensure we have the latest ID even if closure is stale
+        onFinish: async ({ message }) => {
             const activeId = chatIdRef.current;
-            if (activeId) {
-                // Determine the actual content to save. 
-                // We prefer saving 'parts' (JSON) if available to preserve structured "thinking" blocks vs final content.
+            if (activeId && message) {
+                // Extract content from parts (v5 format)
                 let contentToSave: unknown = null;
-
-                // 1. Check if message.parts exists and is non-empty (Priority)
+                
                 if (message.parts && Array.isArray(message.parts) && message.parts.length > 0) {
                     contentToSave = message.parts;
                 }
-                // 2. Check if message.content is already an object/array (from some providers)
-                else if (message.content && typeof message.content !== 'string') {
-                    contentToSave = message.content;
-                }
-                // 3. Fallback to text content
-                else if (message.content) {
-                    contentToSave = message.content;
-                }
-
-                // 4. Emergency Fallback: Check the React state if everything else is empty
-                // (Common with some reasoning models that stream but don't populate the final object correctly)
+                
+                // Fallback to messagesRef if parts empty
                 if (!contentToSave && messagesRef.current.length > 0) {
                     const lastMsg = messagesRef.current[messagesRef.current.length - 1];
                     if (lastMsg.role === 'assistant') {
-                        if (lastMsg.parts && Array.isArray(lastMsg.parts) && lastMsg.parts.length > 0) {
-                            contentToSave = lastMsg.parts;
-                        } else if (lastMsg.content) {
-                            contentToSave = lastMsg.content;
-                        }
+                        contentToSave = lastMsg.parts || lastMsg.content || " ";
                     }
                 }
 
-                // Final safety check
                 if (!contentToSave) {
-                    console.warn("Content still empty after all checks. Saving placeholder.");
                     contentToSave = " ";
                 }
 
@@ -390,31 +394,16 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                     body: JSON.stringify({
                         chatId: activeId,
                         role: 'assistant',
-                        content: contentToSave // Can be string or JSON array
+                        content: contentToSave
                     })
                 });
-            } else {
-                console.error("No active chat ID found in onFinish");
             }
         },
-    }), [currentModelId, reasoningEffort]);
-    
-    const chatHelpers = useChat(chatConfig);
+    });
 
-    // @ts-expect-error - status might be present instead of isLoading in newer versions
-    const { messages, isLoading: originalIsLoading, status, stop, setMessages, regenerate } = chatHelpers;
+    const { messages, status, stop, setMessages, regenerate, sendMessage } = chatHelpers;
     const typedMessages = messages as unknown as ChatMessage[];
-
-    // Polyfill isLoading if it's missing, based on status
-    const isLoading = originalIsLoading ?? (status === 'submitted' || status === 'streaming');
-
-    const fallbackAppend = (chatHelpers as Record<string, unknown>)['append'] as typeof chatHelpers.sendMessage | undefined;
-    const sendMessage = chatHelpers.sendMessage ?? fallbackAppend;
-    const invokeSendMessage = React.useCallback(async (message: { role: string; content: unknown }, options?: Record<string, unknown>) => {
-        if (!sendMessage) return;
-        const fn = sendMessage as unknown as (msg: { role: string; content: unknown }, opts?: Record<string, unknown>) => Promise<void>;
-        await fn(message, options);
-    }, [sendMessage]);
+    const isLoading = status === 'submitted' || status === 'streaming';
 
     // Sync messages ref whenever messages update
     useEffect(() => {
@@ -436,17 +425,30 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                 .then(res => res.json())
                 .then(data => {
                     if (Array.isArray(data)) {
-                        // Map DB messages to UI format
-                        const uiMessages: ChatMessage[] = data.map((msg: { id: string; role: 'user' | 'assistant'; content: string | unknown[]; createdAt: string }) => {
-                            const isParts = Array.isArray(msg.content);
+                        // Map DB messages to AI SDK v5 UIMessage format
+                        // v5 UIMessage: { id, role, parts: [{ type: 'text', text: '...' }] }
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        const uiMessages = data.map((msg: any) => {
+                            let parts: Array<{ type: string; text: string }>;
+                            
+                            if (Array.isArray(msg.content)) {
+                                // Content is already parts array - ensure correct format
+                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                parts = msg.content.map((p: any) => {
+                                    if (typeof p === 'string') return { type: 'text', text: p };
+                                    if (p.type === 'text') return { type: 'text', text: p.text || '' };
+                                    if (p.type === 'reasoning') return { type: 'reasoning', text: p.text || p.reasoning || '' };
+                                    return { type: 'text', text: String(p.text || p || '') };
+                                });
+                            } else {
+                                // Content is string - wrap in text part
+                                parts = [{ type: 'text', text: String(msg.content || '') }];
+                            }
+                            
                             return {
                                 id: msg.id,
                                 role: msg.role,
-                                // If it's an array (parts), we put it in 'parts' and leave content empty/stringified.
-                                // However, MessageItem uses (content || parts), so we need to ensure 'parts' is set if it's an array.
-                                content: isParts ? "" : (msg.content as string),
-                                parts: isParts ? (msg.content as MessagePart[]) : undefined,
-                                createdAt: new Date(msg.createdAt)
+                                parts,
                             };
                         });
                         setMessages(uiMessages as Parameters<typeof setMessages>[0]);
@@ -503,20 +505,10 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
     // Actual implementation that calls the ref
     const stableHandleEdit = React.useCallback((index: number, newContent: string) => {
         handleEditMessage(index, newContent).then(() => {
-            const modelOverride = currentModelIdRef.current || "x-ai/grok-4.1-fast";
-            const effortOverride = reasoningEffortRef.current || "medium";
-
-            invokeSendMessage({
-                role: 'user',
-                content: newContent
-            }, {
-                body: {
-                    model: modelOverride,
-                    reasoningEffort: effortOverride
-                }
-            });
+            // In AI SDK v5, sendMessage takes { text: string } format
+            sendMessage({ text: newContent });
         });
-    }, [handleEditMessage, invokeSendMessage]);
+    }, [handleEditMessage, sendMessage]);
 
     // Handle scroll events to determine if we should stick to bottom
     const handleScroll = () => {
@@ -699,8 +691,9 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                     isNewChat = true;
                     refreshChats(); // Refresh sidebar
 
-                    // Navigate to the new chat URL
-                    router.push(`/chat/${newChat.id}`);
+                    // Update URL without triggering navigation/remount
+                    // This keeps the useChat hook instance alive during streaming
+                    window.history.replaceState(null, '', `/chat/${newChat.id}`);
                 }
             }
 
@@ -730,15 +723,20 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                 finalContent = structuredParts;
             }
 
-            // Save User Message (store as JSON if multimodal)
+            // Save User Message in v5 parts format for consistency
             if (activeChatId) {
+                // Convert to parts format for DB storage
+                const partsToSave = Array.isArray(finalContent) 
+                    ? finalContent 
+                    : [{ type: 'text', text: finalContent }];
+                    
                 await fetch('/api/messages', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                         chatId: activeChatId,
                         role: 'user',
-                        content: finalContent // Pass the structured object/string directly
+                        content: partsToSave
                     })
                 });
 
@@ -757,17 +755,9 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                 return;
             }
 
-            // Send to AI SDK
-            // Note: sendMessage() automatically handles the optimistic UI update
-            await invokeSendMessage({
-                role: 'user',
-                content: finalContent,
-            }, {
-                body: {
-                    model: currentModelId,
-                    reasoningEffort: reasoningEffort
-                }
-            });
+            // Send to AI SDK v5
+            // sendMessage takes { text: string } for text, or { text, files } for attachments
+            sendMessage({ text: userMessage });
 
         } catch (err) {
             console.error("Failed to send message:", err);
@@ -887,19 +877,6 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                                         <div className="my-1 border-t border-[var(--border-color)]"></div>
 
                                         <button
-                                            onClick={() => { setCurrentModelId("openrouter/auto"); setCurrentModelName("Auto (Best)"); setIsModelMenuOpen(false); }}
-                                            className="flex items-center justify-between w-full text-left px-3 py-2 hover:bg-[#1e1e1e] text-sm transition-colors border border-transparent"
-                                        >
-                                            <div className="flex flex-col">
-                                                <span className="text-[var(--text-primary)] font-semibold uppercase tracking-[0.12em]">Auto (Best)</span>
-                                                <span className="text-[var(--text-secondary)] text-[11px]">OpenRouter Auto</span>
-                                            </div>
-                                            {currentModelId === "openrouter/auto" && <Check size={16} />}
-                                        </button>
-
-                                        <div className="my-1 border-t border-[var(--border-color)]"></div>
-
-                                        <button
                                             onClick={() => { setIsModelMenuOpen(false); setIsCustomDialogOpen(true); }}
                                             className="flex items-center justify-between w-full text-left px-3 py-2 hover:bg-[#1e1e1e] text-sm transition-colors border border-transparent"
                                         >
@@ -926,7 +903,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                             {isColorMenuOpen && (
                                 <>
                                     <div className="fixed inset-0 z-10" onClick={() => setIsColorMenuOpen(false)}></div>
-                                    <div className="absolute top-full right-[-80px] md:right-[-60px] mt-1 p-3 bg-[var(--bg-sidebar)] border border-[var(--border-color)] shadow-xl z-20 animate-in fade-in zoom-in-95 duration-100 origin-top-right">
+                                    <div className="absolute top-full right-0 md:right-[-60px] mt-1 p-3 bg-[var(--bg-sidebar)] border border-[var(--border-color)] shadow-xl z-20 animate-in fade-in zoom-in-95 duration-100 origin-top-right">
                                         <HexColorPicker color={accentColor} onChange={setAccentColor} />
                                         <div className="mt-3 flex items-center gap-2">
                                             <span className="text-[10px] uppercase text-[var(--text-secondary)] font-mono">HEX</span>
