@@ -678,16 +678,12 @@ select {
   height: 16px;
   border-radius: 50%;
   border: 1px solid rgba(255, 255, 255, 0.2);
-  transition: all 0.15s ease-out;
+  transition: transform 0.25s ease-out, border-radius 0.25s ease-out, box-shadow 0.15s ease-out;
   position: relative;
 }
 
 .color-picker-btn:hover .ender-eye {
   box-shadow: 0 0 12px -2px currentColor;
-}
-
-.ender-eye.blinking {
-  animation: ender-blink 0.5s ease-in-out;
 }
 
 .ender-eye.closed {
@@ -703,37 +699,6 @@ select {
   border: 1px solid currentColor;
   opacity: 0;
   animation: ender-ring 1.5s ease-out infinite;
-}
-
-@keyframes ender-blink {
-  0% {
-    transform: scaleY(1) scaleX(1);
-    border-radius: 50%;
-  }
-  20% {
-    transform: scaleY(0.35) scaleX(1.1);
-    border-radius: 50%;
-  }
-  35% {
-    transform: scaleY(0.25) scaleX(1.12);
-    border-radius: 45% 45% 45% 45%;
-  }
-  50% {
-    transform: scaleY(0.35) scaleX(1.1);
-    border-radius: 50%;
-  }
-  70% {
-    transform: scaleY(0.9) scaleX(1.02);
-    border-radius: 50%;
-  }
-  85% {
-    transform: scaleY(1.05) scaleX(0.98);
-    border-radius: 50%;
-  }
-  100% {
-    transform: scaleY(1) scaleX(1);
-    border-radius: 50%;
-  }
 }
 
 @keyframes ender-ring {
