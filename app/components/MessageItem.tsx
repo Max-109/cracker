@@ -32,6 +32,9 @@ interface MessageItemProps {
   isThinking?: boolean;
   onEdit?: (newContent: string, attachments?: EditAttachment[]) => void;
   onRetry?: () => void;
+  modelName?: string;
+  fullModelName?: string;
+  tokensPerSecond?: number;
 }
 
 const THINKING_LABELS = [
@@ -91,7 +94,47 @@ const formatMimeType = (mime?: string) => {
 
 const generateId = () => (typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`);
 
-export const MessageItem = memo(function MessageItem({ role, content, isThinking, onEdit, onRetry }: MessageItemProps) {
+function ModelBadge({ name, fullName, tokensPerSecond }: { name: string; fullName: string; tokensPerSecond?: number }) {
+  const [copied, setCopied] = useState(false);
+  
+  const handleClick = () => {
+    navigator.clipboard.writeText(fullName).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  };
+  
+  return (
+    <button
+      onClick={handleClick}
+      className={cn(
+        "transition-all duration-200 cursor-pointer",
+        copied 
+          ? "text-[var(--text-accent)] scale-105" 
+          : "hover:text-[var(--text-accent)]"
+      )}
+      title={`Click to copy: ${fullName}`}
+    >
+      {copied ? (
+        <span className="flex items-center gap-1">
+          <Check size={12} />
+          <span>Copied!</span>
+        </span>
+      ) : (
+        <span>
+          {name.toUpperCase()}
+          {tokensPerSecond !== undefined && tokensPerSecond > 0 && (
+            <span className="ml-1">
+              (<span className="text-[var(--text-accent)]">{tokensPerSecond.toFixed(1)}</span> T/S)
+            </span>
+          )}
+        </span>
+      )}
+    </button>
+  );
+}
+
+export const MessageItem = memo(function MessageItem({ role, content, isThinking, onEdit, onRetry, modelName, fullModelName, tokensPerSecond }: MessageItemProps) {
   const [isThinkingOpen, setIsThinkingOpen] = useState(false);
   const [thinkingLabel, setThinkingLabel] = useState("Thinking");
   const [isEditing, setIsEditing] = useState(false);
@@ -657,25 +700,39 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
             ) : null
           )}
 
-          {/* Action Buttons (Copy, Regenerate) */}
+          {/* Action Buttons (Copy, Regenerate) + Model Info */}
           {!isThinking && finalContent && (
-            <div className="flex items-center gap-3 mt-2 text-[11px] uppercase tracking-[0.14em] text-[var(--text-secondary)] opacity-60 group-hover:opacity-100 transition-opacity select-none">
-              <button
-                onClick={handleCopy}
-                className="flex items-center gap-1 hover:text-[var(--text-accent)]"
-                aria-label="Copy"
-              >
-                {isCopied ? <Check size={14} /> : <Copy size={14} />}
-                <span>Copy</span>
-              </button>
-              <button 
-                onClick={onRetry}
-                className="flex items-center gap-1 hover:text-[var(--text-accent)]" 
-                aria-label="Regenerate"
-              >
-                <RefreshCw size={14} />
-                <span>Re-run</span>
-              </button>
+            <div className="flex items-center justify-between mt-2 text-[11px] uppercase tracking-[0.14em] text-[var(--text-secondary)] select-none opacity-0 group-hover:opacity-100 transition-opacity">
+              {/* Left: Action buttons */}
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={handleCopy}
+                  className="flex items-center gap-1 hover:text-[var(--text-accent)]"
+                  aria-label="Copy"
+                >
+                  {isCopied ? <Check size={14} /> : <Copy size={14} />}
+                  <span>Copy</span>
+                </button>
+                <button 
+                  onClick={onRetry}
+                  className="flex items-center gap-1 hover:text-[var(--text-accent)]" 
+                  aria-label="Regenerate"
+                >
+                  <RefreshCw size={14} />
+                  <span>Re-run</span>
+                </button>
+              </div>
+
+              {/* Right: Model info + speed */}
+              <div className="flex items-center gap-2">
+                {modelName && (
+                  <ModelBadge 
+                    name={modelName} 
+                    fullName={fullModelName || modelName} 
+                    tokensPerSecond={tokensPerSecond}
+                  />
+                )}
+              </div>
             </div>
           )}
         </div>

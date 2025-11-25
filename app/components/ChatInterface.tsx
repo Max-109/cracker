@@ -213,7 +213,7 @@ function useThrottledValue<T>(value: T, limit: number): T {
 
 type EditAttachment = { id: string; url: string; name: string; mediaType: string };
 
-const ThrottledMessageItem = memo(function ThrottledMessageItem({ message, index, isThinking, onEdit, onRetry }: { message: ChatMessage, index: number, isThinking: boolean, onEdit: (index: number, content: string, attachments?: EditAttachment[]) => void, onRetry: () => void }) {
+const ThrottledMessageItem = memo(function ThrottledMessageItem({ message, index, isThinking, onEdit, onRetry, modelName, fullModelName, tokensPerSecond }: { message: ChatMessage, index: number, isThinking: boolean, onEdit: (index: number, content: string, attachments?: EditAttachment[]) => void, onRetry: () => void, modelName?: string, fullModelName?: string, tokensPerSecond?: number }) {
     // AI SDK v5 uses `parts` array with { type: 'text', text: '...' } structure
     // We need to convert this to our MessagePart format or extract text
     const extractContent = (): string | MessagePart[] => {
@@ -258,7 +258,7 @@ const ThrottledMessageItem = memo(function ThrottledMessageItem({ message, index
         onEdit(index, newContent, attachments);
     }, [onEdit, index]);
 
-    return <MessageItem role={message.role} content={throttledContent} isThinking={isThinking} onEdit={handleEdit} onRetry={onRetry} />;
+    return <MessageItem role={message.role} content={throttledContent} isThinking={isThinking} onEdit={handleEdit} onRetry={onRetry} modelName={modelName} fullModelName={fullModelName} tokensPerSecond={tokensPerSecond} />;
 });
 
 export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
@@ -366,6 +366,10 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
     // Loading states
     const [isMessagesLoading, setIsMessagesLoading] = useState(false);
 
+    // Streaming stats tracking
+    const streamingStartTimeRef = useRef<number | null>(null);
+    const [streamingStats, setStreamingStats] = useState<{ tokensPerSecond: number }>({ tokensPerSecond: 0 });
+
     // Ref to prevent double-loading messages when we just created a chat locally
     const ignoreNextChatIdChangeRef = useRef(false);
     
@@ -445,6 +449,42 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
     const typedMessages = messages as unknown as ChatMessage[];
     const isLoading = status === 'submitted' || status === 'streaming';
     const [dismissedError, setDismissedError] = React.useState(false);
+
+    // Track streaming start time
+    useEffect(() => {
+        if (status === 'streaming' && !streamingStartTimeRef.current) {
+            streamingStartTimeRef.current = Date.now();
+        } else if (status === 'ready') {
+            streamingStartTimeRef.current = null;
+        }
+    }, [status]);
+
+    // Calculate tokens per second during streaming
+    useEffect(() => {
+        if (status === 'streaming' && streamingStartTimeRef.current && typedMessages.length > 0) {
+            const lastMessage = typedMessages[typedMessages.length - 1];
+            if (lastMessage.role === 'assistant') {
+                const elapsed = (Date.now() - streamingStartTimeRef.current) / 1000;
+                if (elapsed > 0.5) {
+                    // Estimate tokens from content (rough: 1 token ≈ 4 chars)
+                    let charCount = 0;
+                    const parts = (lastMessage as { parts?: unknown[] }).parts;
+                    if (Array.isArray(parts)) {
+                        parts.forEach((p: unknown) => {
+                            const part = p as { type?: string; text?: string };
+                            if (part.type === 'text' && part.text) charCount += part.text.length;
+                            if (part.type === 'reasoning' && part.text) charCount += part.text.length;
+                        });
+                    } else if (typeof lastMessage.content === 'string') {
+                        charCount = lastMessage.content.length;
+                    }
+                    const estimatedTokens = charCount / 4;
+                    const tps = estimatedTokens / elapsed;
+                    setStreamingStats({ tokensPerSecond: tps });
+                }
+            }
+        }
+    }, [status, typedMessages]);
     
     // Reset dismissed error when a new error occurs
     React.useEffect(() => {
@@ -1137,19 +1177,26 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                                     </div>
                                 )}
 
-                                {typedMessages.map((m: ChatMessage, index: number) => (
-                                    <ThrottledMessageItem
-                                        key={m.id}
-                                        message={m}
-                                        index={index}
-                                        isThinking={isLoading && index === typedMessages.length - 1 && m.role === 'assistant'}
-                                        onEdit={stableHandleEdit}
-                                        onRetry={() => {
-                                            isRegeneratingRef.current = true;
-                                            regenerate();
-                                        }}
-                                    />
-                                ))}
+                                {typedMessages.map((m: ChatMessage, index: number) => {
+                                    const isLastAssistant = index === typedMessages.length - 1 && m.role === 'assistant';
+                                    const modelShortName = currentModelId.split('/').pop()?.split(':')[0] || currentModelId;
+                                    return (
+                                        <ThrottledMessageItem
+                                            key={m.id}
+                                            message={m}
+                                            index={index}
+                                            isThinking={isLoading && isLastAssistant}
+                                            onEdit={stableHandleEdit}
+                                            onRetry={() => {
+                                                isRegeneratingRef.current = true;
+                                                regenerate();
+                                            }}
+                                            modelName={m.role === 'assistant' ? modelShortName : undefined}
+                                            fullModelName={m.role === 'assistant' ? currentModelId : undefined}
+                                            tokensPerSecond={isLastAssistant ? streamingStats.tokensPerSecond : undefined}
+                                        />
+                                    );
+                                })}
 
                                 {status === 'submitted' && (
                                     <div className="mt-8 border-t border-[var(--border-color)] pt-4">
