@@ -349,6 +349,9 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
 
     // Ref to prevent double-loading messages when we just created a chat locally
     const ignoreNextChatIdChangeRef = useRef(false);
+    
+    // Ref to track if we're regenerating (to delete old message before saving new one)
+    const isRegeneratingRef = useRef(false);
 
     // Sync state and ref when prop changes or internal navigation happens
     useEffect(() => {
@@ -377,6 +380,16 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
         onFinish: async ({ message }) => {
             const activeId = chatIdRef.current;
             if (activeId && message) {
+                // If regenerating, delete the last assistant message from DB first
+                if (isRegeneratingRef.current) {
+                    await fetch('/api/messages/last-assistant', {
+                        method: 'DELETE',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ chatId: activeId })
+                    });
+                    isRegeneratingRef.current = false;
+                }
+                
                 // Extract content from parts (v5 format)
                 let contentToSave: unknown = null;
                 
@@ -409,9 +422,15 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
         },
     });
 
-    const { messages, status, stop, setMessages, regenerate, sendMessage } = chatHelpers;
+    const { messages, status, stop, setMessages, regenerate, sendMessage, error } = chatHelpers;
     const typedMessages = messages as unknown as ChatMessage[];
     const isLoading = status === 'submitted' || status === 'streaming';
+    const [dismissedError, setDismissedError] = React.useState(false);
+    
+    // Reset dismissed error when a new error occurs
+    React.useEffect(() => {
+        if (error) setDismissedError(false);
+    }, [error]);
 
     // Sync messages ref whenever messages update
     useEffect(() => {
@@ -437,7 +456,8 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                         // v5 UIMessage: { id, role, parts: [{ type: 'text', text: '...' }] }
                         // eslint-disable-next-line @typescript-eslint/no-explicit-any
                         const uiMessages = data.map((msg: any) => {
-                            let parts: Array<{ type: string; text: string }>;
+                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                            let parts: Array<any>;
                             
                             if (Array.isArray(msg.content)) {
                                 // Content is already parts array - ensure correct format
@@ -446,11 +466,20 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                                     if (typeof p === 'string') return { type: 'text', text: p };
                                     if (p.type === 'text') return { type: 'text', text: p.text || '' };
                                     if (p.type === 'reasoning') return { type: 'reasoning', text: p.text || p.reasoning || '' };
-                                    return { type: 'text', text: String(p.text || p || '') };
+                                    if (p.type === 'image') return { type: 'file', url: p.image || p.url, mediaType: p.mediaType || 'image/png', filename: p.name || 'image' };
+                                    if (p.type === 'file') return { type: 'file', url: p.data || p.url, mediaType: p.mediaType || p.mimeType || 'application/octet-stream', filename: p.filename || p.name || 'file' };
+                                    // Fallback for unknown types - don't stringify objects
+                                    if (typeof p === 'object' && p !== null) {
+                                        return { type: 'text', text: p.text || '' };
+                                    }
+                                    return { type: 'text', text: String(p || '') };
                                 });
-                            } else {
+                            } else if (typeof msg.content === 'string') {
                                 // Content is string - wrap in text part
-                                parts = [{ type: 'text', text: String(msg.content || '') }];
+                                parts = [{ type: 'text', text: msg.content }];
+                            } else {
+                                // Content is something else (object?) - try to extract text
+                                parts = [{ type: 'text', text: '' }];
                             }
                             
                             return {
@@ -913,6 +942,17 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                                         </button>
 
                                         <button
+                                            onClick={() => { setCurrentModelId("openai/gpt-5-nano"); setCurrentModelName("Fast"); setIsModelMenuOpen(false); }}
+                                            className="flex items-center justify-between w-full text-left px-3 py-2 hover:bg-[#1e1e1e] text-sm transition-colors border border-transparent"
+                                        >
+                                            <div className="flex flex-col">
+                                                <span className="text-[var(--text-primary)] font-semibold uppercase tracking-[0.12em]">Fast</span>
+                                                <span className="text-[var(--text-secondary)] text-[11px]">GPT-5 Nano</span>
+                                            </div>
+                                            {currentModelId === "openai/gpt-5-nano" && <Check size={16} />}
+                                        </button>
+
+                                        <button
                                             onClick={() => { setCurrentModelId("deepseek/deepseek-r1-distill-llama-70b"); setCurrentModelName("Chinese"); setIsModelMenuOpen(false); }}
                                             className="flex items-center justify-between w-full text-left px-3 py-2 hover:bg-[#1e1e1e] text-sm transition-colors border border-transparent"
                                         >
@@ -1029,13 +1069,41 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                                         index={index}
                                         isThinking={isLoading && index === typedMessages.length - 1 && m.role === 'assistant'}
                                         onEdit={stableHandleEdit}
-                                        onRetry={() => regenerate()}
+                                        onRetry={() => {
+                                            isRegeneratingRef.current = true;
+                                            regenerate();
+                                        }}
                                     />
                                 ))}
 
                                 {isLoading && (
                                     <div className="mt-8 border-t border-[var(--border-color)] pt-4">
                                         <LoadingIndicator label="processing" />
+                                    </div>
+                                )}
+
+                                {/* Error Display */}
+                                {error && !dismissedError && (
+                                    <div className="mt-6 p-4 bg-red-950/50 border border-red-500/50 relative">
+                                        <button 
+                                            onClick={() => setDismissedError(true)}
+                                            className="absolute top-2 right-2 text-red-400 hover:text-red-300"
+                                        >
+                                            <X size={16} />
+                                        </button>
+                                        <div className="flex items-start gap-3">
+                                            <div className="text-red-400 mt-0.5">
+                                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                                    <circle cx="12" cy="12" r="10"></circle>
+                                                    <line x1="12" y1="8" x2="12" y2="12"></line>
+                                                    <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                                                </svg>
+                                            </div>
+                                            <div className="flex-1">
+                                                <h4 className="text-sm font-semibold text-red-400 uppercase tracking-wider mb-1">Error</h4>
+                                                <p className="text-sm text-red-300/90">{error?.message || 'An error occurred while processing your request.'}</p>
+                                            </div>
+                                        </div>
                                     </div>
                                 )}
                             </>
