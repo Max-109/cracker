@@ -1048,10 +1048,14 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                         <div className="relative">
                             <button
                                 onClick={() => setIsColorMenuOpen(!isColorMenuOpen)}
-                                className="w-9 h-9 border border-[var(--border-color)] bg-[#141414] hover-glow flex items-center justify-center"
+                                className="color-picker-btn w-9 h-9 border border-[var(--border-color)] bg-[#141414] hover-glow flex items-center justify-center"
                                 title="Accent Color"
+                                style={{ color: accentColor }}
                             >
-                                <div className={cn("w-4 h-4 rounded-full border border-white/20", !isSettingsHydrated && "opacity-0")} style={{ backgroundColor: accentColor }}></div>
+                                <div 
+                                    className={cn("ender-eye", !isSettingsHydrated && "opacity-0")} 
+                                    style={{ backgroundColor: accentColor }}
+                                ></div>
                             </button>
 
                             {isColorMenuOpen && (
@@ -1281,9 +1285,9 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                         <div className="flex items-end gap-3">
                             <button
                                 onClick={() => fileInputRef.current?.click()}
-                                className="w-10 h-10 border border-[var(--border-color)] bg-[#141414] text-[var(--text-secondary)] hover-glow flex items-center justify-center mb-[2px]"
+                                className="w-10 h-10 border border-[var(--border-color)] bg-[#141414] text-[var(--text-secondary)] hover-glow flex items-center justify-center mb-[2px] group"
                             >
-                                <Paperclip size={18} strokeWidth={2} />
+                                <Paperclip size={18} strokeWidth={2} className="group-hover:rotate-12 transition-transform duration-300" />
                             </button>
 
                             <div className="flex-1">

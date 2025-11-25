@@ -661,3 +661,48 @@ select {
 .syntax-highlight .token.punctuation {
   color: #6e7681 !important;
 }
+
+/* Ender Pearl Eye Animation for Color Picker */
+.ender-eye {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  transition: all 0.15s ease-out;
+}
+
+.color-picker-btn:hover .ender-eye {
+  animation: ender-blink 0.5s ease-in-out;
+  box-shadow: 0 0 10px -2px currentColor;
+}
+
+@keyframes ender-blink {
+  0% {
+    transform: scaleY(1) scaleX(1);
+    border-radius: 50%;
+  }
+  20% {
+    transform: scaleY(0.35) scaleX(1.1);
+    border-radius: 50%;
+  }
+  35% {
+    transform: scaleY(0.25) scaleX(1.12);
+    border-radius: 45% 45% 45% 45%;
+  }
+  50% {
+    transform: scaleY(0.35) scaleX(1.1);
+    border-radius: 50%;
+  }
+  70% {
+    transform: scaleY(0.9) scaleX(1.02);
+    border-radius: 50%;
+  }
+  85% {
+    transform: scaleY(1.05) scaleX(0.98);
+    border-radius: 50%;
+  }
+  100% {
+    transform: scaleY(1) scaleX(1);
+    border-radius: 50%;
+  }
+}
