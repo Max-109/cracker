@@ -473,3 +473,33 @@ select {
     opacity: 0;
   }
 }
+
+/* Dynamic Syntax Highlighting - Uses accent color CSS variable */
+.syntax-highlight .token.property,
+.syntax-highlight .token.tag,
+.syntax-highlight .token.symbol,
+.syntax-highlight .token.inserted,
+.syntax-highlight .token.variable,
+.syntax-highlight .token.regex {
+  color: var(--text-accent) !important;
+}
+
+.syntax-highlight .token.function,
+.syntax-highlight .token.atrule {
+  color: color-mix(in srgb, var(--text-accent) 70%, #d2a8ff 30%) !important;
+}
+
+.syntax-highlight .token.string,
+.syntax-highlight .token.char,
+.syntax-highlight .token.url,
+.syntax-highlight .token.attr-value {
+  color: color-mix(in srgb, var(--text-accent) 40%, #a5d6ff 60%) !important;
+}
+
+.syntax-highlight .token.selector,
+.syntax-highlight .token.attr-name,
+.syntax-highlight .token.builtin,
+.syntax-highlight .token.class-name,
+.syntax-highlight .token.maybe-class-name {
+  color: color-mix(in srgb, var(--text-accent) 30%, #ffa657 70%) !important;
+}

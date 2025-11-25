@@ -1,13 +1,9 @@
 import React from 'react';
 import { cn } from '@/lib/utils';
 
-const STATES = ["PROCESSING", "BUILDING", "COMPILING", "DEPLOYING"];
-
-export function LoadingIndicator({ label, className }: { label?: string; className?: string }) {
-  const status = label || STATES[0];
-
+export function LoadingIndicator({ className }: { className?: string }) {
   return (
-    <div className={cn("flex items-center gap-4", className)}>
+    <div className={cn("flex items-center", className)}>
       <div className="thinking-loader">
         <div className="thinking-track">
           {Array.from({ length: 10 }).map((_, idx) => (
@@ -24,15 +20,6 @@ export function LoadingIndicator({ label, className }: { label?: string; classNa
         ))}
 
         <div className="thinking-runner thinking-head" />
-      </div>
-
-      <div className="flex flex-col leading-tight">
-        <span className="text-[var(--text-accent)] font-semibold tracking-[0.18em] text-xs uppercase">
-          {status}
-        </span>
-        <span className="text-[10px] uppercase tracking-[0.14em] text-[var(--text-secondary)]">
-          system live
-        </span>
       </div>
     </div>
   );

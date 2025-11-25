@@ -992,7 +992,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                             {isColorMenuOpen && (
                                 <>
                                     <div className="fixed inset-0 z-10" onClick={() => setIsColorMenuOpen(false)}></div>
-                                    <div className="absolute top-full right-0 md:right-[-60px] mt-1 p-3 bg-[var(--bg-sidebar)] border border-[var(--border-color)] shadow-xl z-20 animate-in fade-in zoom-in-95 duration-100 origin-top-right">
+                                    <div className="absolute top-full right-0 md:right-[-80px] mt-1 p-3 bg-[var(--bg-sidebar)] border border-[var(--border-color)] shadow-xl z-20 animate-in fade-in zoom-in-95 duration-100 origin-top-right">
                                         <HexColorPicker color={accentColor} onChange={setAccentColor} />
                                         <div className="mt-3 flex items-center gap-2">
                                             <span className="text-[10px] uppercase text-[var(--text-secondary)] font-mono">HEX</span>
@@ -1076,9 +1076,9 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                                     />
                                 ))}
 
-                                {isLoading && (
+                                {status === 'submitted' && (
                                     <div className="mt-8 border-t border-[var(--border-color)] pt-4">
-                                        <LoadingIndicator label="processing" />
+                                        <LoadingIndicator />
                                     </div>
                                 )}
 
