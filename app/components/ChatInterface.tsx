@@ -633,16 +633,30 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
         });
     }, [handleEditMessage, sendMessage]);
 
+    // Track if user manually scrolled up
+    const userScrolledUpRef = useRef(false);
+    const lastScrollTopRef = useRef(0);
+
     // Handle scroll events to determine if we should stick to bottom
     const handleScroll = () => {
         if (!scrollContainerRef.current) return;
         const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current;
-        // If user is within threshold of bottom, enable auto-scroll.
-        // We use a much larger threshold (200px) during loading to ensure we stick to bottom even if stream is fast.
-        // For normal browsing, 100px is sufficient.
-        const threshold = isLoading ? 200 : 100;
+        
+        // Detect if user is scrolling up (manual scroll)
+        if (scrollTop < lastScrollTopRef.current - 10) {
+            userScrolledUpRef.current = true;
+        }
+        lastScrollTopRef.current = scrollTop;
+        
+        // If user is within threshold of bottom, enable auto-scroll and reset manual scroll flag
+        const threshold = 100;
         const isAtBottom = scrollHeight - scrollTop - clientHeight < threshold;
-        setShouldAutoScroll(isAtBottom);
+        
+        if (isAtBottom) {
+            userScrolledUpRef.current = false;
+        }
+        
+        setShouldAutoScroll(isAtBottom && !userScrolledUpRef.current);
     };
 
     // Auto-scroll effect (Moved after messages definition)
@@ -794,6 +808,10 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
         setInput(''); // Clear input immediately
         setAttachments([]); // Clear attachments
         if (fileInputRef.current) fileInputRef.current.value = '';
+        
+        // Reset scroll tracking so we auto-scroll to the new message
+        userScrolledUpRef.current = false;
+        setShouldAutoScroll(true);
 
         try {
             let activeChatId = currentChatId;

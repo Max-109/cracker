@@ -546,7 +546,7 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
                 </div>
               )}
 
-              <div className="flex items-center gap-3 text-[11px] uppercase tracking-[0.14em] text-[var(--text-secondary)] opacity-0 group-hover:opacity-100 transition-opacity select-none justify-end w-full">
+              <div className="flex items-center gap-3 text-[11px] uppercase tracking-[0.14em] text-[var(--text-secondary)] md:opacity-0 md:group-hover:opacity-100 transition-opacity select-none justify-end w-full">
                 <button
                   onClick={() => {
                     setEditContent(userText);
@@ -695,7 +695,7 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
 
           {/* Action Buttons (Copy, Regenerate) + Model Info */}
           {!isThinking && finalContent && (
-            <div className="flex items-center justify-between mt-2 text-[11px] uppercase tracking-[0.14em] text-[var(--text-secondary)] select-none opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="flex items-center justify-between mt-2 text-[11px] uppercase tracking-[0.14em] text-[var(--text-secondary)] select-none md:opacity-0 md:group-hover:opacity-100 transition-opacity">
               {/* Left: Action buttons */}
               <div className="flex items-center gap-3">
                 <button
