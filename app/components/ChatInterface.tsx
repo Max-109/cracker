@@ -368,7 +368,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
 
     // Streaming stats tracking
     const streamingStartTimeRef = useRef<number | null>(null);
-    const [streamingStats, setStreamingStats] = useState<{ tokensPerSecond: number }>({ tokensPerSecond: 0 });
+    const [streamingStats, setStreamingStats] = useState<{ tokensPerSecond: number; modelId: string | null }>({ tokensPerSecond: 0, modelId: null });
 
     // Ref to prevent double-loading messages when we just created a chat locally
     const ignoreNextChatIdChangeRef = useRef(false);
@@ -450,14 +450,16 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
     const isLoading = status === 'submitted' || status === 'streaming';
     const [dismissedError, setDismissedError] = React.useState(false);
 
-    // Track streaming start time
+    // Track streaming start time and capture model ID
     useEffect(() => {
         if (status === 'streaming' && !streamingStartTimeRef.current) {
             streamingStartTimeRef.current = Date.now();
+            // Capture the model ID when generation starts
+            setStreamingStats(prev => ({ ...prev, modelId: currentModelId }));
         } else if (status === 'ready') {
             streamingStartTimeRef.current = null;
         }
-    }, [status]);
+    }, [status, currentModelId]);
 
     // Calculate tokens per second during streaming
     useEffect(() => {
@@ -465,8 +467,8 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
             const lastMessage = typedMessages[typedMessages.length - 1];
             if (lastMessage.role === 'assistant') {
                 const elapsed = (Date.now() - streamingStartTimeRef.current) / 1000;
+                
                 if (elapsed > 0.5) {
-                    // Estimate tokens from content (rough: 1 token ≈ 4 chars)
                     let charCount = 0;
                     const parts = (lastMessage as { parts?: unknown[] }).parts;
                     if (Array.isArray(parts)) {
@@ -478,9 +480,12 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                     } else if (typeof lastMessage.content === 'string') {
                         charCount = lastMessage.content.length;
                     }
-                    const estimatedTokens = charCount / 4;
-                    const tps = estimatedTokens / elapsed;
-                    setStreamingStats({ tokensPerSecond: tps });
+                    
+                    if (charCount > 0) {
+                        const estimatedTokens = charCount / 4;
+                        const tps = estimatedTokens / elapsed;
+                        setStreamingStats(prev => ({ ...prev, tokensPerSecond: tps }));
+                    }
                 }
             }
         }
@@ -1179,7 +1184,8 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
 
                                 {typedMessages.map((m: ChatMessage, index: number) => {
                                     const isLastAssistant = index === typedMessages.length - 1 && m.role === 'assistant';
-                                    const modelShortName = currentModelId.split('/').pop()?.split(':')[0] || currentModelId;
+                                    const usedModelId = streamingStats.modelId || currentModelId;
+                                    const modelShortName = usedModelId.split('/').pop()?.split(':')[0] || usedModelId;
                                     return (
                                         <ThrottledMessageItem
                                             key={m.id}
@@ -1191,8 +1197,8 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                                                 isRegeneratingRef.current = true;
                                                 regenerate();
                                             }}
-                                            modelName={m.role === 'assistant' ? modelShortName : undefined}
-                                            fullModelName={m.role === 'assistant' ? currentModelId : undefined}
+                                            modelName={isLastAssistant ? modelShortName : undefined}
+                                            fullModelName={isLastAssistant ? usedModelId : undefined}
                                             tokensPerSecond={isLastAssistant ? streamingStats.tokensPerSecond : undefined}
                                         />
                                     );

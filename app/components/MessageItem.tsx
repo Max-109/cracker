@@ -107,28 +107,24 @@ function ModelBadge({ name, fullName, tokensPerSecond }: { name: string; fullNam
   return (
     <button
       onClick={handleClick}
-      className={cn(
-        "transition-all duration-200 cursor-pointer",
-        copied 
-          ? "text-[var(--text-accent)] scale-105" 
-          : "hover:text-[var(--text-accent)]"
-      )}
+      className="transition-all duration-200 cursor-pointer flex items-center gap-1 text-[8px]"
       title={`Click to copy: ${fullName}`}
     >
       {copied ? (
-        <span className="flex items-center gap-1">
-          <Check size={12} />
+        <span className="flex items-center gap-1 text-[var(--text-accent)] scale-105">
+          <Check size={10} />
           <span>Copied!</span>
         </span>
       ) : (
-        <span>
-          {name.toUpperCase()}
+        <>
+          <span className="text-[var(--text-accent)] hover:opacity-80">{name.toUpperCase()}</span>
           {tokensPerSecond !== undefined && tokensPerSecond > 0 && (
-            <span className="ml-1">
-              (<span className="text-[var(--text-accent)]">{tokensPerSecond.toFixed(1)}</span> T/S)
-            </span>
+            <>
+              <span className="opacity-30">|</span>
+              <span><span className="text-[var(--text-accent)]">{Math.round(tokensPerSecond)}</span> t/s</span>
+            </>
           )}
-        </span>
+        </>
       )}
     </button>
   );
