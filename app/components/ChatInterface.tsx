@@ -294,6 +294,10 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
             root.style.setProperty('--accent-s', `${hsl.s}%`);
             root.style.setProperty('--accent-l', `${hsl.l}%`);
             
+            // Set contrast text color for accent (white for dark accents, black for light)
+            const contrastText = hsl.l < 50 ? '#ffffff' : '#000000';
+            root.style.setProperty('--accent-contrast', contrastText);
+            
             // Generate syntax highlighting color palette from accent
             const h = hsl.h;
             const s = Math.min(hsl.s, 70); // Cap saturation for readability
@@ -1058,7 +1062,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                             >
                                 <div className={cn("ender-eye-container", !isSettingsHydrated && "opacity-0")}>
                                     <div 
-                                        className={cn("ender-eye", isEyeBlinking && "blinking")} 
+                                        className={cn("ender-eye", isEyeBlinking && "blinking", isColorMenuOpen && "closed")} 
                                         style={{ backgroundColor: accentColor }}
                                         onAnimationEnd={() => setIsEyeBlinking(false)}
                                     ></div>

@@ -74,6 +74,7 @@
   --accent-h: 93;
   --accent-s: 59%;
   --accent-l: 52%;
+  --accent-contrast: #000000;
 }
 
 body {
@@ -687,6 +688,11 @@ select {
 
 .ender-eye.blinking {
   animation: ender-blink 0.5s ease-in-out;
+}
+
+.ender-eye.closed {
+  transform: scaleY(0.25) scaleX(1.12);
+  border-radius: 45% 45% 45% 45%;
 }
 
 .color-picker-btn:hover .ender-eye-container::after {

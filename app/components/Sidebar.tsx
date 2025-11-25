@@ -303,9 +303,9 @@ export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose
                         <span>New Chat</span>
                     </span>
 
-                    {/* Overlay Layer (Black Text, Orange BG) - Revealed by Clip Path */}
+                    {/* Overlay Layer (Contrast Text, Accent BG) - Revealed by Clip Path */}
                     <div
-                        className="absolute inset-0 flex items-center gap-2 px-3 py-2 bg-[var(--text-accent)] text-black z-20 pointer-events-none cursor-aware-button"
+                        className="absolute inset-0 flex items-center gap-2 px-3 py-2 bg-[var(--text-accent)] text-[var(--accent-contrast)] z-20 pointer-events-none cursor-aware-button"
                     >
                         <SquarePen size={18} strokeWidth={2} />
                         <span>New Chat</span>
