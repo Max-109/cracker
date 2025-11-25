@@ -420,58 +420,33 @@ select {
   animation: scanline-move 1.5s linear infinite;
 }
 
-/* Cursor Aware Button - Diagonal Wipe Effect */
-@property --wipe-progress {
-  syntax: '<percentage>';
-  initial-value: 0%;
-  inherits: false;
-}
-
+/* New Chat Button - Radial Fill from Cursor */
 .cursor-aware-button {
-  --wipe-progress: 0%;
-  clip-path: polygon(
-    0 0,
-    calc(var(--wipe-progress) * 2) 0,
-    var(--wipe-progress) 100%,
-    0 100%
-  );
-  transition: --wipe-progress 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  clip-path: circle(0% at var(--x, 50%) var(--y, 50%));
+  transition: clip-path 0.5s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.group:hover .cursor-aware-button {
-  --wipe-progress: 100%;
-  transition: --wipe-progress 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+.group.new-chat-btn.is-hovered .cursor-aware-button {
+  clip-path: circle(150% at var(--x, 50%) var(--y, 50%));
 }
 
-/* Glitch scanline on hover */
-.cursor-aware-button::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 2px;
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.8), transparent);
-  transform: translateY(-100%);
-  opacity: 0;
+/* Button container effects */
+.group.new-chat-btn {
+  transition: box-shadow 0.5s ease, border-color 0.5s ease;
 }
 
-.group:hover .cursor-aware-button::before {
-  animation: glitch-scanline 0.6s ease-out forwards;
+.group.new-chat-btn.is-hovered {
+  box-shadow: 0 0 25px -5px var(--text-accent);
+  border-color: var(--text-accent) !important;
 }
 
-@keyframes glitch-scanline {
-  0% {
-    transform: translateY(-100%);
-    opacity: 0;
-  }
-  20% {
-    opacity: 1;
-  }
-  100% {
-    transform: translateY(calc(100% + 40px));
-    opacity: 0;
-  }
+.group.new-chat-btn.is-hovered .text-\[var\(--text-primary\)\] {
+  color: black;
+}
+
+.group.new-chat-btn:active {
+  transform: scale(0.98);
+  transition: transform 0.1s ease;
 }
 
 /* Dynamic Syntax Highlighting - Derives all colors from accent */

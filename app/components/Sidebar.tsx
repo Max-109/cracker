@@ -205,28 +205,30 @@ export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose
                 <button
                     onClick={onNewChat}
                     onMouseEnter={(e) => {
-                        const rect = e.currentTarget.getBoundingClientRect();
+                        const btn = e.currentTarget;
+                        const rect = btn.getBoundingClientRect();
                         const x = e.clientX - rect.left;
                         const y = e.clientY - rect.top;
-                        e.currentTarget.style.setProperty('--x', `${x}px`);
-                        e.currentTarget.style.setProperty('--y', `${y}px`);
-                    }}
-                    onMouseMove={(e) => {
-                        const rect = e.currentTarget.getBoundingClientRect();
-                        const x = e.clientX - rect.left;
-                        const y = e.clientY - rect.top;
-                        e.currentTarget.style.setProperty('--x', `${x}px`);
-                        e.currentTarget.style.setProperty('--y', `${y}px`);
+                        // Remove hover class, set position, then add class back
+                        btn.classList.remove('is-hovered');
+                        btn.style.setProperty('--x', `${x}px`);
+                        btn.style.setProperty('--y', `${y}px`);
+                        // Force reflow then add class
+                        requestAnimationFrame(() => {
+                            btn.classList.add('is-hovered');
+                        });
                     }}
                     onMouseLeave={(e) => {
-                        const rect = e.currentTarget.getBoundingClientRect();
+                        const btn = e.currentTarget;
+                        const rect = btn.getBoundingClientRect();
                         const x = e.clientX - rect.left;
                         const y = e.clientY - rect.top;
-                        e.currentTarget.style.setProperty('--x', `${x}px`);
-                        e.currentTarget.style.setProperty('--y', `${y}px`);
+                        btn.style.setProperty('--x', `${x}px`);
+                        btn.style.setProperty('--y', `${y}px`);
+                        btn.classList.remove('is-hovered');
                     }}
                     style={{ '--x': '50%', '--y': '50%' } as React.CSSProperties}
-                    className="group relative flex-1 flex items-center gap-2 px-3 py-2 border border-[var(--border-color)] bg-[#141414] overflow-hidden transition-colors text-sm font-semibold text-[var(--text-primary)] hover:text-black uppercase tracking-[0.12em] text-left"
+                    className="group new-chat-btn relative flex-1 flex items-center gap-2 px-3 py-2 border border-[var(--border-color)] bg-[#141414] overflow-hidden transition-all duration-300 text-sm font-semibold text-[var(--text-primary)] uppercase tracking-[0.12em] text-left"
                 >
                     {/* Base Layer (White Text, Dark BG) */}
                     <span className="relative z-10 flex items-center gap-2 text-[var(--text-primary)]">
