@@ -1,8 +1,8 @@
 'use client';
 
 import React, { memo } from 'react'; // Added memo
-import { useState, useEffect, useMemo, useRef } from 'react'; // Added useMemo, useRef
-import { Copy, RefreshCw, Check, Plus, Minus, Pencil, File as FileIcon } from 'lucide-react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react'; // Added useMemo, useRef
+import { Copy, RefreshCw, Check, Plus, Minus, Pencil, File as FileIcon, Paperclip, X } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import remarkGfm from 'remark-gfm';
@@ -14,11 +14,23 @@ import 'katex/dist/katex.min.css';
 const REMARK_PLUGINS = [remarkMath, remarkGfm];
 const REHYPE_PLUGINS = [rehypeKatex];
 
+// Type for edit attachments
+type EditAttachment = {
+  id: string;
+  url: string;
+  name: string;
+  mediaType: string;
+  isNew?: boolean;
+  file?: File;
+  isUploading?: boolean;
+  progress?: number;
+};
+
 interface MessageItemProps {
   role: string;
   content: string | MessagePart[];
   isThinking?: boolean;
-  onEdit?: (newContent: string) => void;
+  onEdit?: (newContent: string, attachments?: EditAttachment[]) => void;
   onRetry?: () => void;
 }
 
@@ -77,12 +89,88 @@ const formatMimeType = (mime?: string) => {
   return mime.split('/')[1]?.toUpperCase() || 'FILE';
 };
 
+const generateId = () => (typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`);
+
 export const MessageItem = memo(function MessageItem({ role, content, isThinking, onEdit, onRetry }: MessageItemProps) {
   const [isThinkingOpen, setIsThinkingOpen] = useState(false);
   const [thinkingLabel, setThinkingLabel] = useState("Thinking");
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState("");
+  const [editAttachments, setEditAttachments] = useState<EditAttachment[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const editFileInputRef = useRef<HTMLInputElement>(null);
+
+  // File reading with progress for edit mode
+  const readFileWithProgress = useCallback((file: File, onProgress: (percent: number) => void): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onprogress = (event) => {
+        if (event.lengthComputable) {
+          const percent = Math.round((event.loaded / event.total) * 100);
+          onProgress(percent);
+        }
+      };
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = (error) => reject(error);
+    });
+  }, []);
+
+  const inferMediaType = (file: File): string => {
+    if (file.type) return file.type;
+    const extension = file.name.split('.').pop()?.toLowerCase();
+    const fallbackMap: Record<string, string> = {
+      pdf: 'application/pdf',
+      txt: 'text/plain',
+      md: 'text/markdown',
+      json: 'application/json',
+      csv: 'text/csv',
+      png: 'image/png',
+      jpg: 'image/jpeg',
+      jpeg: 'image/jpeg',
+      gif: 'image/gif',
+      webp: 'image/webp',
+    };
+    return extension && fallbackMap[extension] ? fallbackMap[extension] : 'application/octet-stream';
+  };
+
+  const handleEditFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    const selectedFiles = Array.from(e.target.files);
+
+    const newAttachments: EditAttachment[] = selectedFiles.map((file) => ({
+      id: generateId(),
+      file,
+      name: file.name,
+      mediaType: inferMediaType(file),
+      url: '',
+      isNew: true,
+      isUploading: true,
+      progress: 0,
+    }));
+
+    setEditAttachments(prev => [...prev, ...newAttachments]);
+
+    newAttachments.forEach((attachment) => {
+      readFileWithProgress(attachment.file!, (percent) => {
+        setEditAttachments(prev => prev.map(att => 
+          att.id === attachment.id ? { ...att, progress: percent } : att
+        ));
+      }).then((dataUrl) => {
+        setEditAttachments(prev => prev.map(att => 
+          att.id === attachment.id ? { ...att, url: dataUrl, isUploading: false, progress: 100 } : att
+        ));
+      }).catch(() => {
+        setEditAttachments(prev => prev.filter(att => att.id !== attachment.id));
+      });
+    });
+
+    e.target.value = '';
+  }, [readFileWithProgress]);
+
+  const removeEditAttachment = useCallback((id: string) => {
+    setEditAttachments(prev => prev.filter(att => att.id !== id));
+  }, []);
 
   // Memoize markdown components
   const markdownComponents = useMemo(() => ({
@@ -169,7 +257,8 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
 
   if (role === 'user') {
     let userText = '';
-    const userImages: string[] = [];
+    const userImages: { url: string; name?: string }[] = [];
+    const userFiles: { url: string; mimeType: string; name: string }[] = [];
 
     if (typeof safeContent === 'string') {
       userText = safeContent;
@@ -177,28 +266,30 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
       safeContent.forEach(part => {
         if (part.type === 'text' && part.text) {
           userText += part.text;
-        } else if (part.type === 'image' && part.image) {
-          userImages.push(part.image);
-        } else if (part.type === 'file' && part.data) {
-          // Treat files as images if they are images (fallback), otherwise store for file rendering
-          // Actually, let's separate files from images for rendering
-          // For now, we'll add a separate array for files
+        } else if (part.type === 'image') {
+          // Handle both 'image' and 'url' properties (AI SDK v5 uses 'url')
+          const imageUrl = part.image || (part as { url?: string }).url;
+          if (imageUrl) {
+            userImages.push({ url: imageUrl, name: part.name });
+          }
+        } else if (part.type === 'file') {
+          // Handle both 'data' and 'url' properties (AI SDK v5 uses 'url')
+          const fileUrl = part.data || part.url;
+          if (fileUrl) {
+            const fileName = (part.filename || part.name || 'File Attachment') as string;
+            const mime = part.mediaType || part.mimeType || 'application/octet-stream';
+            // Check if it's an image file
+            if (mime.startsWith('image/')) {
+              userImages.push({ url: fileUrl, name: fileName });
+            } else {
+              userFiles.push({ url: fileUrl, mimeType: mime, name: fileName });
+            }
+          }
         }
       });
     }
 
-    // Separate extraction for files to keep logic clean
-    const userFiles: { data: string; mimeType: string; name?: string }[] = [];
-    if (Array.isArray(safeContent)) {
-      safeContent.forEach(part => {
-        if (part.type === 'file' && part.data) {
-          // Extract name if available
-          const fileName = (part.filename || part.name || 'File Attachment') as string;
-          const mime = part.mediaType || part.mimeType || 'application/octet-stream';
-          userFiles.push({ data: part.data, mimeType: mime, name: fileName });
-        }
-      });
-    }
+    const hasPendingEditAttachments = editAttachments.some(att => att.isUploading);
 
     if (isEditing) {
       return (
@@ -207,6 +298,72 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
             <div className="flex items-start gap-3 flex-row-reverse">
               <span className="text-[var(--text-accent)] font-semibold text-lg leading-none mt-[2px] sr-only">{'>'}</span>
               <div className="flex-1 space-y-3">
+                {/* Edit Attachments Preview */}
+                {editAttachments.length > 0 && (
+                  <div className="flex flex-wrap gap-2 justify-end">
+                    {editAttachments.map((attachment) => (
+                      <div key={attachment.id} className="relative group bg-[#1a1a1a] border border-[var(--border-color)] overflow-hidden">
+                        {attachment.mediaType.startsWith('image/') ? (
+                          <div className="w-20 h-20 relative">
+                            {attachment.url ? (
+                              /* eslint-disable-next-line @next/next/no-img-element */
+                              <img
+                                src={attachment.url}
+                                alt={attachment.name}
+                                className="w-full h-full object-cover"
+                              />
+                            ) : (
+                              <div className="w-full h-full bg-[#141414] flex items-center justify-center">
+                                <FileIcon className="text-[var(--text-secondary)]" size={20} />
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2 px-2 py-1.5 min-w-[140px]">
+                            <div className="w-8 h-8 bg-[#141414] border border-[var(--border-color)] flex items-center justify-center flex-shrink-0">
+                              <FileIcon className="text-[var(--text-secondary)]" size={14} />
+                            </div>
+                            <div className="flex flex-col overflow-hidden">
+                              <span className="text-xs font-medium text-[var(--text-primary)] truncate max-w-[100px]">{attachment.name}</span>
+                              <span className="text-[10px] text-[var(--text-secondary)]">
+                                {attachment.mediaType.split('/')[1]?.toUpperCase() || 'FILE'}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Remove button */}
+                        <button
+                          onClick={() => removeEditAttachment(attachment.id)}
+                          className="absolute top-1 right-1 w-5 h-5 bg-black/80 text-[var(--text-accent)] border border-[var(--border-color)] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-[var(--text-accent)] hover:text-black"
+                        >
+                          <X size={10} />
+                        </button>
+
+                        {/* Upload Progress Overlay */}
+                        {attachment.isUploading && (
+                          <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center gap-1 backdrop-blur-sm">
+                            <div className="relative w-10 h-10">
+                              <svg className="w-10 h-10 transform -rotate-90" viewBox="0 0 48 48">
+                                <circle cx="24" cy="24" r="20" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="3" />
+                                <circle
+                                  cx="24" cy="24" r="20" fill="none" stroke="var(--text-accent)" strokeWidth="3" strokeLinecap="round"
+                                  strokeDasharray={`${2 * Math.PI * 20}`}
+                                  strokeDashoffset={`${2 * Math.PI * 20 * (1 - (attachment.progress || 0) / 100)}`}
+                                  className="transition-all duration-150"
+                                />
+                              </svg>
+                              <div className="absolute inset-0 flex items-center justify-center">
+                                <span className="text-[10px] font-bold text-white">{attachment.progress || 0}%</span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
                 <textarea
                   ref={textareaRef}
                   value={editContent}
@@ -214,24 +371,55 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
                   className="w-full bg-[#141414] border border-[var(--border-active)] text-[var(--text-primary)] resize-none focus:outline-none p-3 min-h-[96px]"
                   rows={3}
                 />
-                <div className="flex justify-end gap-2">
+
+                {/* Hidden file input */}
+                <input
+                  type="file"
+                  ref={editFileInputRef}
+                  onChange={handleEditFileSelect}
+                  className="hidden"
+                  multiple
+                />
+
+                <div className="flex justify-between items-center">
+                  {/* Add attachment button */}
                   <button
-                    onClick={() => setIsEditing(false)}
-                    className="px-3 py-1.5 text-xs uppercase tracking-[0.12em] text-[var(--text-secondary)] border border-[var(--border-color)] hover:border-[var(--border-active)]"
+                    onClick={() => editFileInputRef.current?.click()}
+                    className="flex items-center gap-1.5 px-2 py-1.5 text-xs text-[var(--text-secondary)] border border-[var(--border-color)] hover:border-[var(--border-active)] hover:text-[var(--text-primary)] transition-colors"
                   >
-                    Cancel
+                    <Paperclip size={14} />
+                    <span>Attach</span>
                   </button>
-                  <button
-                    onClick={() => {
-                      if (editContent.trim() !== userText) {
-                        onEdit?.(editContent);
-                      }
-                      setIsEditing(false);
-                    }}
-                    className="px-3 py-1.5 text-xs uppercase tracking-[0.12em] bg-[var(--text-accent)] text-black border border-[var(--text-accent)] hover:bg-black hover:text-[var(--text-accent)]"
-                  >
-                    Send
-                  </button>
+
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => {
+                        setIsEditing(false);
+                        setEditAttachments([]);
+                      }}
+                      className="px-3 py-1.5 text-xs uppercase tracking-[0.12em] text-[var(--text-secondary)] border border-[var(--border-color)] hover:border-[var(--border-active)]"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={() => {
+                        if (!hasPendingEditAttachments) {
+                          onEdit?.(editContent, editAttachments.length > 0 ? editAttachments : undefined);
+                          setIsEditing(false);
+                          setEditAttachments([]);
+                        }
+                      }}
+                      disabled={hasPendingEditAttachments}
+                      className={cn(
+                        "px-3 py-1.5 text-xs uppercase tracking-[0.12em] border transition-colors",
+                        hasPendingEditAttachments
+                          ? "bg-[#1a1a1a] text-[var(--text-secondary)] border-[var(--border-color)] cursor-not-allowed"
+                          : "bg-[var(--text-accent)] text-black border-[var(--text-accent)] hover:bg-black hover:text-[var(--text-accent)]"
+                      )}
+                    >
+                      {hasPendingEditAttachments ? 'Uploading...' : 'Send'}
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -252,7 +440,7 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
                   {userImages.map((img, idx) => (
                     <div key={idx} className="relative border border-[var(--border-color)] bg-[#141414] overflow-hidden">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={img} alt={`Attachment ${idx + 1}`} className="max-w-[200px] max-h-[200px] object-cover" />
+                      <img src={img.url} alt={img.name || `Attachment ${idx + 1}`} className="max-w-[200px] max-h-[200px] object-cover" />
                     </div>
                   ))}
                 </div>
@@ -286,6 +474,22 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
                 <button
                   onClick={() => {
                     setEditContent(userText);
+                    // Initialize edit attachments from existing images and files
+                    const existingAttachments: EditAttachment[] = [
+                      ...userImages.map((img, idx) => ({
+                        id: `existing-img-${idx}`,
+                        url: img.url,
+                        name: img.name || `Image ${idx + 1}`,
+                        mediaType: 'image/png', // Default, actual type is in the URL
+                      })),
+                      ...userFiles.map((file, idx) => ({
+                        id: `existing-file-${idx}`,
+                        url: file.url,
+                        name: file.name,
+                        mediaType: file.mimeType,
+                      })),
+                    ];
+                    setEditAttachments(existingAttachments);
                     setIsEditing(true);
                   }}
                   className="flex items-center gap-1 hover:text-[var(--text-accent)]"

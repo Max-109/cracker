@@ -211,7 +211,9 @@ function useThrottledValue<T>(value: T, limit: number): T {
     return throttledValue;
 }
 
-const ThrottledMessageItem = memo(function ThrottledMessageItem({ message, index, isThinking, onEdit, onRetry }: { message: ChatMessage, index: number, isThinking: boolean, onEdit: (index: number, content: string) => void, onRetry: () => void }) {
+type EditAttachment = { id: string; url: string; name: string; mediaType: string };
+
+const ThrottledMessageItem = memo(function ThrottledMessageItem({ message, index, isThinking, onEdit, onRetry }: { message: ChatMessage, index: number, isThinking: boolean, onEdit: (index: number, content: string, attachments?: EditAttachment[]) => void, onRetry: () => void }) {
     // AI SDK v5 uses `parts` array with { type: 'text', text: '...' } structure
     // We need to convert this to our MessagePart format or extract text
     const extractContent = (): string | MessagePart[] => {
@@ -228,9 +230,15 @@ const ThrottledMessageItem = memo(function ThrottledMessageItem({ message, index
                     } else if (p.type === 'reasoning' && typeof p.text === 'string') {
                         converted.push({ type: 'reasoning', text: p.text });
                     } else if (p.type === 'image') {
-                        converted.push({ type: 'image', image: p.image as string, mediaType: p.mediaType as string });
+                        // AI SDK v5 uses 'url' for images, fallback to 'image'
+                        const imageUrl = (p.url || p.image) as string;
+                        converted.push({ type: 'image', image: imageUrl, mediaType: p.mediaType as string, name: p.filename as string });
                     } else if (p.type === 'file') {
-                        converted.push({ type: 'file', data: p.data as string, mediaType: p.mediaType as string, name: p.filename as string });
+                        // AI SDK v5 uses 'url' for file data, fallback to 'data'
+                        const fileData = (p.url || p.data) as string;
+                        const fileName = (p.filename || p.name) as string;
+                        const mimeType = (p.mediaType || p.mimeType) as string;
+                        converted.push({ type: 'file', data: fileData, url: fileData, mediaType: mimeType, name: fileName, filename: fileName });
                     }
                 }
             }
@@ -246,8 +254,8 @@ const ThrottledMessageItem = memo(function ThrottledMessageItem({ message, index
     const combinedContent = extractContent();
     const throttledContent = useThrottledValue(combinedContent, 50);
 
-    const handleEdit = React.useCallback((newContent: string) => {
-        onEdit(index, newContent);
+    const handleEdit = React.useCallback((newContent: string, attachments?: { id: string; url: string; name: string; mediaType: string }[]) => {
+        onEdit(index, newContent, attachments);
     }, [onEdit, index]);
 
     return <MessageItem role={message.role} content={throttledContent} isThinking={isThinking} onEdit={handleEdit} onRetry={onRetry} />;
@@ -463,7 +471,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
     }, [currentChatId, setMessages]);
 
     // Handle Message Edit - Stable reference using Ref to avoid re-creating on every render
-    const handleEditMessage = React.useCallback(async (index: number, newContent: string) => {
+    const handleEditMessage = React.useCallback(async (index: number, newContent: string, attachments?: EditAttachment[]) => {
         const currentMessages = messagesRef.current;
         const currentChatId = chatIdRef.current;
         if (!currentChatId) return;
@@ -484,18 +492,34 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
             const keptMessages = currentMessages.slice(0, index);
             setMessages(keptMessages as Parameters<typeof setMessages>[0]);
 
-            // 3. Save NEW user message to DB
+            // 3. Build content with attachments
+            let contentToSave: string | MessagePart[];
+            if (attachments && attachments.length > 0) {
+                contentToSave = [
+                    { type: 'text', text: newContent },
+                    ...attachments.map(att => {
+                        if (att.mediaType.startsWith('image/')) {
+                            return { type: 'image' as const, image: att.url, mediaType: att.mediaType, name: att.name };
+                        }
+                        return { type: 'file' as const, data: att.url, url: att.url, mediaType: att.mediaType, name: att.name, filename: att.name };
+                    })
+                ];
+            } else {
+                contentToSave = newContent;
+            }
+
+            // 4. Save NEW user message to DB
             await fetch('/api/messages', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     chatId: currentChatId,
                     role: 'user',
-                    content: newContent
+                    content: Array.isArray(contentToSave) ? contentToSave : [{ type: 'text', text: contentToSave }]
                 })
             });
 
-            // 4. Send new message (triggers generation)
+            // 5. Send new message (triggers generation)
             // Actual send occurs outside to maintain stable callback references.
         } catch (err) {
             console.error("Failed to edit message:", err);
@@ -503,10 +527,20 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
     }, [setMessages]); // setMessages is stable from useChat
 
     // Actual implementation that calls the ref
-    const stableHandleEdit = React.useCallback((index: number, newContent: string) => {
-        handleEditMessage(index, newContent).then(() => {
-            // In AI SDK v5, sendMessage takes { text: string } format
-            sendMessage({ text: newContent });
+    const stableHandleEdit = React.useCallback((index: number, newContent: string, attachments?: EditAttachment[]) => {
+        handleEditMessage(index, newContent, attachments).then(() => {
+            // In AI SDK v5, sendMessage takes { text: string } format, or { text, files } for attachments
+            if (attachments && attachments.length > 0) {
+                const fileUIParts = attachments.map(att => ({
+                    type: 'file' as const,
+                    filename: att.name,
+                    mediaType: att.mediaType,
+                    url: att.url,
+                }));
+                sendMessage({ text: newContent, files: fileUIParts });
+            } else {
+                sendMessage({ text: newContent });
+            }
         });
     }, [handleEditMessage, sendMessage]);
 
@@ -678,7 +712,11 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
 
             // Create chat if it doesn't exist
             if (!activeChatId) {
-                const res = await fetch('/api/chats', { method: 'POST', body: JSON.stringify({ title: null }) });
+                const res = await fetch('/api/chats', { 
+                    method: 'POST', 
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title: null }) 
+                });
                 const newChat = await res.json();
                 if (newChat && newChat.id) {
                     activeChatId = newChat.id;
@@ -1020,38 +1058,80 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
 
                         {/* Attachments Preview */}
         {attachments.length > 0 && (
-            <div className="flex gap-3 overflow-x-auto px-1 py-1">
+            <div className="flex gap-3 overflow-x-auto px-1 py-2 mb-2">
                 {attachments.map((attachment) => (
-                    <div key={attachment.id} className="relative group flex-shrink-0 w-16 h-16 bg-[#141414] border border-[var(--border-color)] flex items-center justify-center overflow-hidden">
-                        <div className="scanline-overlay z-10"></div>
-                        {attachment.mediaType.startsWith('image/') && attachment.previewUrl ? (
-                            /* eslint-disable-next-line @next/next/no-img-element */
-                            <img
-                                src={attachment.previewUrl}
-                                alt={attachment.name}
-                                className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity"
-                            />
+                    <div key={attachment.id} className="relative group flex-shrink-0 bg-[#1a1a1a] border border-[var(--border-color)] overflow-hidden">
+                        {attachment.mediaType.startsWith('image/') ? (
+                            <div className="w-24 h-24 relative">
+                                {attachment.previewUrl ? (
+                                    /* eslint-disable-next-line @next/next/no-img-element */
+                                    <img
+                                        src={attachment.previewUrl}
+                                        alt={attachment.name}
+                                        className="w-full h-full object-cover"
+                                    />
+                                ) : (
+                                    <div className="w-full h-full bg-[#141414] flex items-center justify-center">
+                                        <FileIcon className="text-[var(--text-secondary)]" size={24} />
+                                    </div>
+                                )}
+                            </div>
                         ) : (
-                            <div className="flex flex-col items-center justify-center w-full h-full bg-[#1e1e1e] p-1">
-                                <FileIcon className="text-[var(--text-secondary)] mb-1" size={20} />
-                                <span className="text-[10px] text-[var(--text-secondary)] truncate w-full text-center px-1">{attachment.name}</span>
+                            <div className="flex items-center gap-3 px-3 py-2 min-w-[180px]">
+                                <div className="w-10 h-10 bg-[#141414] border border-[var(--border-color)] flex items-center justify-center flex-shrink-0">
+                                    <FileIcon className="text-[var(--text-secondary)]" size={18} />
+                                </div>
+                                <div className="flex flex-col overflow-hidden">
+                                    <span className="text-sm font-medium text-[var(--text-primary)] truncate max-w-[120px]">{attachment.name}</span>
+                                    <span className="text-xs text-[var(--text-secondary)]">
+                                        {attachment.mediaType.split('/')[1]?.toUpperCase() || 'FILE'}
+                                    </span>
+                                </div>
                             </div>
                         )}
 
+                        {/* Remove button */}
                         <button
                             onClick={() => removeAttachment(attachment.id)}
-                            className="absolute top-0 right-0 bg-black text-[var(--text-accent)] border border-[var(--border-color)] px-1 py-[2px] opacity-0 group-hover:opacity-100 transition-opacity"
+                            className="absolute top-1 right-1 w-5 h-5 bg-black/80 text-[var(--text-accent)] border border-[var(--border-color)] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-[var(--text-accent)] hover:text-black"
                         >
                             <X size={12} />
                         </button>
 
+                        {/* Upload Progress Overlay */}
                         {attachment.isUploading && (
-                            <div className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center text-[10px] text-white gap-1">
-                                <div className="w-6 h-6 border-2 border-[var(--text-accent)] border-t-transparent rounded-full animate-spin" />
-                                <div className="w-10 h-1 bg-white/20 rounded-full overflow-hidden">
-                                    <div className="h-full bg-[var(--text-accent)] transition-all duration-150" style={{ width: `${attachment.progress}%` }} />
+                            <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center gap-2 backdrop-blur-sm">
+                                {/* Circular progress */}
+                                <div className="relative w-12 h-12">
+                                    <svg className="w-12 h-12 transform -rotate-90" viewBox="0 0 48 48">
+                                        <circle
+                                            cx="24"
+                                            cy="24"
+                                            r="20"
+                                            fill="none"
+                                            stroke="rgba(255,255,255,0.1)"
+                                            strokeWidth="3"
+                                        />
+                                        <circle
+                                            cx="24"
+                                            cy="24"
+                                            r="20"
+                                            fill="none"
+                                            stroke="var(--text-accent)"
+                                            strokeWidth="3"
+                                            strokeLinecap="round"
+                                            strokeDasharray={`${2 * Math.PI * 20}`}
+                                            strokeDashoffset={`${2 * Math.PI * 20 * (1 - attachment.progress / 100)}`}
+                                            className="transition-all duration-150"
+                                        />
+                                    </svg>
+                                    <div className="absolute inset-0 flex items-center justify-center">
+                                        <span className="text-xs font-bold text-white">{attachment.progress}%</span>
+                                    </div>
                                 </div>
-                                <span>{attachment.progress}%</span>
+                                <span className="text-[10px] uppercase tracking-wider text-[var(--text-secondary)]">
+                                    {attachment.progress < 100 ? 'Uploading...' : 'Processing...'}
+                                </span>
                             </div>
                         )}
                     </div>
@@ -1059,8 +1139,9 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
             </div>
         )}
         {hasPendingAttachments && (
-            <div className="px-1 text-[10px] uppercase tracking-[0.12em] text-[var(--text-secondary)]">
-                Preparing attachments...
+            <div className="px-1 mb-2 text-xs text-[var(--text-accent)] flex items-center gap-2">
+                <div className="w-3 h-3 border-2 border-[var(--text-accent)] border-t-transparent rounded-full animate-spin" />
+                <span>Preparing {attachments.filter(a => a.isUploading).length} file(s)...</span>
             </div>
         )}
 

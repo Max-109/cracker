@@ -8,6 +8,7 @@ export type TextPart = {
 export type ImagePart = {
   type: 'image';
   image?: string;
+  url?: string;
   mediaType?: string;
   mimeType?: string;
   name?: string;
@@ -16,6 +17,7 @@ export type ImagePart = {
 export type FilePart = {
   type: 'file';
   data?: string;
+  url?: string;
   mediaType?: string;
   mimeType?: string;
   filename?: string;
