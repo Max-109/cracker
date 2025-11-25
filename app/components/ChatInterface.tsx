@@ -276,6 +276,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
         setRawReasoningEffort(value);
     }, [setRawReasoningEffort]);
     const [isColorMenuOpen, setIsColorMenuOpen] = useState(false);
+    const [isEyeBlinking, setIsEyeBlinking] = useState(false);
 
     // Apply Accent Color
     useEffect(() => {
@@ -1047,13 +1048,20 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                         {/* Color Picker */}
                         <div className="relative">
                             <button
-                                onClick={() => setIsColorMenuOpen(!isColorMenuOpen)}
+                                onClick={() => {
+                                    setIsColorMenuOpen(!isColorMenuOpen);
+                                    setIsEyeBlinking(true);
+                                }}
                                 className="color-picker-btn w-9 h-9 border border-[var(--border-color)] bg-[#141414] hover-glow flex items-center justify-center"
                                 title="Accent Color"
                                 style={{ color: accentColor }}
                             >
                                 <div className={cn("ender-eye-container", !isSettingsHydrated && "opacity-0")}>
-                                    <div className="ender-eye" style={{ backgroundColor: accentColor }}></div>
+                                    <div 
+                                        className={cn("ender-eye", isEyeBlinking && "blinking")} 
+                                        style={{ backgroundColor: accentColor }}
+                                        onAnimationEnd={() => setIsEyeBlinking(false)}
+                                    ></div>
                                 </div>
                             </button>
 

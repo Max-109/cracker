@@ -682,8 +682,11 @@ select {
 }
 
 .color-picker-btn:hover .ender-eye {
-  animation: ender-blink 0.5s ease-in-out;
   box-shadow: 0 0 12px -2px currentColor;
+}
+
+.ender-eye.blinking {
+  animation: ender-blink 0.5s ease-in-out;
 }
 
 .color-picker-btn:hover .ender-eye-container::after {
