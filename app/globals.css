@@ -474,32 +474,89 @@ select {
   }
 }
 
-/* Dynamic Syntax Highlighting - Uses accent color CSS variable */
+/* Dynamic Syntax Highlighting - Derives all colors from accent */
+/* Default syntax variables (fallback) */
+:root {
+  --syntax-primary: var(--text-accent);
+  --syntax-function: #d2a8ff;
+  --syntax-keyword: #ff7b72;
+  --syntax-string: #a5d6ff;
+  --syntax-number: #79c0ff;
+  --syntax-class: #ffa657;
+  --syntax-comment: #484f58;
+  --syntax-operator: #ff7b72;
+}
+
+/* Base token color */
+.syntax-highlight .token {
+  color: #c9d1d9;
+}
+
+/* Primary tokens - use accent color */
 .syntax-highlight .token.property,
 .syntax-highlight .token.tag,
 .syntax-highlight .token.symbol,
 .syntax-highlight .token.inserted,
 .syntax-highlight .token.variable,
-.syntax-highlight .token.regex {
-  color: var(--text-accent) !important;
+.syntax-highlight .token.regex,
+.syntax-highlight .token.constant {
+  color: var(--syntax-primary) !important;
 }
 
+/* Functions and methods */
 .syntax-highlight .token.function,
+.syntax-highlight .token.function-variable,
+.syntax-highlight .token.method,
 .syntax-highlight .token.atrule {
-  color: color-mix(in srgb, var(--text-accent) 70%, #d2a8ff 30%) !important;
+  color: var(--syntax-function) !important;
 }
 
+/* Keywords and operators */
+.syntax-highlight .token.keyword,
+.syntax-highlight .token.important,
+.syntax-highlight .token.deleted {
+  color: var(--syntax-keyword) !important;
+}
+
+.syntax-highlight .token.operator,
+.syntax-highlight .token.entity {
+  color: var(--syntax-operator) !important;
+}
+
+/* Strings and chars */
 .syntax-highlight .token.string,
 .syntax-highlight .token.char,
 .syntax-highlight .token.url,
 .syntax-highlight .token.attr-value {
-  color: color-mix(in srgb, var(--text-accent) 40%, #a5d6ff 60%) !important;
+  color: var(--syntax-string) !important;
 }
 
+/* Numbers and booleans */
+.syntax-highlight .token.number,
+.syntax-highlight .token.boolean {
+  color: var(--syntax-number) !important;
+}
+
+/* Classes and types */
 .syntax-highlight .token.selector,
 .syntax-highlight .token.attr-name,
 .syntax-highlight .token.builtin,
 .syntax-highlight .token.class-name,
-.syntax-highlight .token.maybe-class-name {
-  color: color-mix(in srgb, var(--text-accent) 30%, #ffa657 70%) !important;
+.syntax-highlight .token.maybe-class-name,
+.syntax-highlight .token.type {
+  color: var(--syntax-class) !important;
+}
+
+/* Comments */
+.syntax-highlight .token.comment,
+.syntax-highlight .token.prolog,
+.syntax-highlight .token.doctype,
+.syntax-highlight .token.cdata {
+  color: var(--syntax-comment) !important;
+  font-style: italic;
+}
+
+/* Punctuation - subtle */
+.syntax-highlight .token.punctuation {
+  color: #6e7681 !important;
 }

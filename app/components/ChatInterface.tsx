@@ -292,6 +292,21 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
             root.style.setProperty('--accent-h', hsl.h.toString());
             root.style.setProperty('--accent-s', `${hsl.s}%`);
             root.style.setProperty('--accent-l', `${hsl.l}%`);
+            
+            // Generate syntax highlighting color palette from accent
+            const h = hsl.h;
+            const s = Math.min(hsl.s, 70); // Cap saturation for readability
+            const l = hsl.l;
+            
+            // Primary syntax colors derived from accent
+            root.style.setProperty('--syntax-primary', `hsl(${h}, ${s}%, ${Math.min(l + 10, 70)}%)`);
+            root.style.setProperty('--syntax-function', `hsl(${(h + 270) % 360}, ${s}%, ${Math.min(l + 15, 75)}%)`);
+            root.style.setProperty('--syntax-keyword', `hsl(${(h + 340) % 360}, ${Math.min(s + 10, 70)}%, ${Math.min(l + 5, 65)}%)`);
+            root.style.setProperty('--syntax-string', `hsl(${(h + 180) % 360}, ${s * 0.7}%, ${Math.min(l + 20, 75)}%)`);
+            root.style.setProperty('--syntax-number', `hsl(${(h + 200) % 360}, ${s}%, ${Math.min(l + 15, 70)}%)`);
+            root.style.setProperty('--syntax-class', `hsl(${(h + 30) % 360}, ${s}%, ${Math.min(l + 10, 70)}%)`);
+            root.style.setProperty('--syntax-comment', `hsl(${h}, ${s * 0.3}%, 35%)`);
+            root.style.setProperty('--syntax-operator', `hsl(${(h + 340) % 360}, ${s * 0.8}%, ${Math.min(l + 5, 60)}%)`);
         }
 
         // Update Favicon dynamically to match icon.svg structure with accent color
