@@ -129,6 +129,10 @@ export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose
     const [editingId, setEditingId] = useState<string | null>(null);
     const [renameValue, setRenameValue] = useState("");
     const [deleteId, setDeleteId] = useState<string | null>(null);
+    const [animatingDeleteId, setAnimatingDeleteId] = useState<string | null>(null);
+    const [animatingRenameId, setAnimatingRenameId] = useState<string | null>(null);
+    const [showDeleteAllDialog, setShowDeleteAllDialog] = useState(false);
+    const [isDeletingAll, setIsDeletingAll] = useState(false);
     const inputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
@@ -148,18 +152,21 @@ export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose
         const id = editingId;
         const newTitle = renameValue.trim() || "New Chat";
 
-        // Optimistic Update (optional, but let's wait for server)
         try {
             await fetch(`/api/chats/${id}`, {
                 method: 'PATCH',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ title: newTitle })
             });
+            setEditingId(null);
+            // Trigger rename animation
+            setAnimatingRenameId(id);
+            setTimeout(() => setAnimatingRenameId(null), 600);
             onRefresh?.();
         } catch (e) {
             console.error("Rename failed", e);
+            setEditingId(null);
         }
-        setEditingId(null);
     };
 
     const confirmDelete = (id: string, e: React.MouseEvent) => {
@@ -169,16 +176,49 @@ export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose
 
     const handleDelete = async () => {
         if (!deleteId) return;
+        const idToDelete = deleteId;
+        setDeleteId(null);
+        
+        // Trigger delete animation first
+        setAnimatingDeleteId(idToDelete);
+        
+        // Wait for animation to complete before actually deleting
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
         try {
-            await fetch(`/api/chats/${deleteId}`, { method: 'DELETE' });
+            await fetch(`/api/chats/${idToDelete}`, { method: 'DELETE' });
+            setAnimatingDeleteId(null);
             onRefresh?.();
-            if (currentChatId === deleteId) {
+            if (currentChatId === idToDelete) {
                 onNewChat();
             }
         } catch (e) {
             console.error("Delete failed", e);
+            setAnimatingDeleteId(null);
         }
-        setDeleteId(null);
+    };
+
+    const handleDeleteAll = async () => {
+        if (chats.length === 0) {
+            setShowDeleteAllDialog(false);
+            return;
+        }
+        
+        setIsDeletingAll(true);
+        
+        try {
+            // Delete all chats
+            await Promise.all(chats.map(chat => 
+                fetch(`/api/chats/${chat.id}`, { method: 'DELETE' })
+            ));
+            setShowDeleteAllDialog(false);
+            setIsDeletingAll(false);
+            onRefresh?.();
+            onNewChat();
+        } catch (e) {
+            console.error("Delete all failed", e);
+            setIsDeletingAll(false);
+        }
     };
 
     return (
@@ -194,8 +234,26 @@ export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose
                         </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                        <AlertDialogCancel className="bg-transparent border-[var(--border-color)] text-[var(--text-primary)] hover:bg-[var(--bg-hover)] hover:text-[var(--text-primary)]">Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleDelete} className="bg-red-600 text-white hover:bg-red-700 border-none">Delete</AlertDialogAction>
+                        <AlertDialogCancel className="bg-transparent border-[var(--border-color)] text-[var(--text-primary)] hover-glow uppercase tracking-[0.12em] text-xs font-semibold px-4 py-2">Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleDelete} className="bg-transparent border-[var(--border-color)] text-red-400 hover-glow-danger uppercase tracking-[0.12em] text-xs font-semibold px-4 py-2">Delete</AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
+
+            {/* Delete All Chats Confirmation Dialog */}
+            <AlertDialog open={showDeleteAllDialog} onOpenChange={(open) => !open && !isDeletingAll && setShowDeleteAllDialog(false)}>
+                <AlertDialogContent className="bg-[var(--bg-sidebar)] border border-[var(--border-color)] text-[var(--text-primary)]">
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Delete all chats?</AlertDialogTitle>
+                        <AlertDialogDescription className="text-[var(--text-secondary)]">
+                            This will permanently delete all {chats.length} chat{chats.length !== 1 ? 's' : ''} and their history. This action cannot be undone.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel disabled={isDeletingAll} className="bg-transparent border-[var(--border-color)] text-[var(--text-primary)] hover-glow uppercase tracking-[0.12em] text-xs font-semibold px-4 py-2 disabled:opacity-50">Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleDeleteAll} disabled={isDeletingAll} className="bg-transparent border-[var(--border-color)] text-red-400 hover-glow-danger uppercase tracking-[0.12em] text-xs font-semibold px-4 py-2 disabled:opacity-50">
+                            {isDeletingAll ? 'Deleting...' : 'Delete All'}
+                        </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
@@ -293,12 +351,14 @@ export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose
                                         {chats.map((chat) => (
                                             <div
                                                 key={chat.id}
-                                                onClick={() => onSelectChat(chat.id)}
+                                                onClick={() => !animatingDeleteId && onSelectChat(chat.id)}
                                                 className={cn(
                                                     "group relative px-3 py-2 text-sm cursor-pointer transition-colors mb-1 flex items-center justify-between border-l-2",
                                                     currentChatId === chat.id
                                                         ? "border-l-[var(--text-accent)] bg-gradient-to-r from-[var(--text-accent)]/10 to-transparent text-[var(--text-primary)]"
-                                                        : "border-l-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
+                                                        : "border-l-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]",
+                                                    animatingDeleteId === chat.id && "chat-item-deleting",
+                                                    animatingRenameId === chat.id && "chat-item-renamed"
                                                 )}
                                             >
                                                 {/* Render Title or Input */}
@@ -359,7 +419,13 @@ export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose
             <div className="mt-auto pt-3 border-t border-[var(--border-color)] z-10 relative bg-[var(--bg-sidebar)]">
                 <div className="flex items-center justify-between px-2 py-2 text-[11px] uppercase tracking-[0.14em] text-[var(--text-secondary)]">
                     <span>Cracker</span>
-                    <span className="text-[var(--text-accent)]">{process.env.NODE_ENV === 'development' ? 'DEV' : 'PRODUCTION'}</span>
+                    <button 
+                        onClick={() => setShowDeleteAllDialog(true)}
+                        className="text-[var(--text-accent)] hover:text-red-400 transition-colors cursor-pointer"
+                        title="Delete all chats"
+                    >
+                        {process.env.NODE_ENV === 'development' ? 'DEV' : 'PRODUCTION'}
+                    </button>
                 </div>
             </div>
         </div>

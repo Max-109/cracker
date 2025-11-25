@@ -387,6 +387,132 @@ select {
   border-color: var(--border-active);
 }
 
+/* Chat Item Delete Animation - Glitch Dissolve */
+@keyframes chat-delete-glitch {
+  0% {
+    opacity: 1;
+    transform: translateX(0);
+    clip-path: inset(0 0 0 0);
+  }
+  10% {
+    transform: translateX(-3px);
+    clip-path: inset(0 0 50% 0);
+  }
+  20% {
+    transform: translateX(3px);
+    clip-path: inset(30% 0 20% 0);
+  }
+  30% {
+    transform: translateX(-2px);
+    clip-path: inset(60% 0 0 0);
+  }
+  40% {
+    opacity: 0.8;
+    transform: translateX(2px);
+    clip-path: inset(10% 0 40% 0);
+  }
+  50% {
+    transform: translateX(0);
+    clip-path: inset(0 0 0 0);
+  }
+  60% {
+    opacity: 0.6;
+    transform: translateX(5px) skewX(-5deg);
+    filter: blur(1px);
+  }
+  70% {
+    transform: translateX(-5px) skewX(5deg);
+    filter: blur(2px);
+  }
+  80% {
+    opacity: 0.3;
+    transform: translateX(0) scaleY(0.8);
+    filter: blur(3px);
+  }
+  90% {
+    opacity: 0.1;
+    transform: scaleY(0.5) scaleX(1.1);
+    filter: blur(4px);
+  }
+  100% {
+    opacity: 0;
+    transform: scaleY(0) scaleX(1.2);
+    filter: blur(5px);
+  }
+}
+
+.chat-item-deleting {
+  animation: chat-delete-glitch 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97) forwards;
+  background: linear-gradient(90deg, transparent, rgba(239, 68, 68, 0.1), transparent);
+  pointer-events: none;
+}
+
+/* Chat Item Rename Success Animation - Accent Flash */
+@keyframes chat-rename-success {
+  0% {
+    background: transparent;
+    box-shadow: none;
+  }
+  20% {
+    background: linear-gradient(90deg, var(--text-accent), transparent 80%);
+    box-shadow: 0 0 20px -5px var(--text-accent);
+  }
+  40% {
+    background: linear-gradient(90deg, transparent, var(--text-accent) 50%, transparent);
+  }
+  60% {
+    background: linear-gradient(90deg, transparent 20%, var(--text-accent));
+    box-shadow: 0 0 15px -5px var(--text-accent);
+  }
+  80% {
+    background: linear-gradient(90deg, var(--text-accent) 0%, transparent 50%);
+  }
+  100% {
+    background: transparent;
+    box-shadow: none;
+  }
+}
+
+.chat-item-renamed {
+  position: relative;
+  overflow: hidden;
+}
+
+.chat-item-renamed::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, var(--text-accent), transparent);
+  opacity: 0.3;
+  animation: chat-rename-scan 0.6s ease-out forwards;
+}
+
+@keyframes chat-rename-scan {
+  0% {
+    transform: translateX(-100%);
+    opacity: 0.5;
+  }
+  50% {
+    opacity: 0.3;
+  }
+  100% {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}
+
+/* Button Danger Hover (for delete button) */
+.hover-glow-danger {
+  transition: all 0.3s ease;
+}
+
+.hover-glow-danger:hover {
+  box-shadow: 0 0 15px -3px #ef4444;
+  border-color: #ef4444;
+  background-color: #ef4444 !important;
+  color: #000000 !important;
+}
+
 /* Fix for double outline on prompt box */
 .no-outline:focus,
 .no-outline:focus-visible {
