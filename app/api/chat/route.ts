@@ -9,6 +9,7 @@ const openrouter = createOpenRouter({
 
 const base64Regex = /^[A-Za-z0-9+/=\s]+$/;
 type Role = "user" | "assistant" | "system" | "tool";
+type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
 
 type TextContentPart = {
   type: "text";
@@ -211,13 +212,15 @@ export async function POST(req: Request) {
       ];
     }
 
+    const openrouterOptionsPayload = JSON.parse(JSON.stringify(openrouterOptions)) as { [key: string]: JsonValue };
+
     const result = streamText({
       model: openrouter(modelId),
       // @ts-expect-error - Typing mismatch for multimodal messages
       messages: coreMessages,
       // Enable reasoning tokens for OpenRouter and pass attachments
       providerOptions: {
-        openrouter: openrouterOptions
+        openrouter: openrouterOptionsPayload
       },
       onFinish: () => {
         // console.log("Stream finished. Tokens:", event.usage.completionTokens);
@@ -241,18 +244,18 @@ export async function POST(req: Request) {
               // Remove raw OpenAI-style annotations if they leak through
               if (c.choices && Array.isArray(c.choices) && c.choices[0]?.delta?.annotations) {
                  const newChunk = { ...c };
-                 const newChoices = [...newChunk.choices];
+                 const newChoices = [...(newChunk.choices as Choice[])];
                  const newDelta = { ...newChoices[0].delta };
                  delete newDelta.annotations;
                  newChoices[0] = { ...newChoices[0], delta: newDelta };
                  newChunk.choices = newChoices;
-                 cleanChunk = newChunk;
+                 cleanChunk = newChunk as typeof cleanChunk;
               }
               // Remove top-level annotations
               if ('annotations' in c) {
                 const rest = { ...c } as Record<string, unknown>;
                 delete rest.annotations;
-                cleanChunk = rest;
+                cleanChunk = rest as typeof cleanChunk;
               }
             }
             controller.enqueue(cleanChunk);

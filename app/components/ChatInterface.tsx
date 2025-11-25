@@ -10,7 +10,7 @@ import { HexColorPicker } from "react-colorful";
 import { useState, useRef, useEffect } from 'react';
 import { ArrowUp, Paperclip, ChevronDown, PanelLeft, Square, Check, Sparkles, X, File as FileIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
-// import { useRouter } from 'next/navigation'; // Removed unused
+import { useRouter } from 'next/navigation';
 import { useChatContext } from './ChatContext';
 
 // Simple Custom Components for Dialog/Input (since we can't easily install shadcn via cli)
@@ -140,6 +140,7 @@ interface ChatInterfaceProps {
 type ReasoningEffortLevel = 'low' | 'medium' | 'high';
 
 const isBrowser = typeof window !== 'undefined';
+const generateId = () => (typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`);
 
 function usePersistedSetting(key: string, fallback: string) {
     const [value, setValue] = useState(fallback);
@@ -167,6 +168,18 @@ function usePersistedSetting(key: string, fallback: string) {
 
     return [value, updateValue] as const;
 }
+
+type AttachmentItem = {
+    id: string;
+    file: File;
+    name: string;
+    mediaType: string;
+    dataUrl?: string;
+    previewUrl?: string;
+    progress: number;
+    isUploading: boolean;
+    error?: string;
+};
 
 // Custom hook for throttling values
 function useThrottledValue<T>(value: T, limit: number): T {
@@ -219,7 +232,7 @@ const ThrottledMessageItem = memo(function ThrottledMessageItem({ message, index
 });
 
 export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
-    // const router = useRouter(); // Removed unused
+    const router = useRouter();
     const { refreshChats, toggleSidebar } = useChatContext();
 
     // User Settings State with LocalStorage Persistence
@@ -279,7 +292,10 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
     const scrollContainerRef = useRef<HTMLDivElement>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
-    const [attachments, setAttachments] = useState<File[]>([]);
+    const [attachments, setAttachments] = useState<AttachmentItem[]>([]);
+    const updateAttachment = React.useCallback((id: string, updater: (prev: AttachmentItem) => AttachmentItem) => {
+        setAttachments(prev => prev.map(att => att.id === id ? updater(att) : att));
+    }, []);
 
     const [currentChatId, setCurrentChatId] = useState<string | null>(initialChatId || null);
     const chatIdRef = useRef<string | null>(initialChatId || null);
@@ -322,9 +338,12 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
         onError: (err: Error) => {
             console.error("Chat Error:", err);
         },
-        onFinish: async (result: ChatMessage | { message: ChatMessage }) => {
+        onFinish: async (result: unknown) => {
             // Handle both new (object wrapper) and old (direct message) signatures
-            const message = 'message' in result ? result.message : result;
+            const messageCandidate = (typeof result === 'object' && result && 'message' in (result as Record<string, unknown>))
+                ? (result as { message: unknown }).message
+                : result;
+            const message = messageCandidate as Partial<ChatMessage> & { parts?: MessagePart[] };
             // Use ref to ensure we have the latest ID even if closure is stale
             const activeId = chatIdRef.current;
             if (activeId) {
@@ -388,8 +407,13 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
     // Polyfill isLoading if it's missing, based on status
     const isLoading = originalIsLoading ?? (status === 'submitted' || status === 'streaming');
 
-    type SendMessageFn = (message: { role: string; content: unknown }, options?: Record<string, unknown>) => Promise<void>;
-    const sendMessage = (chatHelpers.sendMessage || chatHelpers.append) as SendMessageFn;
+    const fallbackAppend = (chatHelpers as Record<string, unknown>)['append'] as typeof chatHelpers.sendMessage | undefined;
+    const sendMessage = chatHelpers.sendMessage ?? fallbackAppend;
+    const invokeSendMessage = React.useCallback(async (message: { role: string; content: unknown }, options?: Record<string, unknown>) => {
+        if (!sendMessage) return;
+        const fn = sendMessage as unknown as (msg: { role: string; content: unknown }, opts?: Record<string, unknown>) => Promise<void>;
+        await fn(message, options);
+    }, [sendMessage]);
 
     // Sync messages ref whenever messages update
     useEffect(() => {
@@ -469,24 +493,11 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
             });
 
             // 4. Send new message (triggers generation)
-            // Note: We need to access the latest chatHelpers or sendMessage function.
-            // Since sendMessage is from useChat, it might change. 
-            // Ideally we should use the one from the current render scope, but inside useCallback with [] deps it's stale.
-            // However, sendMessage from useChat is usually stable or we can just use the one from closure if we add it to deps.
-            // But adding it to deps breaks stability if useChat returns new function every time.
-            // Let's assume sendMessage is stable enough or use a ref for it too if needed.
-            // For now, we'll add it to deps, but check if it causes re-renders.
-            // Actually, to be perfectly safe and stable, we can just use the function from the scope if we accept it might change.
-            // But we want handleEditMessage to be STABLE.
-            // So we will use a ref for sendMessage too.
+            // Actual send occurs outside to maintain stable callback references.
         } catch (err) {
             console.error("Failed to edit message:", err);
         }
     }, [setMessages]); // setMessages is stable from useChat
-
-    // We need a way to call sendMessage from the stable handler.
-    const sendMessageRef = useRef<SendMessageFn | null>(sendMessage);
-    useEffect(() => { sendMessageRef.current = sendMessage; }, [sendMessage]);
 
     // Actual implementation that calls the ref
     const stableHandleEdit = React.useCallback((index: number, newContent: string) => {
@@ -494,7 +505,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
             const modelOverride = currentModelIdRef.current || "x-ai/grok-4.1-fast";
             const effortOverride = reasoningEffortRef.current || "medium";
 
-            sendMessageRef.current?.({
+            invokeSendMessage({
                 role: 'user',
                 content: newContent
             }, {
@@ -504,7 +515,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                 }
             });
         });
-    }, [handleEditMessage]);
+    }, [handleEditMessage, invokeSendMessage]);
 
     // Handle scroll events to determine if we should stick to bottom
     const handleScroll = () => {
@@ -535,15 +546,20 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
         setInput(e.target.value);
     };
 
-    // Helper to convert file to base64
-    const convertFileToBase64 = (file: File): Promise<string> => {
+    const readFileWithProgress = React.useCallback((file: File, onProgress: (percent: number) => void): Promise<string> => {
         return new Promise((resolve, reject) => {
             const reader = new FileReader();
             reader.readAsDataURL(file);
+            reader.onprogress = (event) => {
+                if (event.lengthComputable) {
+                    const percent = Math.round((event.loaded / event.total) * 100);
+                    onProgress(percent);
+                }
+            };
             reader.onload = () => resolve(reader.result as string);
-            reader.onerror = error => reject(error);
+            reader.onerror = (error) => reject(error);
         });
-    };
+    }, []);
 
     const inferMediaType = (file: File): string => {
         if (file.type) return file.type;
@@ -577,21 +593,58 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
     };
 
     const handleFileSelect = React.useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-        if (e.target.files && e.target.files.length > 0) {
-            setAttachments(prev => [...prev, ...Array.from(e.target.files!)]);
-            // Reset input so same file can be selected again if needed
-            e.target.value = '';
-        }
-    }, []);
+        if (!e.target.files || e.target.files.length === 0) return;
+        const selectedFiles = Array.from(e.target.files);
 
-    const removeAttachment = (index: number) => {
-        setAttachments(prev => prev.filter((_, i) => i !== index));
+        const newAttachments = selectedFiles.map((file) => ({
+            id: generateId(),
+            file,
+            name: file.name,
+            mediaType: inferMediaType(file),
+            progress: 0,
+            isUploading: true
+        } satisfies AttachmentItem));
+
+        setAttachments(prev => [...prev, ...newAttachments]);
+
+        newAttachments.forEach((attachment) => {
+            readFileWithProgress(attachment.file, (percent) => {
+                updateAttachment(attachment.id, (prev) => ({ ...prev, progress: percent }));
+            }).then((dataUrl) => {
+                updateAttachment(attachment.id, (prev) => ({
+                    ...prev,
+                    dataUrl,
+                    previewUrl: prev.mediaType.startsWith('image/') ? dataUrl : prev.previewUrl,
+                    isUploading: false,
+                    progress: 100,
+                }));
+            }).catch(() => {
+                updateAttachment(attachment.id, (prev) => ({
+                    ...prev,
+                    isUploading: false,
+                    error: 'Failed to load file'
+                }));
+            });
+        });
+
+        // Reset input so same file can be selected again if needed
+        e.target.value = '';
+    }, [readFileWithProgress, updateAttachment]);
+
+    const removeAttachment = (id: string) => {
+        setAttachments(prev => prev.filter(att => att.id !== id));
     };
+
+    const hasPendingAttachments = attachments.some(att => att.isUploading || !att.dataUrl);
 
     const handleSendMessage = async () => {
         if (!input.trim() && attachments.length === 0) return;
 
         const userMessage = input;
+        if (hasPendingAttachments) {
+            console.warn('Attachments are still uploading. Please wait before sending.');
+            return;
+        }
 
         // Convert attachments to base64
         type PreparedAttachment =
@@ -599,28 +652,27 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
             | { type: 'file'; name: string; data: string; mediaType: string; mimeType: string; filename?: string };
 
         const processedAttachments: PreparedAttachment[] = attachments.length > 0
-            ? await Promise.all(attachments.map(async (file) => {
-                const dataUrl = await convertFileToBase64(file);
-                const mediaType = inferMediaType(file);
-
-                if (mediaType.startsWith('image/')) {
-                    return {
-                        name: file.name,
+            ? attachments.reduce<PreparedAttachment[]>((acc, attachment) => {
+                if (!attachment.dataUrl) return acc;
+                if (attachment.mediaType.startsWith('image/')) {
+                    acc.push({
+                        name: attachment.name,
                         type: 'image',
-                        image: dataUrl,
-                        mediaType
-                    } as PreparedAttachment;
+                        image: attachment.dataUrl,
+                        mediaType: attachment.mediaType
+                    });
+                } else {
+                    acc.push({
+                        name: attachment.name,
+                        type: 'file',
+                        data: attachment.dataUrl,
+                        mediaType: attachment.mediaType,
+                        mimeType: attachment.mediaType,
+                        filename: attachment.name
+                    });
                 }
-
-                return {
-                    name: file.name,
-                    type: 'file',
-                    data: dataUrl,
-                    mediaType,
-                    mimeType: mediaType,
-                    filename: file.name
-                } as PreparedAttachment;
-            }))
+                return acc;
+            }, [])
             : [];
 
         setInput(''); // Clear input immediately
@@ -647,7 +699,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                     refreshChats(); // Refresh sidebar
 
                     // Navigate to the new chat URL
-                    window.history.pushState(null, '', `/chat/${newChat.id}`);
+                    router.push(`/chat/${newChat.id}`);
                 }
             }
 
@@ -662,7 +714,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                     { type: 'text', text: userMessage },
                     ...processedAttachments.map(att => {
                         if (att.type === 'image') {
-                            return { type: 'image', image: att.image, mediaType: att.mediaType, name: att.name };
+                            return { type: 'image', image: att.image, mediaType: att.mediaType, name: att.name } satisfies MessagePart;
                         }
                         return {
                             type: 'file',
@@ -706,7 +758,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
 
             // Send to AI SDK
             // Note: sendMessage() automatically handles the optimistic UI update
-            await sendMessage({
+            await invokeSendMessage({
                 role: 'user',
                 content: finalContent,
             }, {
@@ -971,36 +1023,50 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                         />
 
                         {/* Attachments Preview */}
-                        {attachments.length > 0 && (
-                            <div className="flex gap-3 overflow-x-auto px-1 py-1">
-                                {attachments.map((file, i) => (
-                                    <div key={i} className="relative group flex-shrink-0 w-16 h-16 bg-[#050505] border border-[var(--border-color)] flex items-center justify-center overflow-hidden">
-                                        <div className="scanline-overlay z-10"></div>
-                                        {file.type.startsWith('image/') ? (
-                                                    /* eslint-disable-next-line @next/next/no-img-element */
-                                            <img
-                                                src={URL.createObjectURL(file)}
-                                                alt={file.name}
-                                                className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity"
-                                                onLoad={(e) => URL.revokeObjectURL(e.currentTarget.src)}
-                                            />
-                                        ) : (
-                                            <div className="flex flex-col items-center justify-center w-full h-full bg-[#0a0a0a] p-1">
-                                                <FileIcon className="text-[var(--text-secondary)] mb-1" size={20} />
-                                                <span className="text-[10px] text-[var(--text-secondary)] truncate w-full text-center px-1">{file.name}</span>
-                                            </div>
-                                        )}
-
-                                        <button
-                                            onClick={() => removeAttachment(i)}
-                                            className="absolute top-0 right-0 bg-black text-[var(--text-accent)] border border-[var(--border-color)] px-1 py-[2px] opacity-0 group-hover:opacity-100 transition-opacity"
-                                        >
-                                            <X size={12} />
-                                        </button>
-                                    </div>
-                                ))}
+        {attachments.length > 0 && (
+            <div className="flex gap-3 overflow-x-auto px-1 py-1">
+                {attachments.map((attachment) => (
+                    <div key={attachment.id} className="relative group flex-shrink-0 w-16 h-16 bg-[#050505] border border-[var(--border-color)] flex items-center justify-center overflow-hidden">
+                        <div className="scanline-overlay z-10"></div>
+                        {attachment.mediaType.startsWith('image/') && attachment.previewUrl ? (
+                            /* eslint-disable-next-line @next/next/no-img-element */
+                            <img
+                                src={attachment.previewUrl}
+                                alt={attachment.name}
+                                className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity"
+                            />
+                        ) : (
+                            <div className="flex flex-col items-center justify-center w-full h-full bg-[#0a0a0a] p-1">
+                                <FileIcon className="text-[var(--text-secondary)] mb-1" size={20} />
+                                <span className="text-[10px] text-[var(--text-secondary)] truncate w-full text-center px-1">{attachment.name}</span>
                             </div>
                         )}
+
+                        <button
+                            onClick={() => removeAttachment(attachment.id)}
+                            className="absolute top-0 right-0 bg-black text-[var(--text-accent)] border border-[var(--border-color)] px-1 py-[2px] opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                            <X size={12} />
+                        </button>
+
+                        {attachment.isUploading && (
+                            <div className="absolute inset-0 bg-black/70 flex flex-col items-center justify-center text-[10px] text-white gap-1">
+                                <div className="w-6 h-6 border-2 border-[var(--text-accent)] border-t-transparent rounded-full animate-spin" />
+                                <div className="w-10 h-1 bg-white/20 rounded-full overflow-hidden">
+                                    <div className="h-full bg-[var(--text-accent)] transition-all duration-150" style={{ width: `${attachment.progress}%` }} />
+                                </div>
+                                <span>{attachment.progress}%</span>
+                            </div>
+                        )}
+                    </div>
+                ))}
+            </div>
+        )}
+        {hasPendingAttachments && (
+            <div className="px-1 text-[10px] uppercase tracking-[0.12em] text-[var(--text-secondary)]">
+                Preparing attachments...
+            </div>
+        )}
 
                         <div className="flex items-end gap-3">
                             <button
@@ -1066,7 +1132,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                                 ) : (
                                     <button
                                         onClick={() => handleSendMessage()}
-                                        disabled={!input.trim() && attachments.length === 0}
+                                        disabled={(!input.trim() && attachments.length === 0) || hasPendingAttachments}
                                         className={cn(
                                             "w-10 h-10 transition-all duration-150 flex items-center justify-center border",
                                             (input.trim() || attachments.length > 0)
