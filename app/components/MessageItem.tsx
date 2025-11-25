@@ -172,6 +172,52 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
     setEditAttachments(prev => prev.filter(att => att.id !== id));
   }, []);
 
+  const handleEditPaste = useCallback((e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    const imageItems: DataTransferItem[] = [];
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.startsWith('image/')) {
+        imageItems.push(items[i]);
+      }
+    }
+
+    if (imageItems.length === 0) return;
+
+    e.preventDefault();
+
+    imageItems.forEach((item) => {
+      const file = item.getAsFile();
+      if (!file) return;
+
+      const attachment: EditAttachment = {
+        id: generateId(),
+        file,
+        name: `pasted-image-${Date.now()}.${file.type.split('/')[1] || 'png'}`,
+        mediaType: file.type || 'image/png',
+        url: '',
+        isNew: true,
+        isUploading: true,
+        progress: 0,
+      };
+
+      setEditAttachments(prev => [...prev, attachment]);
+
+      readFileWithProgress(file, (percent) => {
+        setEditAttachments(prev => prev.map(att =>
+          att.id === attachment.id ? { ...att, progress: percent } : att
+        ));
+      }).then((dataUrl) => {
+        setEditAttachments(prev => prev.map(att =>
+          att.id === attachment.id ? { ...att, url: dataUrl, isUploading: false, progress: 100 } : att
+        ));
+      }).catch(() => {
+        setEditAttachments(prev => prev.filter(att => att.id !== attachment.id));
+      });
+    });
+  }, [readFileWithProgress]);
+
   // Memoize markdown components
   const markdownComponents = useMemo(() => ({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -293,7 +339,7 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
 
     if (isEditing) {
       return (
-        <div className="w-full mb-6 flex justify-end">
+        <div className="w-full mb-6 flex justify-end animate-in fade-in slide-in-from-right-2 duration-200">
           <div className="w-full max-w-[80%]">
             <div className="flex items-start gap-3 flex-row-reverse">
               <span className="text-[var(--text-accent)] font-semibold text-lg leading-none mt-[2px] sr-only">{'>'}</span>
@@ -368,6 +414,7 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
                   ref={textareaRef}
                   value={editContent}
                   onChange={(e) => setEditContent(e.target.value)}
+                  onPaste={handleEditPaste}
                   className="w-full bg-[#141414] border border-[var(--border-active)] text-[var(--text-primary)] resize-none focus:outline-none p-3 min-h-[96px]"
                   rows={3}
                 />
@@ -385,7 +432,7 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
                   {/* Add attachment button */}
                   <button
                     onClick={() => editFileInputRef.current?.click()}
-                    className="flex items-center gap-1.5 px-2 py-1.5 text-xs text-[var(--text-secondary)] border border-[var(--border-color)] hover:border-[var(--border-active)] hover:text-[var(--text-primary)] transition-colors"
+                    className="flex items-center gap-1.5 px-2 py-1.5 text-xs text-[var(--text-secondary)] border border-[var(--border-color)] hover-glow"
                   >
                     <Paperclip size={14} />
                     <span>Attach</span>
@@ -397,7 +444,7 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
                         setIsEditing(false);
                         setEditAttachments([]);
                       }}
-                      className="px-3 py-1.5 text-xs uppercase tracking-[0.12em] text-[var(--text-secondary)] border border-[var(--border-color)] hover:border-[var(--border-active)]"
+                      className="px-3 py-1.5 text-xs uppercase tracking-[0.12em] text-[var(--text-secondary)] border border-[var(--border-color)] hover-glow"
                     >
                       Cancel
                     </button>
@@ -411,7 +458,7 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
                       }}
                       disabled={hasPendingEditAttachments}
                       className={cn(
-                        "px-3 py-1.5 text-xs uppercase tracking-[0.12em] border transition-colors",
+                        "px-3 py-1.5 text-xs uppercase tracking-[0.12em] border hover-glow",
                         hasPendingEditAttachments
                           ? "bg-[#1a1a1a] text-[var(--text-secondary)] border-[var(--border-color)] cursor-not-allowed"
                           : "bg-[var(--text-accent)] text-black border-[var(--text-accent)] hover:bg-black hover:text-[var(--text-accent)]"

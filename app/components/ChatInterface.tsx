@@ -882,6 +882,56 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
         }
     };
 
+    const handlePaste = React.useCallback((e: React.ClipboardEvent) => {
+        const items = e.clipboardData?.items;
+        if (!items) return;
+
+        const imageItems: DataTransferItem[] = [];
+        for (let i = 0; i < items.length; i++) {
+            if (items[i].type.startsWith('image/')) {
+                imageItems.push(items[i]);
+            }
+        }
+
+        if (imageItems.length === 0) return;
+
+        e.preventDefault();
+
+        imageItems.forEach((item) => {
+            const file = item.getAsFile();
+            if (!file) return;
+
+            const attachment: AttachmentItem = {
+                id: generateId(),
+                file,
+                name: `pasted-image-${Date.now()}.${file.type.split('/')[1] || 'png'}`,
+                mediaType: file.type || 'image/png',
+                progress: 0,
+                isUploading: true
+            };
+
+            setAttachments(prev => [...prev, attachment]);
+
+            readFileWithProgress(file, (percent) => {
+                updateAttachment(attachment.id, (prev) => ({ ...prev, progress: percent }));
+            }).then((dataUrl) => {
+                updateAttachment(attachment.id, (prev) => ({
+                    ...prev,
+                    dataUrl,
+                    previewUrl: dataUrl,
+                    isUploading: false,
+                    progress: 100,
+                }));
+            }).catch(() => {
+                updateAttachment(attachment.id, (prev) => ({
+                    ...prev,
+                    isUploading: false,
+                    error: 'Failed to load pasted image'
+                }));
+            });
+        });
+    }, [readFileWithProgress, updateAttachment]);
+
     const handleCustomModelSubmit = (val: string) => {
         if (!val.trim()) return;
         setCurrentModelId(val.trim());
@@ -1071,9 +1121,9 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                         {/* Actual Content */}
                         <FadeWrapper show={!isMessagesLoading} className="relative z-0">
                             <>
-                                {typedMessages.length === 0 && !currentChatId && (
+                                {typedMessages.length === 0 && (
                                     <div className="flex flex-col items-center justify-center h-[60vh] text-center opacity-100">
-                                        <h2 className="text-2xl font-semibold text-[var(--text-primary)]">Where should we begin?</h2>
+                                        <h2 className="text-2xl font-semibold text-[var(--text-primary)]">Hi!</h2>
                                     </div>
                                 )}
 
@@ -1243,6 +1293,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                                         value={input}
                                         onChange={handleInputChange}
                                         onKeyDown={handleKeyDown}
+                                        onPaste={handlePaste}
                                         placeholder="Let's crack..."
                                         className="flex-1 bg-transparent text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] placeholder:italic pb-1 leading-relaxed resize-none focus:outline-none no-outline max-h-[200px] min-h-[24px] scrollbar-hide"
                                         rows={1}
@@ -1304,10 +1355,6 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                                     </button>
                                 )}
                             </div>
-                        </div>
-
-                        <div className="text-left text-[11px] uppercase tracking-[0.16em] text-[var(--text-secondary)]">
-                            System ready for next instruction.
                         </div>
                     </div>
                 </div>
