@@ -269,7 +269,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
     const [currentModelId, setCurrentModelId, isModelIdHydrated] = usePersistedSetting('CHATGPT_MODEL_ID', "x-ai/grok-4.1-fast");
     const [currentModelName, setCurrentModelName, isModelNameHydrated] = usePersistedSetting('CHATGPT_MODEL_NAME', "Smart");
     const [rawReasoningEffort, setRawReasoningEffort] = usePersistedSetting('CHATGPT_REASONING_EFFORT', "medium");
-    const [accentColor, setAccentColor, isColorHydrated] = usePersistedSetting('CHATGPT_ACCENT_COLOR', '#7dcc3c');
+    const [accentColor, setAccentColor, isColorHydrated] = usePersistedSetting('CHATGPT_ACCENT_COLOR', '#af8787');
     const isSettingsHydrated = isModelIdHydrated && isModelNameHydrated && isColorHydrated;
     const reasoningEffort = (rawReasoningEffort as ReasoningEffortLevel) ?? 'medium';
     const setReasoningEffort = React.useCallback((value: ReasoningEffortLevel) => {
@@ -1069,7 +1069,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                                             />
                                         </div>
                                         <button
-                                            onClick={() => setAccentColor('#7dcc3c')}
+                                            onClick={() => setAccentColor('#af8787')}
                                             className="mt-2 w-full px-2 py-1 text-[10px] uppercase tracking-[0.12em] font-semibold text-[var(--text-secondary)] border border-[var(--border-color)] hover:text-[var(--text-primary)] hover:border-[var(--border-active)] transition-colors"
                                         >
                                             Reset to Default
@@ -1121,7 +1121,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                         {/* Actual Content */}
                         <FadeWrapper show={!isMessagesLoading} className="relative z-0">
                             <>
-                                {typedMessages.length === 0 && (
+                                {typedMessages.length === 0 && !currentChatId && (
                                     <div className="flex flex-col items-center justify-center h-[60vh] text-center opacity-100">
                                         <h2 className="text-2xl font-semibold text-[var(--text-primary)]">Hi!</h2>
                                     </div>

@@ -15,11 +15,11 @@
   /* TEXT */
   --text-primary: #FFFFFF;
   --text-secondary: #555555;
-  --text-accent: #7dcc3c;
+  --text-accent: #af8787;
 
   /* BORDERS */
   --border-color: #333333;
-  --border-active: #7dcc3c;
+  --border-active: #af8787;
 
   /* UTILITIES */
   --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
@@ -55,11 +55,11 @@
   --input: var(--border-color);
   --ring: var(--border-active);
 
-  --chart-1: #7dcc3c;
+  --chart-1: #af8787;
   --chart-2: #6bb032;
   --chart-3: #5a9428;
   --chart-4: #48781e;
-  --chart-5: #7dcc3c;
+  --chart-5: #af8787;
 
   --sidebar: var(--bg-sidebar);
   --sidebar-foreground: var(--text-primary);
