@@ -226,7 +226,7 @@ export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose
                         e.currentTarget.style.setProperty('--y', `${y}px`);
                     }}
                     style={{ '--x': '50%', '--y': '50%' } as React.CSSProperties}
-                    className="group relative flex-1 flex items-center gap-2 px-3 py-2 border border-[var(--border-color)] bg-[#050505] overflow-hidden transition-colors text-sm font-semibold text-[var(--text-primary)] hover:text-black uppercase tracking-[0.12em] text-left"
+                    className="group relative flex-1 flex items-center gap-2 px-3 py-2 border border-[var(--border-color)] bg-[#141414] overflow-hidden transition-colors text-sm font-semibold text-[var(--text-primary)] hover:text-black uppercase tracking-[0.12em] text-left"
                 >
                     {/* Base Layer (White Text, Dark BG) */}
                     <span className="relative z-10 flex items-center gap-2 text-[var(--text-primary)]">
@@ -302,7 +302,7 @@ export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose
                                                                 if (e.key === 'Escape') setEditingId(null);
                                                             }}
                                                             onBlur={handleRename}
-                                                            className="h-8 text-sm px-2 py-0 bg-[#050505] border border-[var(--border-active)] text-[var(--text-primary)] focus-visible:ring-0"
+                                                            className="h-8 text-sm px-2 py-0 bg-[#141414] border border-[var(--border-active)] text-[var(--text-primary)] focus-visible:ring-0"
                                                         />
                                                         <button onClick={handleRename} className="p-1 hover:text-[var(--text-accent)] text-[var(--text-secondary)] border border-[var(--border-color)]">
                                                             <Check size={14} />

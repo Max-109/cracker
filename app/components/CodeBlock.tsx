@@ -23,7 +23,7 @@ export const CodeBlock = React.memo(function CodeBlock({ language, value, classN
     };
 
     return (
-        <div className={cn("relative w-full overflow-hidden my-4 border border-[var(--border-color)] bg-[#050505]", className)}>
+        <div className={cn("relative w-full overflow-hidden my-4 border border-[var(--border-color)] bg-[#141414]", className)}>
             {/* Header */}
             <div className="flex items-center justify-between bg-[#1A1A1A] px-4 py-2 text-[11px] uppercase tracking-[0.16em] select-none text-[var(--text-secondary)]">
                 <span className="font-semibold text-[var(--text-accent)]">{language || 'code'}</span>
@@ -55,7 +55,7 @@ export const CodeBlock = React.memo(function CodeBlock({ language, value, classN
             </div>
 
             {/* Code Content */}
-            <div className="relative bg-[#050505]">
+            <div className="relative bg-[#141414]">
                 <SyntaxHighlighter
                     language={language}
                     style={vscDarkPlus}

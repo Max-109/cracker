@@ -116,19 +116,19 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     h3: ({ children }: any) => <h3 className="text-lg font-bold mb-2 mt-4 text-[#E5E5E5] tracking-tight">{children}</h3>,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    blockquote: ({ children }: any) => <blockquote className="border-l-2 border-[var(--text-accent)]/70 pl-4 py-2 bg-[#050505] my-4 text-[var(--text-secondary)]">{children}</blockquote>,
+    blockquote: ({ children }: any) => <blockquote className="border-l-2 border-[var(--text-accent)]/70 pl-4 py-2 bg-[#141414] my-4 text-[var(--text-secondary)]">{children}</blockquote>,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     table: ({ children }: any) => (
-      <div className="my-4 w-full overflow-x-auto scrollbar-thin scrollbar-thumb-[#2f2f2f] scrollbar-track-transparent border border-[var(--border-color)] bg-[#050505]">
+      <div className="my-4 w-full overflow-x-auto scrollbar-thin scrollbar-thumb-[#2f2f2f] scrollbar-track-transparent border border-[var(--border-color)] bg-[#141414]">
         <table className="w-full border-collapse text-sm">{children}</table>
       </div>
     ),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    thead: ({ children }: any) => <thead className="bg-[#0f0f0f] text-left text-[var(--text-secondary)]">{children}</thead>,
+    thead: ({ children }: any) => <thead className="bg-[#222222] text-left text-[var(--text-secondary)]">{children}</thead>,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     tbody: ({ children }: any) => <tbody className="divide-y divide-[var(--border-color)] bg-transparent">{children}</tbody>,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    tr: ({ children }: any) => <tr className="transition-colors hover:bg-[#0a0a0a]">{children}</tr>,
+    tr: ({ children }: any) => <tr className="transition-colors hover:bg-[#1e1e1e]">{children}</tr>,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     th: ({ children }: any) => <th className="px-4 py-3 font-medium">{children}</th>,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -205,7 +205,7 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
                   ref={textareaRef}
                   value={editContent}
                   onChange={(e) => setEditContent(e.target.value)}
-                  className="w-full bg-[#050505] border border-[var(--border-active)] text-[var(--text-primary)] resize-none focus:outline-none p-3 min-h-[96px]"
+                  className="w-full bg-[#141414] border border-[var(--border-active)] text-[var(--text-primary)] resize-none focus:outline-none p-3 min-h-[96px]"
                   rows={3}
                 />
                 <div className="flex justify-end gap-2">
@@ -244,7 +244,7 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
               {userImages.length > 0 && (
                 <div className="flex flex-wrap gap-2 justify-end">
                   {userImages.map((img, idx) => (
-                    <div key={idx} className="relative border border-[var(--border-color)] bg-[#050505] overflow-hidden">
+                    <div key={idx} className="relative border border-[var(--border-color)] bg-[#141414] overflow-hidden">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={img} alt={`Attachment ${idx + 1}`} className="max-w-[200px] max-h-[200px] object-cover" />
                     </div>
@@ -256,8 +256,8 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
               {userFiles.length > 0 && (
                 <div className="flex flex-wrap gap-2 justify-end">
                   {userFiles.map((file, idx) => (
-                    <div key={idx} className="flex items-center gap-3 bg-[#0a0a0a] border border-[var(--border-color)] px-3 py-2 min-w-[220px]">
-                      <div className="w-10 h-10 bg-[#050505] border border-[var(--border-color)] flex items-center justify-center flex-shrink-0">
+                    <div key={idx} className="flex items-center gap-3 bg-[#1e1e1e] border border-[var(--border-color)] px-3 py-2 min-w-[220px]">
+                      <div className="w-10 h-10 bg-[#141414] border border-[var(--border-color)] flex items-center justify-center flex-shrink-0">
                         <FileIcon className="text-[var(--text-secondary)]" size={18} />
                       </div>
                       <div className="flex flex-col overflow-hidden text-right">
@@ -352,7 +352,7 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
         <div className="flex-1 text-[#E5E5E5] leading-relaxed space-y-3 overflow-hidden max-w-full">
           {/* Thinking Accordion */}
           {hasThinking && (
-            <div className="border border-[var(--border-color)] bg-[#050505] p-3">
+            <div className="border border-[var(--border-color)] bg-[#141414] p-3">
               <button
                 onClick={() => setIsThinkingOpen(!isThinkingOpen)}
                 className="flex items-center gap-2 text-xs uppercase tracking-[0.12em] text-[var(--text-secondary)] hover:text-[var(--text-accent)] transition-colors"

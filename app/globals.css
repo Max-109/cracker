@@ -5,12 +5,12 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
-  /* BACKGROUNDS - Flattened to Pure Black */
-  --bg-main: #000000;
-  --bg-sidebar: #000000;
-  --bg-input: #000000;
-  --bg-hover: #0A0A0A;
-  --bg-code: #0A0A0A;
+  /* BACKGROUNDS - Dark but not pure black */
+  --bg-main: #1a1a1a;
+  --bg-sidebar: #141414;
+  --bg-input: #1e1e1e;
+  --bg-hover: #252525;
+  --bg-code: #222222;
 
   /* TEXT */
   --text-primary: #FFFFFF;
@@ -42,10 +42,10 @@
   --secondary: var(--bg-code);
   --secondary-foreground: var(--text-primary);
 
-  --muted: #0d0d0d;
+  --muted: #232323;
   --muted-foreground: var(--text-secondary);
 
-  --accent: #0f0f0f;
+  --accent: #282828;
   --accent-foreground: var(--text-accent);
 
   --destructive: #ef4444;
@@ -63,9 +63,9 @@
 
   --sidebar: var(--bg-sidebar);
   --sidebar-foreground: var(--text-primary);
-  --sidebar-primary: #0f0f0f;
+  --sidebar-primary: #1f1f1f;
   --sidebar-primary-foreground: var(--text-primary);
-  --sidebar-accent: #0f0f0f;
+  --sidebar-accent: #1f1f1f;
   --sidebar-accent-foreground: var(--text-primary);
   --sidebar-border: var(--border-color);
   --sidebar-ring: var(--border-active);

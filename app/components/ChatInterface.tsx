@@ -144,14 +144,14 @@ const generateId = () => (typeof crypto !== 'undefined' && 'randomUUID' in crypt
 
 function usePersistedSetting(key: string, fallback: string) {
     const [value, setValue] = useState(fallback);
+    const [isHydrated, setIsHydrated] = useState(false);
 
     useEffect(() => {
-        if (!isBrowser) return;
         const stored = window.localStorage.getItem(key);
         if (stored !== null) {
-            // eslint-disable-next-line react-hooks/set-state-in-effect
             setValue(stored);
         }
+        setIsHydrated(true);
     }, [key]);
 
     const updateValue = React.useCallback((nextValue: React.SetStateAction<string>) => {
@@ -166,7 +166,7 @@ function usePersistedSetting(key: string, fallback: string) {
         });
     }, [key]);
 
-    return [value, updateValue] as const;
+    return [value, updateValue, isHydrated] as const;
 }
 
 type AttachmentItem = {
@@ -236,10 +236,11 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
     const { refreshChats, toggleSidebar } = useChatContext();
 
     // User Settings State with LocalStorage Persistence
-    const [currentModelId, setCurrentModelId] = usePersistedSetting('CHATGPT_MODEL_ID', "x-ai/grok-4.1-fast");
-    const [currentModelName, setCurrentModelName] = usePersistedSetting('CHATGPT_MODEL_NAME', "Smart");
+    const [currentModelId, setCurrentModelId, isModelIdHydrated] = usePersistedSetting('CHATGPT_MODEL_ID', "x-ai/grok-4.1-fast");
+    const [currentModelName, setCurrentModelName, isModelNameHydrated] = usePersistedSetting('CHATGPT_MODEL_NAME', "Smart");
     const [rawReasoningEffort, setRawReasoningEffort] = usePersistedSetting('CHATGPT_REASONING_EFFORT', "medium");
-    const [accentColor, setAccentColor] = usePersistedSetting('CHATGPT_ACCENT_COLOR', '#7dcc3c');
+    const [accentColor, setAccentColor, isColorHydrated] = usePersistedSetting('CHATGPT_ACCENT_COLOR', '#7dcc3c');
+    const isSettingsHydrated = isModelIdHydrated && isModelNameHydrated && isColorHydrated;
     const reasoningEffort = (rawReasoningEffort as ReasoningEffortLevel) ?? 'medium';
     const setReasoningEffort = React.useCallback((value: ReasoningEffortLevel) => {
         setRawReasoningEffort(value);
@@ -784,6 +785,13 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
         }
     }, [input]);
 
+    // Auto-focus textarea on mount and chat change
+    useEffect(() => {
+        if (textareaRef.current && !isMessagesLoading) {
+            textareaRef.current.focus();
+        }
+    }, [currentChatId, isMessagesLoading]);
+
     const handleKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
@@ -833,7 +841,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                                 onClick={() => setIsModelMenuOpen(!isModelMenuOpen)}
                                 className="flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)] px-3 py-2 border border-[var(--border-color)] hover-glow uppercase tracking-[0.16em]"
                             >
-                                <span>{currentModelName}</span>
+                                <span className={cn(!isSettingsHydrated && "opacity-0")}>{currentModelName}</span>
                                 <ChevronDown size={16} className="text-[var(--text-secondary)]" />
                             </button>
 
@@ -845,7 +853,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
 
                                         <button
                                             onClick={() => { setCurrentModelId("x-ai/grok-4.1-fast"); setCurrentModelName("Smart"); setIsModelMenuOpen(false); }}
-                                            className="flex items-center justify-between w-full text-left px-3 py-2 hover:bg-[#0a0a0a] text-sm transition-colors border border-transparent"
+                                            className="flex items-center justify-between w-full text-left px-3 py-2 hover:bg-[#1e1e1e] text-sm transition-colors border border-transparent"
                                         >
                                             <div className="flex flex-col">
                                                 <span className="text-[var(--text-primary)] font-semibold uppercase tracking-[0.12em]">Smart</span>
@@ -856,7 +864,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
 
                                         <button
                                             onClick={() => { setCurrentModelId("openai/gpt-oss-safeguard-20b"); setCurrentModelName("Ultra-Fast"); setIsModelMenuOpen(false); }}
-                                            className="flex items-center justify-between w-full text-left px-3 py-2 hover:bg-[#0a0a0a] text-sm transition-colors border border-transparent"
+                                            className="flex items-center justify-between w-full text-left px-3 py-2 hover:bg-[#1e1e1e] text-sm transition-colors border border-transparent"
                                         >
                                             <div className="flex flex-col">
                                                 <span className="text-[var(--text-primary)] font-semibold uppercase tracking-[0.12em]">Ultra-Fast</span>
@@ -867,7 +875,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
 
                                         <button
                                             onClick={() => { setCurrentModelId("deepseek/deepseek-r1-distill-llama-70b"); setCurrentModelName("Chinese"); setIsModelMenuOpen(false); }}
-                                            className="flex items-center justify-between w-full text-left px-3 py-2 hover:bg-[#0a0a0a] text-sm transition-colors border border-transparent"
+                                            className="flex items-center justify-between w-full text-left px-3 py-2 hover:bg-[#1e1e1e] text-sm transition-colors border border-transparent"
                                         >
                                             <div className="flex flex-col">
                                                 <span className="text-[var(--text-primary)] font-semibold uppercase tracking-[0.12em]">Chinese</span>
@@ -880,7 +888,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
 
                                         <button
                                             onClick={() => { setCurrentModelId("openrouter/auto"); setCurrentModelName("Auto (Best)"); setIsModelMenuOpen(false); }}
-                                            className="flex items-center justify-between w-full text-left px-3 py-2 hover:bg-[#0a0a0a] text-sm transition-colors border border-transparent"
+                                            className="flex items-center justify-between w-full text-left px-3 py-2 hover:bg-[#1e1e1e] text-sm transition-colors border border-transparent"
                                         >
                                             <div className="flex flex-col">
                                                 <span className="text-[var(--text-primary)] font-semibold uppercase tracking-[0.12em]">Auto (Best)</span>
@@ -893,7 +901,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
 
                                         <button
                                             onClick={() => { setIsModelMenuOpen(false); setIsCustomDialogOpen(true); }}
-                                            className="flex items-center justify-between w-full text-left px-3 py-2 hover:bg-[#0a0a0a] text-sm transition-colors border border-transparent"
+                                            className="flex items-center justify-between w-full text-left px-3 py-2 hover:bg-[#1e1e1e] text-sm transition-colors border border-transparent"
                                         >
                                             <div className="flex flex-col">
                                                 <span className="text-[var(--text-primary)] font-semibold uppercase tracking-[0.12em]">Custom Model</span>
@@ -909,16 +917,16 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                         <div className="relative">
                             <button
                                 onClick={() => setIsColorMenuOpen(!isColorMenuOpen)}
-                                className="w-9 h-9 border border-[var(--border-color)] bg-[#050505] hover-glow flex items-center justify-center"
+                                className="w-9 h-9 border border-[var(--border-color)] bg-[#141414] hover-glow flex items-center justify-center"
                                 title="Accent Color"
                             >
-                                <div className="w-4 h-4 rounded-full border border-white/20" style={{ backgroundColor: accentColor }}></div>
+                                <div className={cn("w-4 h-4 rounded-full border border-white/20", !isSettingsHydrated && "opacity-0")} style={{ backgroundColor: accentColor }}></div>
                             </button>
 
                             {isColorMenuOpen && (
                                 <>
                                     <div className="fixed inset-0 z-10" onClick={() => setIsColorMenuOpen(false)}></div>
-                                    <div className="absolute top-full right-0 md:right-[-60px] mt-1 p-3 bg-[var(--bg-sidebar)] border border-[var(--border-color)] shadow-xl z-20 animate-in fade-in zoom-in-95 duration-100 origin-top-right">
+                                    <div className="absolute top-full right-[-80px] md:right-[-60px] mt-1 p-3 bg-[var(--bg-sidebar)] border border-[var(--border-color)] shadow-xl z-20 animate-in fade-in zoom-in-95 duration-100 origin-top-right">
                                         <HexColorPicker color={accentColor} onChange={setAccentColor} />
                                         <div className="mt-3 flex items-center gap-2">
                                             <span className="text-[10px] uppercase text-[var(--text-secondary)] font-mono">HEX</span>
@@ -1026,7 +1034,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
         {attachments.length > 0 && (
             <div className="flex gap-3 overflow-x-auto px-1 py-1">
                 {attachments.map((attachment) => (
-                    <div key={attachment.id} className="relative group flex-shrink-0 w-16 h-16 bg-[#050505] border border-[var(--border-color)] flex items-center justify-center overflow-hidden">
+                    <div key={attachment.id} className="relative group flex-shrink-0 w-16 h-16 bg-[#141414] border border-[var(--border-color)] flex items-center justify-center overflow-hidden">
                         <div className="scanline-overlay z-10"></div>
                         {attachment.mediaType.startsWith('image/') && attachment.previewUrl ? (
                             /* eslint-disable-next-line @next/next/no-img-element */
@@ -1036,7 +1044,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                                 className="w-full h-full object-cover opacity-90 group-hover:opacity-100 transition-opacity"
                             />
                         ) : (
-                            <div className="flex flex-col items-center justify-center w-full h-full bg-[#0a0a0a] p-1">
+                            <div className="flex flex-col items-center justify-center w-full h-full bg-[#1e1e1e] p-1">
                                 <FileIcon className="text-[var(--text-secondary)] mb-1" size={20} />
                                 <span className="text-[10px] text-[var(--text-secondary)] truncate w-full text-center px-1">{attachment.name}</span>
                             </div>
@@ -1071,7 +1079,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                         <div className="flex items-end gap-3">
                             <button
                                 onClick={() => fileInputRef.current?.click()}
-                                className="w-10 h-10 border border-[var(--border-color)] bg-[#050505] text-[var(--text-secondary)] hover-glow flex items-center justify-center mb-[2px]"
+                                className="w-10 h-10 border border-[var(--border-color)] bg-[#141414] text-[var(--text-secondary)] hover-glow flex items-center justify-center mb-[2px]"
                             >
                                 <Paperclip size={18} strokeWidth={2} />
                             </button>
@@ -1083,7 +1091,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                                         value={input}
                                         onChange={handleInputChange}
                                         onKeyDown={handleKeyDown}
-                                        placeholder="// Enter command or prompt..."
+                                        placeholder="Let's crack..."
                                         className="flex-1 bg-transparent text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] placeholder:italic pb-1 leading-relaxed resize-none focus:outline-none no-outline max-h-[200px] min-h-[24px] scrollbar-hide"
                                         rows={1}
                                     />
@@ -1095,7 +1103,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                                 <div className="relative">
                                     <button
                                         onClick={() => setIsEffortMenuOpen(!isEffortMenuOpen)}
-                                        className="w-10 h-10 border border-[var(--border-color)] bg-[#050505] text-[var(--text-secondary)] hover-glow flex items-center justify-center group"
+                                        className="w-10 h-10 border border-[var(--border-color)] bg-[#141414] text-[var(--text-secondary)] hover-glow flex items-center justify-center group"
                                         title={`Reasoning Effort: ${reasoningEffort}`}
                                     >
                                         <Sparkles size={18} strokeWidth={2} className="group-hover:rotate-12 transition-transform duration-300" />
@@ -1111,7 +1119,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                                                     <button
                                                         key={effort}
                                                         onClick={() => { setReasoningEffort(effort); setIsEffortMenuOpen(false); }}
-                                                        className="flex items-center justify-between w-full text-left px-2 py-2 hover:bg-[#0a0a0a] text-sm transition-colors"
+                                                        className="flex items-center justify-between w-full text-left px-2 py-2 hover:bg-[#1e1e1e] text-sm transition-colors"
                                                     >
                                                         <span className="text-[var(--text-primary)] capitalize">{effort}</span>
                                                         {reasoningEffort === effort && <Check size={14} />}
