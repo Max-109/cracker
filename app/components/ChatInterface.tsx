@@ -940,12 +940,9 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
 
     // Handle mobile keyboard - scroll input into view when focused
     const handleTextareaFocus = React.useCallback(() => {
-        // Small delay to let the keyboard appear first
-        setTimeout(() => {
-            if (textareaRef.current) {
-                textareaRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            }
-        }, 300);
+        if (textareaRef.current) {
+            textareaRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
     }, []);
 
     // Listen to visual viewport changes (for mobile keyboard)
@@ -956,9 +953,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
             // When keyboard appears, visual viewport height decreases
             // Scroll the textarea into view
             if (document.activeElement === textareaRef.current) {
-                setTimeout(() => {
-                    textareaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                }, 100);
+                textareaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
             }
         };
         
