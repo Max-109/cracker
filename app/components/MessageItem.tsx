@@ -505,7 +505,6 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
     }
 
     return (
-      <div className="w-full mb-6 group flex justify-end">
       <div className="w-full mb-6 group flex justify-end overflow-hidden">
         <div className="w-full max-w-[80%] min-w-0">
           <div className="flex items-start gap-3 flex-row-reverse min-w-0">
