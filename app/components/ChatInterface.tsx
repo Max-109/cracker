@@ -1071,14 +1071,14 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                                         <div className="px-2 py-2 text-[11px] uppercase tracking-[0.16em] font-semibold text-[var(--text-secondary)]">Select Model</div>
 
                                         <button
-                                            onClick={() => { setCurrentModelId("google/gemini-2.0-flash-lite-001"); setCurrentModelName("Expert"); setIsModelMenuOpen(false); }}
+                                            onClick={() => { setCurrentModelId("google/gemini-3-pro-preview"); setCurrentModelName("Expert"); setIsModelMenuOpen(false); }}
                                             className="flex items-center justify-between w-full text-left px-3 py-2 hover:bg-[#1e1e1e] text-sm transition-colors border border-transparent"
                                         >
                                             <div className="flex flex-col">
                                                 <span className="text-[var(--text-primary)] font-semibold uppercase tracking-[0.12em]">Expert</span>
-                                                <span className="text-[var(--text-secondary)] text-[11px]">Gemini 2.0 Flash-Lite</span>
+                                                <span className="text-[var(--text-secondary)] text-[11px]">Gemini 3 Pro</span>
                                             </div>
-                                            {currentModelId === "google/gemini-2.0-flash-lite-001" && <Check size={16} />}
+                                            {currentModelId === "google/gemini-3-pro-preview" && <Check size={16} />}
                                         </button>
 
                                         <button
