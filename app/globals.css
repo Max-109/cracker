@@ -224,6 +224,16 @@ select {
   }
 }
 
+/* Code block wrap mode - applies to all nested elements */
+.code-wrap-enabled,
+.code-wrap-enabled pre,
+.code-wrap-enabled code,
+.code-wrap-enabled span {
+  white-space: pre-wrap !important;
+  word-break: break-word !important;
+  overflow-wrap: anywhere !important;
+}
+
 /* Custom Table Styles for Markdown */
 .prose table {
   width: 100%;

@@ -32,24 +32,45 @@ export const CodeBlock = React.memo(function CodeBlock({ language, value, classN
         const container = containerRef.current;
         if (!header || !container) return;
 
+        const checkVisibility = () => {
+            const headerRect = header.getBoundingClientRect();
+            const containerRect = container.getBoundingClientRect();
+            const topBarHeight = 56;
+            
+            // Show sticky buttons only when:
+            // 1. Header is scrolled above the top bar (not visible)
+            // 2. AND the code block is still partially visible on screen
+            const headerIsAboveViewport = headerRect.bottom < topBarHeight;
+            const containerIsVisible = containerRect.bottom > topBarHeight && containerRect.top < window.innerHeight;
+            
+            setShowStickyButton(headerIsAboveViewport && containerIsVisible);
+        };
+
+        // Use both IntersectionObserver and scroll listener for accuracy
         const observer = new IntersectionObserver(
-            ([entry]) => {
-                setShowStickyButton(!entry.isIntersecting);
-            },
+            () => checkVisibility(),
             {
                 root: null,
                 rootMargin: '-56px 0px 0px 0px',
-                threshold: 0,
+                threshold: [0, 0.1, 0.5, 1],
             }
         );
 
         observer.observe(header);
-        return () => observer.disconnect();
+        observer.observe(container);
+        
+        // Also listen to scroll for more responsive updates
+        window.addEventListener('scroll', checkVisibility, { passive: true });
+        
+        return () => {
+            observer.disconnect();
+            window.removeEventListener('scroll', checkVisibility);
+        };
     }, []);
 
     return (
         <div ref={containerRef} className={cn("relative w-full overflow-hidden my-4 border border-[var(--border-color)] bg-[var(--bg-code)]", className)}>
-            {/* Sticky Buttons - appears when header scrolls out of view */}
+            {/* Sticky Buttons - appears when header scrolls out of view but code is still visible */}
             <div
                 className={cn(
                     "fixed top-16 right-4 z-40 transition-all duration-200 flex gap-2",
@@ -148,7 +169,7 @@ export const CodeBlock = React.memo(function CodeBlock({ language, value, classN
             <div 
                 className={cn(
                     "relative bg-[var(--bg-code)] syntax-highlight",
-                    !isWrapped && "overflow-x-auto scrollbar-custom"
+                    isWrapped ? "code-wrap-enabled" : "overflow-x-auto scrollbar-custom"
                 )}
             >
                 <SyntaxHighlighter
@@ -164,17 +185,11 @@ export const CodeBlock = React.memo(function CodeBlock({ language, value, classN
                         borderRadius: 0,
                         fontFamily: 'var(--font-mono)',
                         color: '#c9d1d9',
-                        whiteSpace: isWrapped ? 'pre-wrap' : 'pre',
-                        wordBreak: isWrapped ? 'break-word' : 'normal',
-                        overflowWrap: isWrapped ? 'anywhere' : 'normal',
                     }}
                     codeTagProps={{
                         style: {
                             fontFamily: 'var(--font-mono)',
                             fontSize: 'inherit',
-                            whiteSpace: 'inherit',
-                            wordBreak: 'inherit',
-                            overflowWrap: 'inherit',
                         }
                     }}
                 >

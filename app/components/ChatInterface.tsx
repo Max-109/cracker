@@ -938,6 +938,34 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
         }
     }, [currentChatId, isMessagesLoading]);
 
+    // Handle mobile keyboard - scroll input into view when focused
+    const handleTextareaFocus = React.useCallback(() => {
+        // Small delay to let the keyboard appear first
+        setTimeout(() => {
+            if (textareaRef.current) {
+                textareaRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+        }, 300);
+    }, []);
+
+    // Listen to visual viewport changes (for mobile keyboard)
+    useEffect(() => {
+        if (typeof window === 'undefined' || !window.visualViewport) return;
+        
+        const handleResize = () => {
+            // When keyboard appears, visual viewport height decreases
+            // Scroll the textarea into view
+            if (document.activeElement === textareaRef.current) {
+                setTimeout(() => {
+                    textareaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }, 100);
+            }
+        };
+        
+        window.visualViewport.addEventListener('resize', handleResize);
+        return () => window.visualViewport?.removeEventListener('resize', handleResize);
+    }, []);
+
     const handleKeyDown = (e: React.KeyboardEvent) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
@@ -1379,6 +1407,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                                         onChange={handleInputChange}
                                         onKeyDown={handleKeyDown}
                                         onPaste={handlePaste}
+                                        onFocus={handleTextareaFocus}
                                         placeholder="Let's crack..."
                                         className="flex-1 bg-transparent text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] placeholder:italic pb-1 leading-relaxed resize-none focus:outline-none no-outline max-h-[200px] min-h-[24px] scrollbar-hide"
                                         rows={1}
