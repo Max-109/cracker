@@ -1,7 +1,13 @@
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
+import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { streamText, convertToModelMessages, UIMessage } from "ai";
 
 export const maxDuration = 300;
+
+// Initialize Google Generative AI provider
+const google = createGoogleGenerativeAI({
+  apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY!,
+});
 
 // Custom fetch that filters out problematic file annotations from OpenRouter responses
 function createFilteredFetch(): typeof fetch {
@@ -277,6 +283,19 @@ async function fetchGenerationStats(generationId: string, maxRetries = 3, delayM
   return null;
 }
 
+// Helper to check if model is a Google model
+function isGoogleModel(modelId: string): boolean {
+  return modelId.startsWith("google/") || modelId.startsWith("gemini-");
+}
+
+// Helper to get the actual model ID for Google (strip "google/" prefix if present)
+function getGoogleModelId(modelId: string): string {
+  if (modelId.startsWith("google/")) {
+    return modelId.replace("google/", "");
+  }
+  return modelId;
+}
+
 export async function POST(req: Request) {
   try {
     const { messages, model, reasoningEffort, chatId } = await req.json();
@@ -300,18 +319,34 @@ export async function POST(req: Request) {
       });
     }
 
+    // Route to appropriate provider based on model
+    const isGoogle = isGoogleModel(modelId);
+
+    // Select the model based on provider
+    const selectedModel = isGoogle
+      ? google(getGoogleModelId(modelId))
+      : openrouter(modelId);
+
     const result = streamText({
-      model: openrouter(modelId),
+      model: selectedModel,
       system: SYSTEM_PROMPT,
       messages: modelMessages,
-      providerOptions: {
-        openrouter: {
-          reasoning: {
-            effort: effort,
-            exclude: false,
+      providerOptions: isGoogle
+        ? {
+            google: {
+              thinkingConfig: {
+                thinkingBudget: effort === 'high' ? 24576 : effort === 'medium' ? 8192 : 2048,
+              },
+            },
+          }
+        : {
+            openrouter: {
+              reasoning: {
+                effort: effort,
+                exclude: false,
+              },
+            },
           },
-        },
-      },
       onFinish: async ({ response, providerMetadata, usage }) => {
         let tps = 0;
         let generationId: string | undefined;

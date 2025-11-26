@@ -1071,6 +1071,17 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                                         <div className="px-2 py-2 text-[11px] uppercase tracking-[0.16em] font-semibold text-[var(--text-secondary)]">Select Model</div>
 
                                         <button
+                                            onClick={() => { setCurrentModelId("google/gemini-2.0-flash-lite-001"); setCurrentModelName("Expert"); setIsModelMenuOpen(false); }}
+                                            className="flex items-center justify-between w-full text-left px-3 py-2 hover:bg-[#1e1e1e] text-sm transition-colors border border-transparent"
+                                        >
+                                            <div className="flex flex-col">
+                                                <span className="text-[var(--text-primary)] font-semibold uppercase tracking-[0.12em]">Expert</span>
+                                                <span className="text-[var(--text-secondary)] text-[11px]">Gemini 2.0 Flash-Lite</span>
+                                            </div>
+                                            {currentModelId === "google/gemini-2.0-flash-lite-001" && <Check size={16} />}
+                                        </button>
+
+                                        <button
                                             onClick={() => { setCurrentModelId("x-ai/grok-4.1-fast"); setCurrentModelName("Smart"); setIsModelMenuOpen(false); }}
                                             className="flex items-center justify-between w-full text-left px-3 py-2 hover:bg-[#1e1e1e] text-sm transition-colors border border-transparent"
                                         >
@@ -1079,17 +1090,6 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                                                 <span className="text-[var(--text-secondary)] text-[11px]">Grok 4.1 Fast</span>
                                             </div>
                                             {currentModelId === "x-ai/grok-4.1-fast" && <Check size={16} />}
-                                        </button>
-
-                                        <button
-                                            onClick={() => { setCurrentModelId("openai/gpt-oss-safeguard-20b"); setCurrentModelName("Ultra-Fast"); setIsModelMenuOpen(false); }}
-                                            className="flex items-center justify-between w-full text-left px-3 py-2 hover:bg-[#1e1e1e] text-sm transition-colors border border-transparent"
-                                        >
-                                            <div className="flex flex-col">
-                                                <span className="text-[var(--text-primary)] font-semibold uppercase tracking-[0.12em]">Ultra-Fast</span>
-                                                <span className="text-[var(--text-secondary)] text-[11px]">GPT OSS 20B</span>
-                                            </div>
-                                            {currentModelId === "openai/gpt-oss-safeguard-20b" && <Check size={16} />}
                                         </button>
 
                                         <button
@@ -1104,14 +1104,14 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                                         </button>
 
                                         <button
-                                            onClick={() => { setCurrentModelId("deepseek/deepseek-r1-distill-llama-70b"); setCurrentModelName("Chinese"); setIsModelMenuOpen(false); }}
+                                            onClick={() => { setCurrentModelId("openai/gpt-oss-safeguard-20b"); setCurrentModelName("Ultra-Fast"); setIsModelMenuOpen(false); }}
                                             className="flex items-center justify-between w-full text-left px-3 py-2 hover:bg-[#1e1e1e] text-sm transition-colors border border-transparent"
                                         >
                                             <div className="flex flex-col">
-                                                <span className="text-[var(--text-primary)] font-semibold uppercase tracking-[0.12em]">Chinese</span>
-                                                <span className="text-[var(--text-secondary)] text-[11px]">DeepSeek R1 Distill</span>
+                                                <span className="text-[var(--text-primary)] font-semibold uppercase tracking-[0.12em]">Ultra-Fast</span>
+                                                <span className="text-[var(--text-secondary)] text-[11px]">GPT OSS 20B</span>
                                             </div>
-                                            {currentModelId === "deepseek/deepseek-r1-distill-llama-70b" && <Check size={16} />}
+                                            {currentModelId === "openai/gpt-oss-safeguard-20b" && <Check size={16} />}
                                         </button>
 
                                         <div className="my-1 border-t border-[var(--border-color)]"></div>
