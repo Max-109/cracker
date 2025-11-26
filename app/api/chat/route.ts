@@ -1,5 +1,5 @@
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
+import { createGoogleGenerativeAI, GoogleGenerativeAIProviderMetadata } from "@ai-sdk/google";
 import { streamText, convertToModelMessages, UIMessage } from "ai";
 
 export const maxDuration = 300;
@@ -8,6 +8,9 @@ export const maxDuration = 300;
 const google = createGoogleGenerativeAI({
   apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY!,
 });
+
+// Reference to the google provider for tools access
+const googleProvider = google;
 
 // Custom fetch that filters out problematic file annotations from OpenRouter responses
 function createFilteredFetch(): typeof fetch {
@@ -327,14 +330,27 @@ export async function POST(req: Request) {
       ? google(getGoogleModelId(modelId))
       : openrouter(modelId);
 
+    // Build tools object - add Google Search for Google models
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const tools: Record<string, any> | undefined = isGoogle
+      ? {
+          google_search: googleProvider.tools.googleSearch({}),
+        }
+      : undefined;
+
+    // Track start time for Gemini TPS calculation
+    const startTime = Date.now();
+
     const result = streamText({
       model: selectedModel,
       system: SYSTEM_PROMPT,
       messages: modelMessages,
+      tools,
       providerOptions: isGoogle
         ? {
             google: {
               thinkingConfig: {
+                includeThoughts: true,
                 thinkingBudget: effort === 'high' ? 24576 : effort === 'medium' ? 8192 : 2048,
               },
             },
@@ -349,39 +365,68 @@ export async function POST(req: Request) {
           },
       onFinish: async ({ response, providerMetadata, usage }) => {
         let tps = 0;
-        let generationId: string | undefined;
+        const endTime = Date.now();
+        const elapsedMs = endTime - startTime;
         
-        // Try to get generation ID from response
-        generationId = response?.id;
-        
-        // Check providerMetadata for ID fallback
-        const meta = providerMetadata?.openrouter as Record<string, unknown> | undefined;
-        if (meta && !generationId) {
-          generationId = (meta.id || meta.generationId) as string | undefined;
-        }
-        
-        // Fetch stats from OpenRouter Generation API
-        if (generationId) {
-          const stats = await fetchGenerationStats(generationId);
-          if (stats && stats.generationTime > 0 && stats.nativeTokensCompletion > 0) {
-            // TPS = native_tokens_completion / (generation_time_ms / 1000)
-            tps = stats.nativeTokensCompletion / (stats.generationTime / 1000);
-            const modelShort = modelId.split('/').pop() || modelId;
-            console.log(`[${modelShort}] ${stats.nativeTokensCompletion} tokens / ${(stats.generationTime / 1000).toFixed(2)}s = ${tps.toFixed(1)} t/s`);
-          }
-        }
-        
-        // Fallback: try to get stats from metadata if API didn't work
-        if (tps === 0 && meta) {
-          const genTime = (meta.generationTime || meta.generation_time) as number | undefined;
-          const nativeTokens = (meta.nativeTokensCompletion || meta.native_tokens_completion || 
-            (usage as Record<string, unknown>)?.completionTokens || 
-            (usage as Record<string, unknown>)?.outputTokens) as number | undefined;
+        // Handle Google/Gemini models
+        if (isGoogle) {
+          // Access Google metadata with flexible typing for extended properties
+          const googleMeta = providerMetadata?.google as (GoogleGenerativeAIProviderMetadata & {
+            thoughtsTokenCount?: number;
+          }) | undefined;
           
-          if (genTime && genTime > 0 && nativeTokens && nativeTokens > 0) {
-            tps = nativeTokens / (genTime / 1000);
+          // Get token counts from usage or metadata
+          // LanguageModelV2Usage uses outputTokens instead of completionTokens
+          const completionTokens = usage?.outputTokens || 0;
+          const thoughtsTokens = googleMeta?.thoughtsTokenCount || 0;
+          const totalOutputTokens = completionTokens + thoughtsTokens;
+          
+          if (totalOutputTokens > 0 && elapsedMs > 0) {
+            tps = totalOutputTokens / (elapsedMs / 1000);
             const modelShort = modelId.split('/').pop() || modelId;
-            console.log(`[${modelShort}] ${nativeTokens} tokens / ${(genTime / 1000).toFixed(2)}s = ${tps.toFixed(1)} t/s (fallback)`);
+            console.log(`[${modelShort}] ${totalOutputTokens} tokens (${completionTokens} output + ${thoughtsTokens} thoughts) / ${(elapsedMs / 1000).toFixed(2)}s = ${tps.toFixed(1)} t/s`);
+            
+            // Log grounding metadata if present
+            if (googleMeta?.groundingMetadata) {
+              console.log(`[${modelShort}] Used Google Search grounding`);
+            }
+          }
+        } else {
+          // OpenRouter models
+          let generationId: string | undefined;
+          
+          // Try to get generation ID from response
+          generationId = response?.id;
+          
+          // Check providerMetadata for ID fallback
+          const meta = providerMetadata?.openrouter as Record<string, unknown> | undefined;
+          if (meta && !generationId) {
+            generationId = (meta.id || meta.generationId) as string | undefined;
+          }
+          
+          // Fetch stats from OpenRouter Generation API
+          if (generationId) {
+            const stats = await fetchGenerationStats(generationId);
+            if (stats && stats.generationTime > 0 && stats.nativeTokensCompletion > 0) {
+              // TPS = native_tokens_completion / (generation_time_ms / 1000)
+              tps = stats.nativeTokensCompletion / (stats.generationTime / 1000);
+              const modelShort = modelId.split('/').pop() || modelId;
+              console.log(`[${modelShort}] ${stats.nativeTokensCompletion} tokens / ${(stats.generationTime / 1000).toFixed(2)}s = ${tps.toFixed(1)} t/s`);
+            }
+          }
+          
+          // Fallback: try to get stats from metadata if API didn't work
+          if (tps === 0 && meta) {
+            const genTime = (meta.generationTime || meta.generation_time) as number | undefined;
+            const nativeTokens = (meta.nativeTokensCompletion || meta.native_tokens_completion || 
+              (usage as Record<string, unknown>)?.completionTokens || 
+              (usage as Record<string, unknown>)?.outputTokens) as number | undefined;
+            
+            if (genTime && genTime > 0 && nativeTokens && nativeTokens > 0) {
+              tps = nativeTokens / (genTime / 1000);
+              const modelShort = modelId.split('/').pop() || modelId;
+              console.log(`[${modelShort}] ${nativeTokens} tokens / ${(genTime / 1000).toFixed(2)}s = ${tps.toFixed(1)} t/s (fallback)`);
+            }
           }
         }
         
