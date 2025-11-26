@@ -506,10 +506,11 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
 
     return (
       <div className="w-full mb-6 group flex justify-end">
-        <div className="w-full max-w-[80%]">
-          <div className="flex items-start gap-3 flex-row-reverse">
-            <span className="text-[var(--text-accent)] font-semibold text-lg leading-none mt-[2px] sr-only">{'>'}</span>
-            <div className="flex-1 space-y-3 flex flex-col items-end">
+      <div className="w-full mb-6 group flex justify-end overflow-hidden">
+        <div className="w-full max-w-[80%] min-w-0">
+          <div className="flex items-start gap-3 flex-row-reverse min-w-0">
+            <span className="text-[var(--text-accent)] font-semibold text-lg leading-none mt-[2px] sr-only flex-shrink-0">{'>'}</span>
+            <div className="flex-1 space-y-3 flex flex-col items-end min-w-0 overflow-hidden">
               {/* Render Images if any */}
               {userImages.length > 0 && (
                 <div className="flex flex-wrap gap-2 justify-end">
@@ -640,11 +641,11 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
   const hasThinking = (!!thinkContent || actuallyThinking) && thinkContent.length > 0 && !isRedactedOnly;
 
   return (
-    <div className="w-full mb-6 group">
-      <div className="flex items-start gap-3">
-        <span className="text-[var(--text-secondary)] text-[11px] uppercase tracking-[0.18em] leading-none pt-[2px]">[AI]:</span>
+    <div className="w-full mb-6 group overflow-hidden">
+      <div className="flex items-start gap-3 min-w-0">
+        <span className="text-[var(--text-secondary)] text-[11px] uppercase tracking-[0.18em] leading-none pt-[2px] flex-shrink-0">[AI]:</span>
 
-        <div className="flex-1 text-[#E5E5E5] leading-relaxed space-y-3 overflow-hidden max-w-full min-w-0">
+        <div className="flex-1 text-[#E5E5E5] leading-relaxed space-y-3 overflow-hidden min-w-0">
           {/* Thinking Accordion */}
           {hasThinking && (
             <div className="border border-[var(--border-color)] bg-[#141414] p-3">
