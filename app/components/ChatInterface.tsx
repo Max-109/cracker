@@ -1017,9 +1017,9 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                 onSubmit={handleCustomModelSubmit}
                 initialValue={currentModelId}
             />
-            <main className="flex-1 flex flex-col relative h-full">
-                {/* Top Bar */}
-                <div className="absolute top-0 left-0 w-full h-14 flex items-center justify-between px-4 z-50 bg-[var(--bg-main)] border-b border-[var(--border-color)]">
+            <main className="flex-1 flex flex-col h-full min-h-0">
+                {/* Top Bar - using flex layout instead of absolute to prevent disappearing on mobile */}
+                <div className="flex-shrink-0 w-full h-14 flex items-center justify-between px-4 z-50 bg-[var(--bg-main)] border-b border-[var(--border-color)]">
                     <div className="flex items-center gap-2 md:hidden">
                         <button
                             onClick={toggleSidebar}
@@ -1155,10 +1155,10 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                     ref={scrollContainerRef}
                     onScroll={handleScroll}
                 >
-                    <div className="max-w-[800px] mx-auto pt-20 pb-40 px-4 md:px-6 relative">
+                    <div className="max-w-[800px] mx-auto pt-6 pb-6 px-4 md:px-6 relative">
 
                         {/* Loading Skeletons - Smart & Smooth */}
-                        <FadeWrapper show={isMessagesLoading} className="absolute inset-0 pt-20 px-4 md:px-6 z-10">
+                        <FadeWrapper show={isMessagesLoading} className="absolute inset-0 pt-6 px-4 md:px-6 z-10">
                             <div className="space-y-10">
                                 {/* User message skeleton - Randomized widths */}
                                 <div className="flex justify-end">
@@ -1264,7 +1264,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                 </div>
 
                 {/* Input Area */}
-                <div className="absolute bottom-0 left-0 w-full bg-[var(--bg-main)] border-t border-[var(--border-color)] pt-6 pb-5">
+                <div className="flex-shrink-0 w-full bg-[var(--bg-main)] border-t border-[var(--border-color)] pt-6 pb-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
                     <div className="max-w-[900px] mx-auto px-4 space-y-3">
                         <input
                             type="file"

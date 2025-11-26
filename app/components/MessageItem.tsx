@@ -541,7 +541,7 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
 
               {/* Render Text if there is text */}
               {userText && (
-                <div className="bg-[#1a1a1a] text-[var(--text-primary)] whitespace-pre-wrap leading-relaxed break-words px-4 py-2.5 rounded-2xl rounded-tr-sm border border-[var(--border-color)]">
+                <div className="bg-[#1a1a1a] text-[var(--text-primary)] whitespace-pre-wrap leading-relaxed break-words px-4 py-2.5 rounded-2xl rounded-tr-sm border border-[var(--border-color)] max-w-full" style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
                   {userText}
                 </div>
               )}
@@ -644,7 +644,7 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
       <div className="flex items-start gap-3">
         <span className="text-[var(--text-secondary)] text-[11px] uppercase tracking-[0.18em] leading-none pt-[2px]">[AI]:</span>
 
-        <div className="flex-1 text-[#E5E5E5] leading-relaxed space-y-3 overflow-hidden max-w-full">
+        <div className="flex-1 text-[#E5E5E5] leading-relaxed space-y-3 overflow-hidden max-w-full min-w-0">
           {/* Thinking Accordion */}
           {hasThinking && (
             <div className="border border-[var(--border-color)] bg-[#141414] p-3">
@@ -657,8 +657,8 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
               </button>
 
               {isThinkingOpen && (
-                <div className="mt-2 text-[var(--text-secondary)] text-sm whitespace-pre-wrap">
-                  <div className="prose dark:prose-invert max-w-none text-sm text-[var(--text-secondary)]">
+                <div className="mt-2 text-[var(--text-secondary)] text-sm whitespace-pre-wrap overflow-hidden">
+                  <div className="prose dark:prose-invert max-w-none text-sm text-[var(--text-secondary)]" style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
                     <ReactMarkdown
                       remarkPlugins={REMARK_PLUGINS}
                       rehypePlugins={REHYPE_PLUGINS}
@@ -675,7 +675,7 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
           {/* Final Content */}
           {finalContent ? (
             <div className="min-h-[20px] space-y-3">
-              <div className="prose dark:prose-invert max-w-none break-words prose-pre:bg-transparent prose-pre:p-0">
+              <div className="prose dark:prose-invert max-w-none break-words overflow-wrap-anywhere prose-pre:bg-transparent prose-pre:p-0" style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
                 <ReactMarkdown
                   remarkPlugins={REMARK_PLUGINS}
                   rehypePlugins={REHYPE_PLUGINS}

@@ -84,7 +84,16 @@ body {
   margin: 0;
   padding: 0;
   height: 100vh;
+  height: 100dvh; /* Dynamic viewport height for mobile */
   overflow: hidden;
+  -webkit-text-size-adjust: 100%; /* Prevent iOS text size adjustment */
+}
+
+/* iOS Safe Area Support */
+@supports (padding: env(safe-area-inset-bottom)) {
+  body {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
 }
 
 * {
@@ -160,6 +169,59 @@ select {
   --radius-md: 0px;
   --radius-lg: 0px;
   --radius-xl: 0px;
+}
+
+/* Mobile Wrapping Fixes - Critical for long strings like LaTeX */
+.prose {
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  hyphens: auto;
+}
+
+.prose * {
+  max-width: 100%;
+}
+
+/* KaTeX specific overflow fixes */
+.katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  padding: 0.5rem 0;
+}
+
+.katex {
+  word-break: normal !important;
+  white-space: normal;
+}
+
+.katex-html {
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+/* Prevent long equations from breaking layout */
+.katex .base {
+  max-width: 100%;
+}
+
+/* Mobile-specific fixes */
+@media (max-width: 768px) {
+  /* Prevent zoom on input focus in iOS Safari */
+  input, textarea, select {
+    font-size: 16px !important;
+  }
+  
+  /* Ensure code blocks scroll horizontally */
+  .syntax-highlight {
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  /* Prevent horizontal overflow on message containers */
+  .prose {
+    max-width: 100%;
+    overflow-x: hidden;
+  }
 }
 
 /* Custom Table Styles for Markdown */
