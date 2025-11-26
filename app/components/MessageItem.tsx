@@ -2,7 +2,7 @@
 
 import React, { memo } from 'react'; // Added memo
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'; // Added useMemo, useRef
-import { Copy, RefreshCw, Check, Plus, Minus, Pencil, File as FileIcon, Paperclip, X } from 'lucide-react';
+import { Copy, RefreshCw, Check, Plus, Minus, Pencil, File as FileIcon, Paperclip, X, Globe, ExternalLink } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import remarkGfm from 'remark-gfm';
@@ -30,6 +30,7 @@ interface MessageItemProps {
   role: string;
   content: string | MessagePart[];
   isThinking?: boolean;
+  isStreaming?: boolean;
   onEdit?: (newContent: string, attachments?: EditAttachment[]) => void;
   onRetry?: () => void;
   modelName?: string;
@@ -67,6 +68,50 @@ function ToggleIcon({ isOpen }: { isOpen: boolean }) {
     <div className="flex items-center justify-center text-[var(--text-secondary)]">
       {isOpen ? <Minus size={14} /> : <Plus size={14} />}
     </div>
+  );
+}
+
+// Search labels (similar to thinking labels)
+const SEARCH_LABELS = [
+  "Browsing",
+  "Surfing",
+  "Scouring",
+  "Scanning",
+  "Exploring",
+  "Querying",
+  "Fetching",
+  "Digging",
+  "Hunting",
+  "Probing"
+];
+
+// Globe Icon for search
+function SearchIcon({ className, isSearching }: { className?: string; isSearching?: boolean }) {
+  return (
+    <div className={cn("flex items-center justify-center w-4 h-4", className)}>
+      <Globe size={14} className={cn("text-[var(--text-accent)]", isSearching && "animate-pulse")} />
+    </div>
+  );
+}
+
+// Source item for displaying search results
+function SourceItem({ url, title, index }: { url: string; title?: string; index: number }) {
+  // Use title as domain since URLs are Google redirect URLs
+  const displayDomain = title || 'source';
+  
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="flex items-center gap-2 px-2 py-1.5 bg-[#1a1a1a] border border-[var(--border-color)] hover:border-[var(--text-accent)] transition-colors group"
+    >
+      <span className="text-[10px] text-[var(--text-accent)] font-mono">[{index + 1}]</span>
+      <div className="flex-1 min-w-0">
+        <div className="text-xs text-[var(--text-primary)] truncate">{displayDomain}</div>
+      </div>
+      <ExternalLink size={12} className="text-[var(--text-secondary)] group-hover:text-[var(--text-accent)] flex-shrink-0" />
+    </a>
   );
 }
 
@@ -130,9 +175,12 @@ function ModelBadge({ name, fullName, tokensPerSecond }: { name: string; fullNam
   );
 }
 
-export const MessageItem = memo(function MessageItem({ role, content, isThinking, onEdit, onRetry, modelName, fullModelName, tokensPerSecond }: MessageItemProps) {
+export const MessageItem = memo(function MessageItem({ role, content, isThinking, isStreaming, onEdit, onRetry, modelName, fullModelName, tokensPerSecond }: MessageItemProps) {
   const [isThinkingOpen, setIsThinkingOpen] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [isSearchExpanded, setIsSearchExpanded] = useState(false);
   const [randomLabel] = useState(() => THINKING_LABELS[Math.floor(Math.random() * THINKING_LABELS.length)]);
+  const [randomSearchLabel] = useState(() => SEARCH_LABELS[Math.floor(Math.random() * SEARCH_LABELS.length)]);
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState("");
   const [editAttachments, setEditAttachments] = useState<EditAttachment[]>([]);
@@ -278,11 +326,15 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     p: ({ children }: any) => <div className="mb-3 last:mb-0 leading-relaxed text-[#E5E5E5]">{children}</div>,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ul: ({ children }: any) => <ul className="list-disc pl-4 mb-4 space-y-1 text-[#E5E5E5]">{children}</ul>,
+    ul: ({ children }: any) => <ul className="list-disc pl-4 mb-4 space-y-1 text-[#E5E5E5] marker:text-[var(--text-accent)]">{children}</ul>,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ol: ({ children }: any) => <ol className="list-decimal pl-4 mb-4 space-y-1 text-[#E5E5E5]">{children}</ol>,
+    ol: ({ children }: any) => <ol className="list-decimal pl-4 mb-4 space-y-1 text-[#E5E5E5] marker:text-[var(--text-accent)]">{children}</ol>,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    li: ({ children }: any) => <li className="mb-1">{children}</li>,
+    li: ({ children }: any) => <li className="mb-1 marker:text-[var(--text-accent)]">{children}</li>,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    strong: ({ children }: any) => <strong className="font-semibold text-[var(--text-accent)]">{children}</strong>,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    b: ({ children }: any) => <b className="font-semibold text-[var(--text-accent)]">{children}</b>,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     h1: ({ children }: any) => <h1 className="text-2xl font-bold mb-3 mt-6 text-[#E5E5E5] tracking-tight">{children}</h1>,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -598,6 +650,9 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
   // Assistant Logic
   let thinkContent = '';
   let finalContent = '';
+  const sources: { url: string; title?: string }[] = [];
+  let hasGoogleSearch = false;
+  let isSearching = false;
 
   if (typeof safeContent !== 'string' && Array.isArray(safeContent)) {
     safeContent.forEach((part: MessagePart) => {
@@ -605,6 +660,24 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
         thinkContent += (part.reasoning || part.text || '');
       } else if (part.type === 'text') {
         finalContent += (part.text || '');
+      } else if (part.type === 'source' || (part as { type: string }).type === 'source-url') {
+        // Extract source information from converted source parts (handles both live and DB loaded)
+        const sourcePart = part as { type: string; source?: { url: string; title?: string }; url?: string; title?: string };
+        const url = sourcePart.url || sourcePart.source?.url;
+        const title = sourcePart.title || sourcePart.source?.title;
+        if (url) {
+          sources.push({ url, title });
+          hasGoogleSearch = true;
+        }
+      } else if (part.type === 'tool-invocation') {
+        // Check for Google Search tool invocation
+        const toolPart = part as { type: 'tool-invocation'; toolInvocation: { toolName: string; state: string } };
+        if (toolPart.toolInvocation?.toolName === 'google_search') {
+          hasGoogleSearch = true;
+          if (toolPart.toolInvocation.state === 'call' || toolPart.toolInvocation.state === 'partial-call') {
+            isSearching = true;
+          }
+        }
       }
     });
   } else if (typeof safeContent === 'string') {
@@ -639,6 +712,19 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
   const isRedactedOnly = thinkContent.trim() === '[REDACTED]' || thinkContent.trim() === '';
   const hasThinking = (!!thinkContent || actuallyThinking) && thinkContent.length > 0 && !isRedactedOnly;
 
+  // Check if this is a Gemini model (might use Google Search grounding)
+  const isGeminiModel = fullModelName?.toLowerCase().includes('gemini') || fullModelName?.toLowerCase().includes('google');
+  
+  // Show search indicator if:
+  // 1. We have sources (hasGoogleSearch) - always show
+  // 2. Explicit search tool invocation (isSearching)
+  // 3. Streaming with Gemini model - show "Searching" preemptively
+  // Hide after streaming if no sources arrived
+  const showSearchIndicator = hasGoogleSearch || isSearching || (isStreaming && isGeminiModel);
+  
+  // Determine if we're actively searching (for animation)
+  const isActivelySearching = isStreaming && (isGeminiModel || isSearching);
+
   return (
     <div className="w-full mb-6 group overflow-hidden">
       <div className="flex items-start gap-3 min-w-0">
@@ -667,6 +753,52 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
                       {thinkContent}
                     </ReactMarkdown>
                   </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Google Search Indicator */}
+          {showSearchIndicator && (
+            <div className="border border-[var(--border-color)] bg-[#141414] p-3">
+              <button
+                onClick={() => setIsSearchOpen(!isSearchOpen)}
+                className="flex items-center gap-2 text-xs uppercase tracking-[0.12em] text-[var(--text-secondary)] hover:text-[var(--text-accent)] transition-colors w-full"
+              >
+                <SearchIcon isSearching={isActivelySearching} />
+                <span className={cn("font-semibold text-[var(--text-accent)]", isActivelySearching && "animate-pulse")}>
+                  {isActivelySearching ? randomSearchLabel : "Browsed"}
+                </span>
+                {sources.length > 0 && !isActivelySearching && (
+                  <span className="text-[var(--text-secondary)] font-normal ml-1">
+                    ({sources.length} source{sources.length !== 1 ? 's' : ''})
+                  </span>
+                )}
+              </button>
+
+              {isSearchOpen && sources.length > 0 && (
+                <div className="mt-3 space-y-2">
+                  <div className="grid gap-2">
+                    {sources.slice(0, isSearchExpanded ? sources.length : 5).map((source, idx) => (
+                      <SourceItem key={idx} url={source.url} title={source.title} index={idx} />
+                    ))}
+                  </div>
+                  {sources.length > 5 && !isSearchExpanded && (
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); setIsSearchExpanded(true); }}
+                      className="text-xs text-[var(--text-accent)] pt-1 hover:underline cursor-pointer"
+                    >
+                      +{sources.length - 5} more sources
+                    </button>
+                  )}
+                  {isSearchExpanded && sources.length > 5 && (
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); setIsSearchExpanded(false); }}
+                      className="text-xs text-[var(--text-secondary)] pt-1 hover:text-[var(--text-accent)] cursor-pointer"
+                    >
+                      Show less
+                    </button>
+                  )}
                 </div>
               )}
             </div>

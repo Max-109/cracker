@@ -31,7 +31,28 @@ export type ReasoningPart = {
   reasoning?: string;
 };
 
-export type MessagePart = TextPart | ImagePart | FilePart | ReasoningPart;
+export type SourcePart = {
+  type: 'source';
+  source: {
+    sourceType: 'url';
+    id: string;
+    url: string;
+    title?: string;
+  };
+};
+
+export type ToolInvocationPart = {
+  type: 'tool-invocation';
+  toolInvocation: {
+    toolCallId: string;
+    toolName: string;
+    state: 'call' | 'result' | 'partial-call';
+    args?: Record<string, unknown>;
+    result?: unknown;
+  };
+};
+
+export type MessagePart = TextPart | ImagePart | FilePart | ReasoningPart | SourcePart | ToolInvocationPart;
 
 export interface ChatMessage {
   id: string;

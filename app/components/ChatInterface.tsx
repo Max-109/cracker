@@ -213,7 +213,7 @@ function useThrottledValue<T>(value: T, limit: number): T {
 
 type EditAttachment = { id: string; url: string; name: string; mediaType: string };
 
-const ThrottledMessageItem = memo(function ThrottledMessageItem({ message, index, isThinking, onEdit, onRetry, modelName, fullModelName, tokensPerSecond }: { message: ChatMessage, index: number, isThinking: boolean, onEdit: (index: number, content: string, attachments?: EditAttachment[]) => void, onRetry: () => void, modelName?: string, fullModelName?: string, tokensPerSecond?: number }) {
+const ThrottledMessageItem = memo(function ThrottledMessageItem({ message, index, isThinking, isStreaming, onEdit, onRetry, modelName, fullModelName, tokensPerSecond }: { message: ChatMessage, index: number, isThinking: boolean, isStreaming?: boolean, onEdit: (index: number, content: string, attachments?: EditAttachment[]) => void, onRetry: () => void, modelName?: string, fullModelName?: string, tokensPerSecond?: number }) {
     // AI SDK v5 uses `parts` array with { type: 'text', text: '...' } structure
     // We need to convert this to our MessagePart format or extract text
     const extractContent = (): string | MessagePart[] => {
@@ -239,6 +239,38 @@ const ThrottledMessageItem = memo(function ThrottledMessageItem({ message, index
                         const fileName = (p.filename || p.name) as string;
                         const mimeType = (p.mediaType || p.mimeType) as string;
                         converted.push({ type: 'file', data: fileData, url: fileData, mediaType: mimeType, name: fileName, filename: fileName });
+                    } else if (p.type === 'source' || p.type === 'source-url') {
+                        // AI SDK v5 source parts from Google Search grounding
+                        // Can be 'source' or 'source-url' type
+                        const url = (p.url || (p.source as { url?: string })?.url) as string | undefined;
+                        const title = (p.title || (p.source as { title?: string })?.title) as string | undefined;
+                        const id = (p.id || (p.source as { id?: string })?.id || url) as string | undefined;
+                        if (url) {
+                            converted.push({ 
+                                type: 'source', 
+                                source: { 
+                                    sourceType: 'url', 
+                                    id: id || url, 
+                                    url: url, 
+                                    title: title 
+                                } 
+                            } as MessagePart);
+                        }
+                    } else if (p.type === 'tool-invocation') {
+                        // AI SDK v5 tool invocation parts (e.g., google_search)
+                        const toolInvocation = p.toolInvocation as { toolCallId?: string; toolName?: string; state?: string; args?: unknown; result?: unknown } | undefined;
+                        if (toolInvocation) {
+                            converted.push({
+                                type: 'tool-invocation',
+                                toolInvocation: {
+                                    toolCallId: toolInvocation.toolCallId || '',
+                                    toolName: toolInvocation.toolName || '',
+                                    state: (toolInvocation.state as 'call' | 'result' | 'partial-call') || 'call',
+                                    args: toolInvocation.args as Record<string, unknown>,
+                                    result: toolInvocation.result
+                                }
+                            } as MessagePart);
+                        }
                     }
                 }
             }
@@ -258,7 +290,7 @@ const ThrottledMessageItem = memo(function ThrottledMessageItem({ message, index
         onEdit(index, newContent, attachments);
     }, [onEdit, index]);
 
-    return <MessageItem role={message.role} content={throttledContent} isThinking={isThinking} onEdit={handleEdit} onRetry={onRetry} modelName={modelName} fullModelName={fullModelName} tokensPerSecond={tokensPerSecond} />;
+    return <MessageItem role={message.role} content={throttledContent} isThinking={isThinking} isStreaming={isStreaming} onEdit={handleEdit} onRetry={onRetry} modelName={modelName} fullModelName={fullModelName} tokensPerSecond={tokensPerSecond} />;
 });
 
 export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
@@ -525,6 +557,14 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                                     if (p.type === 'reasoning') return { type: 'reasoning', text: p.text || p.reasoning || '' };
                                     if (p.type === 'image') return { type: 'file', url: p.image || p.url, mediaType: p.mediaType || 'image/png', filename: p.name || 'image' };
                                     if (p.type === 'file') return { type: 'file', url: p.data || p.url, mediaType: p.mediaType || p.mimeType || 'application/octet-stream', filename: p.filename || p.name || 'file' };
+                                    // Handle source parts (for Google Search grounding)
+                                    if (p.type === 'source' || p.type === 'source-url') {
+                                        return { type: 'source', url: p.url, title: p.title, source: p.source };
+                                    }
+                                    // Handle tool-invocation parts
+                                    if (p.type === 'tool-invocation') {
+                                        return p;
+                                    }
                                     // Fallback for unknown types - don't stringify objects
                                     if (typeof p === 'object' && p !== null) {
                                         return { type: 'text', text: p.text || '' };
@@ -1237,6 +1277,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                                             message={m}
                                             index={index}
                                             isThinking={isLoading && isLastAssistant}
+                                            isStreaming={isLoading && isLastAssistant}
                                             onEdit={stableHandleEdit}
                                             onRetry={() => {
                                                 isRegeneratingRef.current = true;

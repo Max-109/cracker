@@ -171,6 +171,19 @@ select {
   --radius-xl: 0px;
 }
 
+/* Accent colored bullet points (list markers) */
+.prose ul > li::marker,
+.prose ol > li::marker {
+  color: var(--text-accent);
+}
+
+/* Accent colored bold text */
+.prose strong,
+.prose b {
+  color: var(--text-accent);
+  font-weight: 600;
+}
+
 /* Mobile Wrapping Fixes - Critical for long strings like LaTeX */
 .prose {
   word-break: break-word;

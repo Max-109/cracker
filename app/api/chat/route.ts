@@ -338,8 +338,9 @@ export async function POST(req: Request) {
         }
       : undefined;
 
-    // Track start time for Gemini TPS calculation
-    const startTime = Date.now();
+    // Track timing for TPS calculation
+    const requestStartTime = Date.now();
+    let firstChunkTime: number | null = null;
 
     const result = streamText({
       model: selectedModel,
@@ -351,7 +352,13 @@ export async function POST(req: Request) {
             google: {
               thinkingConfig: {
                 includeThoughts: true,
-                thinkingBudget: effort === 'high' ? 24576 : effort === 'medium' ? 8192 : 2048,
+                // Gemini 3 Pro uses thinkingLevel ("low" or "high")
+                // Gemini 2.5 uses thinkingBudget (numeric)
+                // For Gemini 3: map our effort to thinkingLevel
+                ...(modelId.includes('gemini-3') 
+                  ? { thinkingLevel: effort === 'low' ? 'low' : 'high' }
+                  : { thinkingBudget: effort === 'high' ? 24576 : effort === 'medium' ? 8192 : 2048 }
+                ),
               },
             },
           }
@@ -363,33 +370,64 @@ export async function POST(req: Request) {
               },
             },
           },
+      onChunk: ({ chunk }) => {
+        // Track first chunk time (any type - including reasoning)
+        if (!firstChunkTime) {
+          firstChunkTime = Date.now();
+        }
+      },
       onFinish: async ({ response, providerMetadata, usage }) => {
         let tps = 0;
         const endTime = Date.now();
-        const elapsedMs = endTime - startTime;
+        
+        // Calculate generation time from first chunk to finish (includes thinking + text generation)
+        // This gives accurate TPS including reasoning tokens
+        const generationTimeMs = firstChunkTime 
+          ? endTime - firstChunkTime 
+          : endTime - requestStartTime;
+        
+
         
         // Handle Google/Gemini models
         if (isGoogle) {
-          // Access Google metadata with flexible typing for extended properties
+          // Access Google metadata - usageMetadata contains token counts
+          // Structure: providerMetadata.google.usageMetadata.thoughtsTokenCount
           const googleMeta = providerMetadata?.google as (GoogleGenerativeAIProviderMetadata & {
-            thoughtsTokenCount?: number;
+            usageMetadata?: {
+              promptTokenCount?: number;
+              candidatesTokenCount?: number;
+              thoughtsTokenCount?: number;
+              totalTokenCount?: number;
+              cachedContentTokenCount?: number;
+            };
           }) | undefined;
           
-          // Get token counts from usage or metadata
-          // LanguageModelV2Usage uses outputTokens instead of completionTokens
-          const completionTokens = usage?.outputTokens || 0;
-          const thoughtsTokens = googleMeta?.thoughtsTokenCount || 0;
+          // Get token counts from providerMetadata.google.usageMetadata (correct path per AI SDK docs)
+          const usageMeta = googleMeta?.usageMetadata;
+          const completionTokens = usageMeta?.candidatesTokenCount || usage?.outputTokens || 0;
+          const thoughtsTokens = usageMeta?.thoughtsTokenCount || 0;
           const totalOutputTokens = completionTokens + thoughtsTokens;
           
-          if (totalOutputTokens > 0 && elapsedMs > 0) {
-            tps = totalOutputTokens / (elapsedMs / 1000);
+          // Use actual generation time (first chunk to finish)
+          if (totalOutputTokens > 0 && generationTimeMs > 0) {
+            tps = totalOutputTokens / (generationTimeMs / 1000);
             const modelShort = modelId.split('/').pop() || modelId;
-            console.log(`[${modelShort}] ${totalOutputTokens} tokens (${completionTokens} output + ${thoughtsTokens} thoughts) / ${(elapsedMs / 1000).toFixed(2)}s = ${tps.toFixed(1)} t/s`);
+            console.log(`[${modelShort}] ${totalOutputTokens} tokens (${completionTokens} output + ${thoughtsTokens} thoughts) / ${(generationTimeMs / 1000).toFixed(2)}s = ${tps.toFixed(1)} t/s`);
+          } else if (totalOutputTokens > 0) {
+            // Fallback: estimate from tracked chunks
+            const estimatedTime = generationTimeMs > 0 ? generationTimeMs : 1000;
+            tps = totalOutputTokens / (estimatedTime / 1000);
+            const modelShort = modelId.split('/').pop() || modelId;
+            console.log(`[${modelShort}] ${totalOutputTokens} tokens (estimated) = ${tps.toFixed(1)} t/s`);
+          }
             
-            // Log grounding metadata if present
-            if (googleMeta?.groundingMetadata) {
-              console.log(`[${modelShort}] Used Google Search grounding`);
-            }
+          // Log grounding metadata if present
+          if (googleMeta?.groundingMetadata) {
+            const gm = googleMeta.groundingMetadata;
+            console.log(`[${modelId.split('/').pop()}] Google Search grounding:`, {
+              queries: gm.webSearchQueries,
+              chunks: gm.groundingChunks?.length || 0
+            });
           }
         } else {
           // OpenRouter models
@@ -443,6 +481,7 @@ export async function POST(req: Request) {
 
     return result.toUIMessageStreamResponse({
       sendReasoning: true,
+      sendSources: true,
     });
   } catch (error: unknown) {
     console.error("API Route Error:", error);
