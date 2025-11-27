@@ -479,55 +479,7 @@ select {
 }
 
 /* Streaming Message - Blur fade effect on new content */
-.streaming-message {
-  position: relative;
-}
-
-/* Gradient mask that blurs the bottom edge of streaming content */
-.streaming-message::after {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  height: 60px;
-  background: linear-gradient(
-    to top,
-    var(--bg-main) 0%,
-    rgba(26, 26, 26, 0.8) 30%,
-    transparent 100%
-  );
-  pointer-events: none;
-  z-index: 10;
-  mask-image: linear-gradient(to top, black, transparent);
-  -webkit-mask-image: linear-gradient(to top, black, transparent);
-}
-
-/* Blur effect on the last lines */
-.streaming-content {
-  position: relative;
-}
-
-.streaming-content > *:last-child {
-  animation: content-fade-in 0.3s ease-out;
-}
-
-@keyframes content-fade-in {
-  0% {
-    opacity: 0.3;
-    filter: blur(2px);
-  }
-  100% {
-    opacity: 1;
-    filter: blur(0);
-  }
-}
-
-/* Alternative: Apply blur to streaming prose content */
-.streaming-prose {
-  position: relative;
-}
-
+/* Uses animation-iteration-count: infinite with very short duration to re-trigger on content changes */
 .streaming-prose p:last-of-type,
 .streaming-prose li:last-of-type,
 .streaming-prose h1:last-of-type,
@@ -535,20 +487,19 @@ select {
 .streaming-prose h3:last-of-type,
 .streaming-prose h4:last-of-type,
 .streaming-prose pre:last-of-type,
-.streaming-prose blockquote:last-of-type {
-  animation: text-materialize 0.25s ease-out;
+.streaming-prose blockquote:last-of-type,
+.streaming-prose div:last-of-type {
+  animation: text-materialize 0.3s ease-out forwards;
 }
 
 @keyframes text-materialize {
   0% {
-    opacity: 0.4;
-    filter: blur(3px);
-    transform: translateY(2px);
+    opacity: 0;
+    filter: blur(8px);
   }
   100% {
     opacity: 1;
     filter: blur(0);
-    transform: translateY(0);
   }
 }
 

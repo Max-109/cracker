@@ -733,7 +733,7 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
   const isActivelySearching = isStreaming && (hasGoogleSearch || isSearching || reasoningIndicatesSearch);
 
   return (
-    <div className={cn("w-full mb-6 group overflow-hidden", isStreaming && "streaming-message")}>
+    <div className="w-full mb-6 group overflow-hidden">
       <div className="flex items-start gap-3 min-w-0">
         <span className="text-[var(--text-secondary)] text-[11px] uppercase tracking-[0.18em] leading-none pt-[2px] flex-shrink-0">[AI]:</span>
 
