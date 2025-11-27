@@ -1,0 +1,187 @@
+'use client';
+
+import React, { useState, useEffect, useRef, useMemo, memo } from 'react';
+import { MessageItem } from './MessageItem';
+import { LoadingIndicator } from './LoadingIndicator';
+import type { MessagePart } from '@/lib/chat-types';
+
+interface ResumedStreamingMessageProps {
+  partialText: string;
+  partialReasoning: string;
+  isStillStreaming: boolean;
+  startedAt?: string;
+  lastUpdateAt?: string;
+}
+
+// Tick interval in ms (lower = faster)
+const TICK_INTERVAL = 16;
+// When resuming, how fast to "catch up" to current content (chars per tick)
+const CATCH_UP_CHARS_PER_TICK = 50;
+// After catching up, use normal speed
+const NORMAL_CHARS_PER_TICK = 3;
+
+export const ResumedStreamingMessage = memo(function ResumedStreamingMessage({
+  partialText,
+  partialReasoning,
+  isStillStreaming,
+  startedAt,
+}: ResumedStreamingMessageProps) {
+  // Track how much content we've "revealed" so far
+  const [revealedReasoningLength, setRevealedReasoningLength] = useState(0);
+  const [revealedTextLength, setRevealedTextLength] = useState(0);
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  
+  // Track if we're in "catch up" mode (revealing cached content quickly)
+  const [isCatchingUp, setIsCatchingUp] = useState(true);
+  const prevTextLengthRef = useRef(0);
+  const prevReasoningLengthRef = useRef(0);
+  const animationFrameRef = useRef<number | null>(null);
+  const lastTickRef = useRef<number>(0);
+
+  // Initialize lastTickRef in effect to avoid impure render
+  useEffect(() => {
+    lastTickRef.current = Date.now();
+  }, []);
+
+  // Calculate time since generation started for display
+  useEffect(() => {
+    if (!startedAt) return;
+    const updateElapsed = () => {
+      const started = new Date(startedAt).getTime();
+      setElapsedSeconds(Math.floor((Date.now() - started) / 1000));
+    };
+    updateElapsed();
+    const interval = setInterval(updateElapsed, 1000);
+    return () => clearInterval(interval);
+  }, [startedAt]);
+
+  // Animate the reveal
+  useEffect(() => {
+    const animate = () => {
+      const now = Date.now();
+      
+      // Initialize lastTickRef if not set
+      if (lastTickRef.current === 0) {
+        lastTickRef.current = now;
+      }
+      
+      const elapsed = now - lastTickRef.current;
+
+      if (elapsed >= TICK_INTERVAL) {
+        lastTickRef.current = now;
+        
+        const charsPerTick = isCatchingUp ? CATCH_UP_CHARS_PER_TICK : NORMAL_CHARS_PER_TICK;
+        
+        // First reveal reasoning, then text
+        setRevealedReasoningLength(prev => {
+          if (prev < partialReasoning.length) {
+            const next = Math.min(prev + charsPerTick, partialReasoning.length);
+            return next;
+          }
+          return prev;
+        });
+
+        setRevealedTextLength(prev => {
+          // Only start revealing text once reasoning is fully revealed
+          if (revealedReasoningLength >= partialReasoning.length) {
+            if (prev < partialText.length) {
+              const next = Math.min(prev + charsPerTick, partialText.length);
+              return next;
+            }
+          }
+          return prev;
+        });
+
+        // Check if we've caught up to the current content
+        if (revealedReasoningLength >= prevReasoningLengthRef.current &&
+            revealedTextLength >= prevTextLengthRef.current) {
+          setIsCatchingUp(false);
+        }
+      }
+
+      // Continue animating if there's more to reveal
+      if (revealedReasoningLength < partialReasoning.length ||
+          revealedTextLength < partialText.length ||
+          isStillStreaming) {
+        animationFrameRef.current = requestAnimationFrame(animate);
+      }
+    };
+
+    animationFrameRef.current = requestAnimationFrame(animate);
+
+    return () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+    };
+  }, [partialText, partialReasoning, revealedReasoningLength, revealedTextLength, isStillStreaming, isCatchingUp]);
+
+  // Track when new content arrives from server
+  useEffect(() => {
+    if (partialText.length > prevTextLengthRef.current ||
+        partialReasoning.length > prevReasoningLengthRef.current) {
+      // New content arrived, continue at normal speed if we were caught up
+      prevTextLengthRef.current = partialText.length;
+      prevReasoningLengthRef.current = partialReasoning.length;
+    }
+  }, [partialText, partialReasoning]);
+
+  // Build content parts for display
+  const displayContent = useMemo((): MessagePart[] => {
+    const parts: MessagePart[] = [];
+    
+    // Add revealed reasoning
+    if (partialReasoning && revealedReasoningLength > 0) {
+      const revealedReasoning = partialReasoning.slice(0, revealedReasoningLength);
+      parts.push({ type: 'reasoning', text: revealedReasoning });
+    }
+    
+    // Add revealed text
+    if (partialText && revealedTextLength > 0) {
+      const revealedText = partialText.slice(0, revealedTextLength);
+      parts.push({ type: 'text', text: revealedText });
+    }
+    
+    return parts;
+  }, [partialText, partialReasoning, revealedTextLength, revealedReasoningLength]);
+
+  // Show loading indicator if we have no content yet
+  if (displayContent.length === 0) {
+    return (
+      <div className="w-full mb-6">
+        <div className="flex items-start gap-3">
+          <span className="text-[var(--text-secondary)] text-[11px] uppercase tracking-[0.18em] leading-none pt-[2px] flex-shrink-0">[AI]:</span>
+          <div className="flex-1">
+            <LoadingIndicator />
+            <div className="text-xs text-[var(--text-secondary)] mt-2">
+              Resuming generation... ({elapsedSeconds}s elapsed)
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const isFullyRevealed = revealedReasoningLength >= partialReasoning.length &&
+                          revealedTextLength >= partialText.length;
+
+  return (
+    <div className="relative">
+      <MessageItem
+        role="assistant"
+        content={displayContent}
+        isThinking={isStillStreaming || !isFullyRevealed}
+        isStreaming={isStillStreaming || !isFullyRevealed}
+        onEdit={() => {}}
+        onRetry={() => {}}
+      />
+      {isStillStreaming && (
+        <div className="text-xs text-[var(--text-secondary)] mt-1 ml-[52px] animate-pulse">
+          Generating in background... ({elapsedSeconds}s)
+        </div>
+      )}
+    </div>
+  );
+});
+
+export default ResumedStreamingMessage;

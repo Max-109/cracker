@@ -1,11 +1,11 @@
 'use client';
 
 import React, { useRef, useEffect, useState, memo } from 'react';
-import { cn } from '@/lib/utils';
 import type { ChatMessage, MessagePart } from '@/lib/chat-types';
 import { MessageItem } from './MessageItem';
 import { Skeleton } from './Skeleton';
 import { LoadingIndicator } from './LoadingIndicator';
+import { ResumedStreamingMessage } from './ResumedStreamingMessage';
 import { FadeWrapper, ErrorAlert } from '@/components/ui';
 
 // Custom hook for throttling values
@@ -143,6 +143,8 @@ interface ActiveGeneration {
   status: 'streaming' | 'completed' | 'failed';
   partialText?: string;
   partialReasoning?: string;
+  startedAt?: string;
+  lastUpdateAt?: string;
 }
 
 interface MessageListProps {
@@ -287,34 +289,15 @@ export function MessageList({
               </div>
             )}
             
-            {/* Background generation partial content */}
+            {/* Background generation with smooth streaming simulation */}
             {activeGeneration?.status === 'streaming' && !isStreaming && (
-              <div className="w-full mb-6">
-                <div className="flex items-start gap-3">
-                  <span className="text-[var(--text-secondary)] text-[11px] uppercase tracking-[0.18em] leading-none pt-[2px] flex-shrink-0">[AI]:</span>
-                  <div className="flex-1 text-[#E5E5E5] leading-relaxed">
-                    {activeGeneration.partialReasoning && (
-                      <div className="border border-[var(--border-color)] bg-[#141414] p-3 mb-3">
-                        <div className="text-xs uppercase tracking-[0.12em] text-[var(--text-accent)] mb-2 animate-pulse">
-                          Thinking...
-                        </div>
-                        <div className="text-sm text-[var(--text-secondary)] whitespace-pre-wrap">
-                          {activeGeneration.partialReasoning}
-                        </div>
-                      </div>
-                    )}
-                    {activeGeneration.partialText && (
-                      <div className="whitespace-pre-wrap">{activeGeneration.partialText}</div>
-                    )}
-                    {!activeGeneration.partialText && !activeGeneration.partialReasoning && (
-                      <LoadingIndicator />
-                    )}
-                    <div className="text-xs text-[var(--text-secondary)] mt-2 animate-pulse">
-                      Generating in background...
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <ResumedStreamingMessage
+                partialText={activeGeneration.partialText || ''}
+                partialReasoning={activeGeneration.partialReasoning || ''}
+                isStillStreaming={true}
+                startedAt={activeGeneration.startedAt}
+                lastUpdateAt={activeGeneration.lastUpdateAt}
+              />
             )}
 
             {/* Error Display */}

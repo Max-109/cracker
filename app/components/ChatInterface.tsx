@@ -133,6 +133,55 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
   const isStreaming = status === 'submitted' || status === 'streaming';
   const isLoading = isStreaming || activeGeneration?.status === 'streaming';
 
+  // Handle stop with saving partial content
+  const handleStop = useCallback(async () => {
+    // First stop the streaming
+    stop();
+    
+    const activeId = chatIdRef.current;
+    if (!activeId) return;
+    
+    // Get the last assistant message (the one being generated)
+    const currentMessages = messagesRef.current;
+    const lastMessage = currentMessages[currentMessages.length - 1];
+    
+    if (lastMessage?.role === 'assistant') {
+      // Extract partial content from the message
+      let partialText = '';
+      let partialReasoning = '';
+      
+      const msgParts = (lastMessage as { parts?: unknown[] }).parts;
+      if (Array.isArray(msgParts)) {
+        for (const part of msgParts) {
+          if (typeof part === 'object' && part !== null) {
+            const p = part as Record<string, unknown>;
+            if (p.type === 'text' && typeof p.text === 'string') {
+              partialText += p.text;
+            } else if (p.type === 'reasoning' && typeof p.text === 'string') {
+              partialReasoning += p.text;
+            }
+          }
+        }
+      }
+      
+      // Save the stopped message to DB
+      try {
+        await fetch('/api/messages/stop', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chatId: activeId,
+            partialText,
+            partialReasoning,
+            model: currentModelIdRef.current,
+          }),
+        });
+      } catch (e) {
+        console.error('Failed to save stopped message:', e);
+      }
+    }
+  }, [stop]);
+
   // Track streaming start
   useEffect(() => {
     if (status === 'streaming' && !streamingStartTimeRef.current) {
@@ -281,7 +330,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
       } catch (err) {
         console.error('Failed to poll generation status:', err);
       }
-    }, 2000);
+    }, 1000); // Poll every 1 second for smoother resume experience
 
     return () => {
       if (generationPollRef.current) {
@@ -512,7 +561,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
           input={input}
           onInputChange={setInput}
           onSend={handleSendMessage}
-          onStop={stop}
+          onStop={handleStop}
           isLoading={isLoading}
           attachments={attachments}
           hasPendingAttachments={hasPendingAttachments}

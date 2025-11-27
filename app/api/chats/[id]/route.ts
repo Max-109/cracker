@@ -1,5 +1,5 @@
 import { db } from '@/db';
-import { chats, messages } from '@/db/schema';
+import { chats, messages, activeGenerations } from '@/db/schema';
 import { eq, asc } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
@@ -29,10 +29,13 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
     try {
         const { id } = await params;
+        // Delete in order: activeGenerations -> messages -> chats (due to foreign key constraints)
+        await db.delete(activeGenerations).where(eq(activeGenerations.chatId, id));
         await db.delete(messages).where(eq(messages.chatId, id));
         await db.delete(chats).where(eq(chats.id, id));
         return NextResponse.json({ success: true });
-    } catch {
+    } catch (e) {
+        console.error('Failed to delete chat:', e);
         return NextResponse.json({ error: 'Failed to delete chat' }, { status: 500 });
     }
 }

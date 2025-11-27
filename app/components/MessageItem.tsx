@@ -653,6 +653,7 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
   const sources: { url: string; title?: string }[] = [];
   let hasGoogleSearch = false;
   let isSearching = false;
+  let wasStopped = false;
 
   if (typeof safeContent !== 'string' && Array.isArray(safeContent)) {
     safeContent.forEach((part: MessagePart) => {
@@ -660,6 +661,8 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
         thinkContent += (part.reasoning || part.text || '');
       } else if (part.type === 'text') {
         finalContent += (part.text || '');
+      } else if ((part as { type: string; stopped?: boolean }).type === 'stopped') {
+        wasStopped = true;
       } else if (part.type === 'source' || (part as { type: string }).type === 'source-url') {
         // Extract source information from converted source parts (handles both live and DB loaded)
         const sourcePart = part as { type: string; source?: { url: string; title?: string }; url?: string; title?: string };
@@ -832,19 +835,29 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
             ) : null
           )}
 
+          {/* Stopped Indicator */}
+          {wasStopped && (
+            <div className="flex items-center gap-2 text-xs text-[var(--text-secondary)] border border-[var(--border-color)] bg-[#141414] px-3 py-2 mt-2">
+              <div className="w-2 h-2 bg-amber-500/70 rounded-full" />
+              <span className="uppercase tracking-[0.12em]">Stopped</span>
+            </div>
+          )}
+
           {/* Action Buttons (Copy, Regenerate) + Model Info */}
-          {!isThinking && finalContent && (
+          {!isThinking && (finalContent || wasStopped) && (
             <div className="flex items-center justify-between mt-2 text-[11px] uppercase tracking-[0.14em] text-[var(--text-secondary)] select-none md:opacity-0 md:group-hover:opacity-100 transition-opacity">
               {/* Left: Action buttons */}
               <div className="flex items-center gap-3">
-                <button
-                  onClick={handleCopy}
-                  className="flex items-center gap-1 hover:text-[var(--text-accent)]"
-                  aria-label="Copy"
-                >
-                  {isCopied ? <Check size={14} /> : <Copy size={14} />}
-                  <span>Copy</span>
-                </button>
+                {finalContent && (
+                  <button
+                    onClick={handleCopy}
+                    className="flex items-center gap-1 hover:text-[var(--text-accent)]"
+                    aria-label="Copy"
+                  >
+                    {isCopied ? <Check size={14} /> : <Copy size={14} />}
+                    <span>Copy</span>
+                  </button>
+                )}
                 <button 
                   onClick={onRetry}
                   className="flex items-center gap-1 hover:text-[var(--text-accent)]" 

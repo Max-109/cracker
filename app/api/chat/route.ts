@@ -351,7 +351,7 @@ export async function POST(req: Request) {
     let partialReasoning = '';
     const partialSources: Array<{ url: string; title: string }> = [];
     let lastDbUpdate = 0;
-    const DB_UPDATE_INTERVAL = 2000; // Update DB every 2 seconds
+    const DB_UPDATE_INTERVAL = 1000; // Update DB every 1 second for smoother resume
     let chunkCount = 0;
     
     // Pre-generate UUID so we don't block on DB insert

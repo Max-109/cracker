@@ -118,7 +118,7 @@ export function ChatInput({
           </IconButton>
 
           <div className="flex-1">
-            <div className="border border-[var(--border-color)] bg-transparent flex items-end p-2 gap-2 hover:border-[var(--border-active)] transition-all duration-300">
+            <div className="border border-[var(--border-color)] bg-transparent flex items-end p-2 gap-2 hover-glow">
               <Textarea
                 ref={textareaRef}
                 value={input}
@@ -131,7 +131,8 @@ export function ChatInput({
                 maxHeight={200}
                 rows={1}
                 disabled={disabled}
-                className="pb-1"
+                className="pb-1 no-outline"
+                autoFocus
               />
             </div>
           </div>
