@@ -2,8 +2,9 @@ import { SquarePen, X, Pencil, Trash2, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Skeleton } from './Skeleton';
 import { useState, useEffect, useRef } from 'react';
-import { Input } from '@/components/ui/input';
 import {
+    Input,
+    FadeWrapper,
     AlertDialog,
     AlertDialogAction,
     AlertDialogCancel,
@@ -12,7 +13,7 @@ import {
     AlertDialogFooter,
     AlertDialogHeader,
     AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+} from "@/components/ui";
 
 interface Chat {
     id: string;
@@ -90,38 +91,7 @@ function groupChatsByDate(chats: Chat[]) {
     return groups;
 }
 
-// Smooth Fade Wrapper for Skeletons/Content
-function FadeWrapper({ show, children, className, isAbsolute = false }: { show: boolean; children: React.ReactNode; className?: string; isAbsolute?: boolean }) {
-    const [shouldRender, setShouldRender] = useState(show);
-    const [isFadingIn, setIsFadingIn] = useState(false);
 
-    useEffect(() => {
-        if (show) {
-            // eslint-disable-next-line react-hooks/set-state-in-effect
-            setShouldRender(true);
-            requestAnimationFrame(() => setIsFadingIn(true));
-        } else {
-            setIsFadingIn(false);
-            const timer = setTimeout(() => setShouldRender(false), 300);
-            return () => clearTimeout(timer);
-        }
-    }, [show]);
-
-    if (!shouldRender) return null;
-
-    return (
-        <div
-            className={cn(
-                "transition-opacity duration-300",
-                isAbsolute ? "absolute inset-0 w-full h-full" : "relative",
-                isFadingIn ? "opacity-100" : "opacity-0",
-                className
-            )}
-        >
-            {children}
-        </div>
-    );
-}
 
 export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose, isLoading, onRefresh, className }: SidebarProps & { className?: string }) {
     const groupedChats = groupChatsByDate(chats);

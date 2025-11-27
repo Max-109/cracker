@@ -1,12 +1,12 @@
 'use client';
 
 import React, { useRef, useEffect, useState, memo } from 'react';
-import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { ChatMessage, MessagePart } from '@/lib/chat-types';
 import { MessageItem } from './MessageItem';
 import { Skeleton } from './Skeleton';
 import { LoadingIndicator } from './LoadingIndicator';
+import { FadeWrapper, ErrorAlert } from '@/components/ui';
 
 // Custom hook for throttling values
 function useThrottledValue<T>(value: T, limit: number): T {
@@ -32,32 +32,6 @@ function useThrottledValue<T>(value: T, limit: number): T {
   }, [value, limit]);
 
   return throttledValue;
-}
-
-// Smooth Fade Wrapper for Skeletons/Content
-function FadeWrapper({ show, children, className }: { show: boolean; children: React.ReactNode; className?: string }) {
-  const [shouldRender, setShouldRender] = useState(show);
-  const [isFadingIn, setIsFadingIn] = useState(false);
-
-  useEffect(() => {
-    let timeout: NodeJS.Timeout;
-    if (show) {
-      setShouldRender(true);
-      requestAnimationFrame(() => setIsFadingIn(true));
-    } else {
-      setIsFadingIn(false);
-      timeout = setTimeout(() => setShouldRender(false), 300);
-    }
-    return () => { if (timeout) clearTimeout(timeout); };
-  }, [show]);
-
-  if (!shouldRender) return null;
-
-  return (
-    <div className={cn("transition-opacity duration-300", isFadingIn ? "opacity-100" : "opacity-0", className)}>
-      {children}
-    </div>
-  );
 }
 
 type EditAttachment = { id: string; url: string; name: string; mediaType: string };
@@ -235,12 +209,6 @@ export function MessageList({
     }
   }, [messages, shouldAutoScroll]);
 
-  // Reset scroll on new message
-  const resetScroll = () => {
-    userScrolledUpRef.current = false;
-    setShouldAutoScroll(true);
-  };
-
   return (
     <div
       className="flex-1 overflow-y-auto scroll-smooth"
@@ -249,7 +217,7 @@ export function MessageList({
     >
       <div className="max-w-[800px] mx-auto pt-6 pb-6 px-4 md:px-6 relative">
         {/* Loading Skeletons */}
-        <FadeWrapper show={isMessagesLoading} className="absolute inset-0 pt-6 px-4 md:px-6 z-10">
+        <FadeWrapper show={isMessagesLoading} isAbsolute className="pt-6 px-4 md:px-6 z-10">
           <div className="space-y-10">
             <div className="flex justify-end">
               <Skeleton className="h-12 w-[60%]" />
@@ -351,27 +319,11 @@ export function MessageList({
 
             {/* Error Display */}
             {error && !dismissedError && (
-              <div className="mt-6 p-4 bg-red-950/50 border border-red-500/50 relative">
-                <button 
-                  onClick={onDismissError}
-                  className="absolute top-2 right-2 text-red-400 hover:text-red-300"
-                >
-                  <X size={16} />
-                </button>
-                <div className="flex items-start gap-3">
-                  <div className="text-red-400 mt-0.5">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <circle cx="12" cy="12" r="10" />
-                      <line x1="12" y1="8" x2="12" y2="12" />
-                      <line x1="12" y1="16" x2="12.01" y2="16" />
-                    </svg>
-                  </div>
-                  <div className="flex-1">
-                    <h4 className="text-sm font-semibold text-red-400 uppercase tracking-wider mb-1">Error</h4>
-                    <p className="text-sm text-red-300/90">{error?.message || 'An error occurred while processing your request.'}</p>
-                  </div>
-                </div>
-              </div>
+              <ErrorAlert
+                message={error?.message || 'An error occurred while processing your request.'}
+                onDismiss={onDismissError}
+                className="mt-6"
+              />
             )}
           </>
         </FadeWrapper>
@@ -381,6 +333,3 @@ export function MessageList({
     </div>
   );
 }
-
-// Export resetScroll helper for parent component
-export { FadeWrapper };
