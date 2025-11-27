@@ -402,6 +402,17 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
     const streamingStartTimeRef = useRef<number | null>(null);
     const [streamingStats, setStreamingStats] = useState<{ tokensPerSecond: number; modelId: string | null }>({ tokensPerSecond: 0, modelId: null });
 
+    // Active generation state (for background/resume support)
+    const [activeGeneration, setActiveGeneration] = useState<{
+        id: string;
+        status: 'streaming' | 'completed' | 'failed';
+        partialText?: string;
+        partialReasoning?: string;
+        startedAt?: string;
+        lastUpdateAt?: string;
+    } | null>(null);
+    const generationPollRef = useRef<NodeJS.Timeout | null>(null);
+
     // Ref to prevent double-loading messages when we just created a chat locally
     const ignoreNextChatIdChangeRef = useRef(false);
     
@@ -433,10 +444,11 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
         onError: (err: Error) => {
             console.error("Chat Error:", err);
         },
-        onFinish: async ({ message }) => {
+        onFinish: async () => {
             const activeId = chatIdRef.current;
-            if (activeId && message) {
+            if (activeId) {
                 // If regenerating, delete the last assistant message from DB first
+                // (server will save the new one)
                 if (isRegeneratingRef.current) {
                     await fetch('/api/messages/last-assistant', {
                         method: 'DELETE',
@@ -446,56 +458,22 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                     isRegeneratingRef.current = false;
                 }
                 
-                // Extract content from parts (v5 format)
-                let contentToSave: unknown = null;
-                
-                if (message.parts && Array.isArray(message.parts) && message.parts.length > 0) {
-                    contentToSave = message.parts;
-                }
-                
-                // Fallback to messagesRef if parts empty
-                if (!contentToSave && messagesRef.current.length > 0) {
-                    const lastMsg = messagesRef.current[messagesRef.current.length - 1];
-                    if (lastMsg.role === 'assistant') {
-                        contentToSave = lastMsg.parts || lastMsg.content || " ";
-                    }
-                }
-
-                if (!contentToSave) {
-                    contentToSave = " ";
-                }
-
-                // Fetch real stats from server (OpenRouter metadata)
-                let serverStats: { modelId: string | null; tokensPerSecond: number | null } = { modelId: null, tokensPerSecond: null };
+                // Message is saved server-side in /api/chat onFinish
+                // Just fetch stats for immediate UI display
                 try {
                     const statsRes = await fetch(`/api/chat?chatId=${activeId}`);
                     if (statsRes.ok) {
-                        serverStats = await statsRes.json();
+                        const serverStats = await statsRes.json();
                         console.log(`[Chat] Got stats:`, serverStats);
+                        if (serverStats.tokensPerSecond) {
+                            setStreamingStats({ 
+                                modelId: serverStats.modelId || currentModelIdRef.current, 
+                                tokensPerSecond: serverStats.tokensPerSecond 
+                            });
+                        }
                     }
                 } catch (e) {
                     console.error('Failed to fetch completion stats:', e);
-                }
-
-                const modelToSave = serverStats.modelId || currentModelIdRef.current;
-                const tpsToSave = serverStats.tokensPerSecond;
-                console.log(`[Chat] Saving message with model: ${modelToSave}, TPS: ${tpsToSave}`);
-
-                await fetch('/api/messages', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        chatId: activeId,
-                        role: 'assistant',
-                        content: contentToSave,
-                        model: modelToSave,
-                        tokensPerSecond: tpsToSave
-                    })
-                });
-                
-                // Update local streaming stats for immediate display
-                if (tpsToSave) {
-                    setStreamingStats({ modelId: modelToSave, tokensPerSecond: tpsToSave });
                 }
             }
         },
@@ -503,7 +481,8 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
 
     const { messages, status, stop, setMessages, regenerate, sendMessage, error } = chatHelpers;
     const typedMessages = messages as unknown as ChatMessage[];
-    const isLoading = status === 'submitted' || status === 'streaming';
+    const isStreaming = status === 'submitted' || status === 'streaming';
+    const isLoading = isStreaming || activeGeneration?.status === 'streaming';
     const [dismissedError, setDismissedError] = React.useState(false);
 
     // Track streaming start and reset ref when done
@@ -593,11 +572,111 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                 })
                 .catch(err => console.error("Failed to fetch messages:", err))
                 .finally(() => setIsMessagesLoading(false));
+            
+            // Also check for active generations (streaming in background)
+            fetch(`/api/generate?chatId=${currentChatId}`)
+                .then(res => res.json())
+                .then(genData => {
+                    if (genData.status === 'streaming') {
+                        setActiveGeneration({
+                            id: genData.id,
+                            status: genData.status,
+                            partialText: genData.partialText,
+                            partialReasoning: genData.partialReasoning,
+                            startedAt: genData.startedAt,
+                            lastUpdateAt: genData.lastUpdateAt,
+                        });
+                    } else {
+                        setActiveGeneration(null);
+                    }
+                })
+                .catch(() => setActiveGeneration(null));
         } else {
             setMessages([]);
             setIsMessagesLoading(false);
+            setActiveGeneration(null);
         }
     }, [currentChatId, setMessages]);
+
+    // Poll for active generation progress (for resume support)
+    useEffect(() => {
+        if (!activeGeneration || activeGeneration.status !== 'streaming') {
+            if (generationPollRef.current) {
+                clearInterval(generationPollRef.current);
+                generationPollRef.current = null;
+            }
+            return;
+        }
+
+        // Poll every 2 seconds
+        generationPollRef.current = setInterval(async () => {
+            try {
+                const res = await fetch(`/api/generate?generationId=${activeGeneration.id}`);
+                const data = await res.json();
+                
+                if (data.status === 'none') {
+                    // Generation completed and was cleaned up - reload messages
+                    setActiveGeneration(null);
+                    
+                    if (currentChatId) {
+                        const msgRes = await fetch(`/api/chats/${currentChatId}`);
+                        const msgData = await msgRes.json();
+                        if (Array.isArray(msgData)) {
+                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                            const uiMessages = msgData.map((msg: any) => {
+                                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                let parts: Array<any>;
+                                if (Array.isArray(msg.content)) {
+                                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                                    parts = msg.content.map((p: any) => {
+                                        if (typeof p === 'string') return { type: 'text', text: p };
+                                        if (p.type === 'text') return { type: 'text', text: p.text || '' };
+                                        if (p.type === 'reasoning') return { type: 'reasoning', text: p.text || p.reasoning || '' };
+                                        if (p.type === 'source' || p.type === 'source-url') {
+                                            return { type: 'source', url: p.url, title: p.title, source: p.source };
+                                        }
+                                        return p;
+                                    });
+                                } else {
+                                    parts = [{ type: 'text', text: msg.content || '' }];
+                                }
+                                return {
+                                    id: msg.id,
+                                    role: msg.role,
+                                    parts,
+                                    model: msg.model,
+                                    tokensPerSecond: msg.tokensPerSecond,
+                                };
+                            });
+                            setMessages(uiMessages as Parameters<typeof setMessages>[0]);
+                        }
+                    }
+                } else if (data.status === 'failed') {
+                    setActiveGeneration(null);
+                    console.error('Background generation failed:', data.error);
+                } else if (data.status === 'streaming') {
+                    // Still streaming - update partial content
+                    setActiveGeneration({
+                        id: data.id,
+                        status: data.status,
+                        partialText: data.partialText,
+                        partialReasoning: data.partialReasoning,
+                        startedAt: data.startedAt,
+                        lastUpdateAt: data.lastUpdateAt,
+                    });
+                }
+            } catch (err) {
+                console.error('Failed to poll generation status:', err);
+            }
+        }, 2000);
+
+        return () => {
+            if (generationPollRef.current) {
+                clearInterval(generationPollRef.current);
+                generationPollRef.current = null;
+            }
+        };
+    }, [activeGeneration, currentChatId, setMessages]);
 
     // Handle Message Edit - Stable reference using Ref to avoid re-creating on every render
     const handleEditMessage = React.useCallback(async (index: number, newContent: string, attachments?: EditAttachment[]) => {
@@ -1276,8 +1355,8 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                                             key={m.id}
                                             message={m}
                                             index={index}
-                                            isThinking={isLoading && isLastAssistant}
-                                            isStreaming={isLoading && isLastAssistant}
+                                            isThinking={isStreaming && isLastAssistant}
+                                            isStreaming={isStreaming && isLastAssistant}
                                             onEdit={stableHandleEdit}
                                             onRetry={() => {
                                                 isRegeneratingRef.current = true;
@@ -1290,9 +1369,40 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                                     );
                                 })}
 
+                                {/* Show loading indicator when waiting for response */}
                                 {status === 'submitted' && (
                                     <div className="mt-8 border-t border-[var(--border-color)] pt-4">
                                         <LoadingIndicator />
+                                    </div>
+                                )}
+                                
+                                {/* Show partial content from background generation */}
+                                {activeGeneration?.status === 'streaming' && !isStreaming && (
+                                    <div className="w-full mb-6">
+                                        <div className="flex items-start gap-3">
+                                            <span className="text-[var(--text-secondary)] text-[11px] uppercase tracking-[0.18em] leading-none pt-[2px] flex-shrink-0">[AI]:</span>
+                                            <div className="flex-1 text-[#E5E5E5] leading-relaxed">
+                                                {activeGeneration.partialReasoning && (
+                                                    <div className="border border-[var(--border-color)] bg-[#141414] p-3 mb-3">
+                                                        <div className="text-xs uppercase tracking-[0.12em] text-[var(--text-accent)] mb-2 animate-pulse">
+                                                            Thinking...
+                                                        </div>
+                                                        <div className="text-sm text-[var(--text-secondary)] whitespace-pre-wrap">
+                                                            {activeGeneration.partialReasoning}
+                                                        </div>
+                                                    </div>
+                                                )}
+                                                {activeGeneration.partialText && (
+                                                    <div className="whitespace-pre-wrap">{activeGeneration.partialText}</div>
+                                                )}
+                                                {!activeGeneration.partialText && !activeGeneration.partialReasoning && (
+                                                    <LoadingIndicator />
+                                                )}
+                                                <div className="text-xs text-[var(--text-secondary)] mt-2 animate-pulse">
+                                                    Generating in background...
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
                                 )}
 

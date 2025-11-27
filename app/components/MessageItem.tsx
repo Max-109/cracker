@@ -712,18 +712,17 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
   const isRedactedOnly = thinkContent.trim() === '[REDACTED]' || thinkContent.trim() === '';
   const hasThinking = (!!thinkContent || actuallyThinking) && thinkContent.length > 0 && !isRedactedOnly;
 
-  // Check if this is a Gemini model (might use Google Search grounding)
+  // Check if this is a Gemini model (uses Google Search grounding)
   const isGeminiModel = fullModelName?.toLowerCase().includes('gemini') || fullModelName?.toLowerCase().includes('google');
   
-  // Show search indicator if:
+  // Show search indicator when:
   // 1. We have sources (hasGoogleSearch) - always show
   // 2. Explicit search tool invocation (isSearching)
-  // 3. Streaming with Gemini model - show "Searching" preemptively
-  // Hide after streaming if no sources arrived
+  // 3. Streaming with Gemini model - show "Browsing" while generating (will hide if no sources at end)
   const showSearchIndicator = hasGoogleSearch || isSearching || (isStreaming && isGeminiModel);
   
   // Determine if we're actively searching (for animation)
-  const isActivelySearching = isStreaming && (isGeminiModel || isSearching);
+  const isActivelySearching = isStreaming && (isGeminiModel || hasGoogleSearch || isSearching);
 
   return (
     <div className="w-full mb-6 group overflow-hidden">

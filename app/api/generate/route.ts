@@ -1,0 +1,134 @@
+import { NextResponse } from "next/server";
+import { db } from "@/db";
+import { activeGenerations, messages as messagesTable } from "@/db/schema";
+import { eq, desc } from "drizzle-orm";
+
+// How long before we consider a generation stale (server died mid-stream)
+const STALE_THRESHOLD_MS = 15000; // 15 seconds without update = stale
+
+// GET - Check active generation status (for resume support)
+export async function GET(req: Request) {
+  const url = new URL(req.url);
+  const generationId = url.searchParams.get('generationId');
+  const chatId = url.searchParams.get('chatId');
+
+  if (generationId) {
+    // Get specific generation
+    const [gen] = await db.select().from(activeGenerations).where(eq(activeGenerations.id, generationId));
+    if (!gen) {
+      return NextResponse.json({ status: 'none' });
+    }
+    
+    // Check if generation is stale (no update for 30+ seconds)
+    const lastUpdate = gen.lastUpdateAt ? new Date(gen.lastUpdateAt).getTime() : gen.startedAt.getTime();
+    const isStale = Date.now() - lastUpdate > STALE_THRESHOLD_MS;
+    
+    if (isStale && gen.status === 'streaming') {
+      // Generation is stale - save partial content as final message and cleanup
+      console.log(`[Generate] Stale generation detected: ${gen.id}, saving partial content`);
+      
+      try {
+        // Save partial content as message if we have any
+        if (gen.partialText || gen.partialReasoning) {
+          const contentParts: Array<{ type: string; text?: string; reasoning?: string }> = [];
+          if (gen.partialReasoning) {
+            contentParts.push({ type: 'reasoning', text: gen.partialReasoning, reasoning: gen.partialReasoning });
+          }
+          if (gen.partialText) {
+            contentParts.push({ type: 'text', text: gen.partialText });
+          }
+          
+          await db.insert(messagesTable).values({
+            chatId: gen.chatId,
+            role: 'assistant',
+            content: contentParts,
+            model: gen.modelId,
+          });
+        }
+        
+        // Delete the stale record
+        await db.delete(activeGenerations).where(eq(activeGenerations.id, gen.id));
+        
+        return NextResponse.json({ status: 'none' }); // Treated as completed
+      } catch (e) {
+        console.error('[Generate] Failed to cleanup stale generation:', e);
+      }
+    }
+    
+    return NextResponse.json({
+      id: gen.id,
+      status: gen.status,
+      partialText: gen.partialText,
+      partialReasoning: gen.partialReasoning,
+      tokensPerSecond: gen.tokensPerSecond,
+      totalTokens: gen.totalTokens,
+      error: gen.error,
+      startedAt: gen.startedAt,
+      lastUpdateAt: gen.lastUpdateAt,
+      completedAt: gen.completedAt,
+    });
+  }
+
+  if (chatId) {
+    // Get active generation for chat (if any)
+    const gens = await db.select()
+      .from(activeGenerations)
+      .where(eq(activeGenerations.chatId, chatId))
+      .orderBy(desc(activeGenerations.createdAt))
+      .limit(1);
+    
+    if (gens.length === 0) {
+      return NextResponse.json({ status: 'none' });
+    }
+    
+    const gen = gens[0];
+    
+    // Check if generation is stale
+    const lastUpdate = gen.lastUpdateAt ? new Date(gen.lastUpdateAt).getTime() : gen.startedAt.getTime();
+    const isStale = Date.now() - lastUpdate > STALE_THRESHOLD_MS;
+    
+    if (isStale && gen.status === 'streaming') {
+      // Generation is stale - save partial content and cleanup
+      console.log(`[Generate] Stale generation detected for chat: ${chatId}, saving partial content`);
+      
+      try {
+        if (gen.partialText || gen.partialReasoning) {
+          const contentParts: Array<{ type: string; text?: string; reasoning?: string }> = [];
+          if (gen.partialReasoning) {
+            contentParts.push({ type: 'reasoning', text: gen.partialReasoning, reasoning: gen.partialReasoning });
+          }
+          if (gen.partialText) {
+            contentParts.push({ type: 'text', text: gen.partialText });
+          }
+          
+          await db.insert(messagesTable).values({
+            chatId: gen.chatId,
+            role: 'assistant',
+            content: contentParts,
+            model: gen.modelId,
+          });
+        }
+        
+        await db.delete(activeGenerations).where(eq(activeGenerations.id, gen.id));
+        return NextResponse.json({ status: 'none' });
+      } catch (e) {
+        console.error('[Generate] Failed to cleanup stale generation:', e);
+      }
+    }
+    
+    return NextResponse.json({
+      id: gen.id,
+      status: gen.status,
+      partialText: gen.partialText,
+      partialReasoning: gen.partialReasoning,
+      tokensPerSecond: gen.tokensPerSecond,
+      totalTokens: gen.totalTokens,
+      error: gen.error,
+      startedAt: gen.startedAt,
+      lastUpdateAt: gen.lastUpdateAt,
+      completedAt: gen.completedAt,
+    });
+  }
+
+  return NextResponse.json({ error: "generationId or chatId required" }, { status: 400 });
+}

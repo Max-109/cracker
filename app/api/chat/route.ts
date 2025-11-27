@@ -1,6 +1,9 @@
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { createGoogleGenerativeAI, GoogleGenerativeAIProviderMetadata } from "@ai-sdk/google";
 import { streamText, convertToModelMessages, UIMessage } from "ai";
+import { db } from "@/db";
+import { messages as messagesTable, activeGenerations } from "@/db/schema";
+import { eq } from "drizzle-orm";
 
 export const maxDuration = 300;
 
@@ -341,6 +344,30 @@ export async function POST(req: Request) {
     // Track timing for TPS calculation
     const requestStartTime = Date.now();
     let firstChunkTime: number | null = null;
+    
+    // Track partial content for background resume support
+    let partialText = '';
+    let partialReasoning = '';
+    const partialSources: Array<{ url: string; title: string }> = [];
+    let generationId: string | null = null;
+    let lastDbUpdate = 0;
+    const DB_UPDATE_INTERVAL = 2000; // Update DB every 2 seconds
+    let chunkCount = 0;
+    
+    // Create active generation record if we have a chatId
+    if (chatId) {
+      try {
+        const [gen] = await db.insert(activeGenerations).values({
+          chatId,
+          modelId,
+          reasoningEffort: effort,
+          status: 'streaming',
+        }).returning();
+        generationId = gen.id;
+      } catch (e) {
+        console.error('[Chat] Failed to create generation record:', e);
+      }
+    }
 
     const result = streamText({
       model: selectedModel,
@@ -370,10 +397,57 @@ export async function POST(req: Request) {
               },
             },
           },
-      onChunk: ({ chunk }) => {
+      onChunk: async ({ chunk }) => {
+        chunkCount++;
         // Track first chunk time (any type - including reasoning)
         if (!firstChunkTime) {
           firstChunkTime = Date.now();
+          // Update first chunk time in DB
+          if (generationId) {
+            db.update(activeGenerations)
+              .set({ firstChunkAt: new Date() })
+              .where(eq(activeGenerations.id, generationId))
+              .catch(() => {});
+          }
+        }
+        
+        // Log every chunk type for debugging (first 20 chunks)
+        const chunkAny = chunk as Record<string, unknown>;
+        const chunkType = chunk.type as string;
+        if (chunkCount <= 20) {
+          console.log(`[Chat] Chunk #${chunkCount}: type=${chunkType}, keys=${Object.keys(chunkAny).join(',')}`);
+        }
+        
+        // Accumulate partial content based on chunk type
+        if (chunkType === 'text-delta') {
+          // AI SDK v5 uses 'text' property
+          const textContent = chunkAny.text as string || chunkAny.textDelta as string || '';
+          partialText += textContent;
+        } else if (chunkType === 'reasoning' || chunkType === 'reasoning-delta') {
+          const reasoningContent = chunkAny.text as string || '';
+          partialReasoning += reasoningContent;
+        } else if (chunkType === 'source' || chunkType === 'source-url') {
+          // Capture source URLs for Google Search grounding
+          const url = chunkAny.url as string || '';
+          const title = chunkAny.title as string || url;
+          if (url && !partialSources.some(s => s.url === url)) {
+            partialSources.push({ url, title });
+          }
+        }
+        
+        // Periodically save partial content to DB (every 2 seconds)
+        const now = Date.now();
+        if (generationId && now - lastDbUpdate > DB_UPDATE_INTERVAL) {
+          lastDbUpdate = now;
+          console.log(`[Chat] Saving partial: text=${partialText.length}, reasoning=${partialReasoning.length}, sources=${partialSources.length}`);
+          db.update(activeGenerations)
+            .set({ 
+              partialText, 
+              partialReasoning,
+              lastUpdateAt: new Date()
+            })
+            .where(eq(activeGenerations.id, generationId))
+            .catch((e) => console.error('[Chat] Failed to update generation:', e));
         }
       },
       onFinish: async ({ response, providerMetadata, usage }) => {
@@ -475,6 +549,53 @@ export async function POST(req: Request) {
             tokensPerSecond: Math.round(tps * 10) / 10,
             timestamp: Date.now()
           });
+          
+          // Save assistant message to DB server-side (survives client disconnect)
+          try {
+            // Build content parts from accumulated partial content
+            const contentParts: Array<{ type: string; text?: string; reasoning?: string }> = [];
+            
+            // Add reasoning if present
+            if (partialReasoning) {
+              contentParts.push({ type: 'reasoning', text: partialReasoning, reasoning: partialReasoning });
+            }
+            
+            // Add text
+            if (partialText) {
+              contentParts.push({ type: 'text', text: partialText });
+            }
+            
+            // If we got content, save to DB
+            if (contentParts.length > 0) {
+              await db.insert(messagesTable).values({
+                chatId,
+                role: 'assistant',
+                content: contentParts,
+                model: modelId,
+                tokensPerSecond: String(Math.round(tps * 10) / 10),
+              });
+              console.log(`[Chat] Saved assistant message to DB for chat ${chatId}`);
+            }
+            
+            // Mark generation as completed and delete the record
+            if (generationId) {
+              await db.delete(activeGenerations)
+                .where(eq(activeGenerations.id, generationId));
+              console.log(`[Chat] Deleted generation record ${generationId}`);
+            }
+          } catch (dbError) {
+            console.error('[Chat] Failed to save message to DB:', dbError);
+            // Still try to delete the generation record even if save failed
+            if (generationId) {
+              try {
+                await db.delete(activeGenerations)
+                  .where(eq(activeGenerations.id, generationId));
+                console.log(`[Chat] Deleted generation record ${generationId} (after error)`);
+              } catch (e) {
+                console.error('[Chat] Failed to delete generation record:', e);
+              }
+            }
+          }
         }
       },
     });
