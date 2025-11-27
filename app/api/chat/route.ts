@@ -4,6 +4,7 @@ import { streamText, convertToModelMessages, UIMessage } from "ai";
 import { db } from "@/db";
 import { messages as messagesTable, activeGenerations } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { randomUUID } from "crypto";
 
 export const maxDuration = 300;
 
@@ -349,24 +350,22 @@ export async function POST(req: Request) {
     let partialText = '';
     let partialReasoning = '';
     const partialSources: Array<{ url: string; title: string }> = [];
-    let generationId: string | null = null;
     let lastDbUpdate = 0;
     const DB_UPDATE_INTERVAL = 2000; // Update DB every 2 seconds
     let chunkCount = 0;
     
-    // Create active generation record if we have a chatId
-    if (chatId) {
-      try {
-        const [gen] = await db.insert(activeGenerations).values({
-          chatId,
-          modelId,
-          reasoningEffort: effort,
-          status: 'streaming',
-        }).returning();
-        generationId = gen.id;
-      } catch (e) {
-        console.error('[Chat] Failed to create generation record:', e);
-      }
+    // Pre-generate UUID so we don't block on DB insert
+    // Fire-and-forget: insert generation record without waiting
+    const generationId: string | null = chatId ? randomUUID() : null;
+    if (chatId && generationId) {
+      // Non-blocking insert - don't await, let it run in background
+      db.insert(activeGenerations).values({
+        id: generationId,
+        chatId,
+        modelId,
+        reasoningEffort: effort,
+        status: 'streaming',
+      }).catch(e => console.error('[Chat] Failed to create generation record:', e));
     }
 
     const result = streamText({
@@ -411,12 +410,8 @@ export async function POST(req: Request) {
           }
         }
         
-        // Log every chunk type for debugging (first 20 chunks)
         const chunkAny = chunk as Record<string, unknown>;
         const chunkType = chunk.type as string;
-        if (chunkCount <= 20) {
-          console.log(`[Chat] Chunk #${chunkCount}: type=${chunkType}`);
-        }
         
         // Accumulate partial content based on chunk type
         if (chunkType === 'text-delta') {
@@ -459,8 +454,6 @@ export async function POST(req: Request) {
         const generationTimeMs = firstChunkTime 
           ? endTime - firstChunkTime 
           : endTime - requestStartTime;
-        
-
         
         // Handle Google/Gemini models
         if (isGoogle) {
