@@ -478,6 +478,80 @@ select {
   animation: thinking-glow 2s ease-in-out infinite;
 }
 
+/* Streaming Message - Blur fade effect on new content */
+.streaming-message {
+  position: relative;
+}
+
+/* Gradient mask that blurs the bottom edge of streaming content */
+.streaming-message::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 60px;
+  background: linear-gradient(
+    to top,
+    var(--bg-main) 0%,
+    rgba(26, 26, 26, 0.8) 30%,
+    transparent 100%
+  );
+  pointer-events: none;
+  z-index: 10;
+  mask-image: linear-gradient(to top, black, transparent);
+  -webkit-mask-image: linear-gradient(to top, black, transparent);
+}
+
+/* Blur effect on the last lines */
+.streaming-content {
+  position: relative;
+}
+
+.streaming-content > *:last-child {
+  animation: content-fade-in 0.3s ease-out;
+}
+
+@keyframes content-fade-in {
+  0% {
+    opacity: 0.3;
+    filter: blur(2px);
+  }
+  100% {
+    opacity: 1;
+    filter: blur(0);
+  }
+}
+
+/* Alternative: Apply blur to streaming prose content */
+.streaming-prose {
+  position: relative;
+}
+
+.streaming-prose p:last-of-type,
+.streaming-prose li:last-of-type,
+.streaming-prose h1:last-of-type,
+.streaming-prose h2:last-of-type,
+.streaming-prose h3:last-of-type,
+.streaming-prose h4:last-of-type,
+.streaming-prose pre:last-of-type,
+.streaming-prose blockquote:last-of-type {
+  animation: text-materialize 0.25s ease-out;
+}
+
+@keyframes text-materialize {
+  0% {
+    opacity: 0.4;
+    filter: blur(3px);
+    transform: translateY(2px);
+  }
+  100% {
+    opacity: 1;
+    filter: blur(0);
+    transform: translateY(0);
+  }
+}
+
 /* Cyberpunk Hover Utilities */
 .hover-pulse:hover {
   animation: pulse-glow 2s infinite cubic-bezier(0.979, 0.31, 0.2, 0.404);

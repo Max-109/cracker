@@ -733,7 +733,7 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
   const isActivelySearching = isStreaming && (hasGoogleSearch || isSearching || reasoningIndicatesSearch);
 
   return (
-    <div className="w-full mb-6 group overflow-hidden">
+    <div className={cn("w-full mb-6 group overflow-hidden", isStreaming && "streaming-message")}>
       <div className="flex items-start gap-3 min-w-0">
         <span className="text-[var(--text-secondary)] text-[11px] uppercase tracking-[0.18em] leading-none pt-[2px] flex-shrink-0">[AI]:</span>
 
@@ -814,7 +814,7 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
           {/* Final Content */}
           {finalContent ? (
             <div className="min-h-[20px] space-y-3">
-              <div className="prose dark:prose-invert max-w-none break-words overflow-wrap-anywhere prose-pre:bg-transparent prose-pre:p-0" style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
+              <div className={cn("prose dark:prose-invert max-w-none break-words overflow-wrap-anywhere prose-pre:bg-transparent prose-pre:p-0", isStreaming && "streaming-prose")} style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
                 <ReactMarkdown
                   remarkPlugins={REMARK_PLUGINS}
                   rehypePlugins={REHYPE_PLUGINS}
