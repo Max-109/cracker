@@ -164,6 +164,24 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
         }
       }
       
+      // Update UI immediately with stopped indicator
+      const stoppedParts: Array<{ type: string; text?: string; reasoning?: string; stopped?: boolean }> = [];
+      if (partialReasoning) {
+        stoppedParts.push({ type: 'reasoning', text: partialReasoning });
+      }
+      if (partialText) {
+        stoppedParts.push({ type: 'text', text: partialText });
+      }
+      stoppedParts.push({ type: 'stopped', stopped: true });
+      
+      // Update the messages state to show stopped indicator
+      const updatedMessage = {
+        ...lastMessage,
+        parts: stoppedParts,
+      } as unknown as ChatMessage;
+      const updatedMessages = [...currentMessages.slice(0, -1), updatedMessage];
+      setMessages(updatedMessages as Parameters<typeof setMessages>[0]);
+      
       // Save the stopped message to DB
       try {
         await fetch('/api/messages/stop', {
@@ -180,7 +198,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
         console.error('Failed to save stopped message:', e);
       }
     }
-  }, [stop]);
+  }, [stop, setMessages]);
 
   // Track streaming start
   useEffect(() => {
