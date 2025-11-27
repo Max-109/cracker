@@ -258,16 +258,23 @@ const ThrottledMessageItem = memo(function ThrottledMessageItem({ message, index
                         }
                     } else if (p.type === 'tool-invocation') {
                         // AI SDK v5 tool invocation parts (e.g., google_search)
-                        const toolInvocation = p.toolInvocation as { toolCallId?: string; toolName?: string; state?: string; args?: unknown; result?: unknown } | undefined;
-                        if (toolInvocation) {
+                        // Can be flat (properties on part) or nested (under toolInvocation)
+                        const nested = p.toolInvocation as { toolCallId?: string; toolName?: string; state?: string; args?: unknown; result?: unknown } | undefined;
+                        const toolCallId = (p.toolCallId as string) || nested?.toolCallId || '';
+                        const toolName = (p.toolName as string) || nested?.toolName || '';
+                        const state = (p.state as string) || nested?.state || 'call';
+                        const args = (p.args as Record<string, unknown>) || nested?.args;
+                        const result = p.result || nested?.result;
+                        
+                        if (toolName) {
                             converted.push({
                                 type: 'tool-invocation',
                                 toolInvocation: {
-                                    toolCallId: toolInvocation.toolCallId || '',
-                                    toolName: toolInvocation.toolName || '',
-                                    state: (toolInvocation.state as 'call' | 'result' | 'partial-call') || 'call',
-                                    args: toolInvocation.args as Record<string, unknown>,
-                                    result: toolInvocation.result
+                                    toolCallId,
+                                    toolName,
+                                    state: state as 'call' | 'result' | 'partial-call',
+                                    args: args as Record<string, unknown>,
+                                    result
                                 }
                             } as MessagePart);
                         }

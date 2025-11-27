@@ -415,7 +415,7 @@ export async function POST(req: Request) {
         const chunkAny = chunk as Record<string, unknown>;
         const chunkType = chunk.type as string;
         if (chunkCount <= 20) {
-          console.log(`[Chat] Chunk #${chunkCount}: type=${chunkType}, keys=${Object.keys(chunkAny).join(',')}`);
+          console.log(`[Chat] Chunk #${chunkCount}: type=${chunkType}`);
         }
         
         // Accumulate partial content based on chunk type

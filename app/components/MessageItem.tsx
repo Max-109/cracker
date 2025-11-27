@@ -671,10 +671,18 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
         }
       } else if (part.type === 'tool-invocation') {
         // Check for Google Search tool invocation
-        const toolPart = part as { type: 'tool-invocation'; toolInvocation: { toolName: string; state: string } };
-        if (toolPart.toolInvocation?.toolName === 'google_search') {
+        // AI SDK v5 can have flat structure (toolName directly on part) or nested (under toolInvocation)
+        const toolPart = part as { 
+          type: 'tool-invocation'; 
+          toolName?: string; 
+          state?: string;
+          toolInvocation?: { toolName: string; state: string } 
+        };
+        const toolName = toolPart.toolName || toolPart.toolInvocation?.toolName;
+        const toolState = toolPart.state || toolPart.toolInvocation?.state;
+        if (toolName === 'google_search') {
           hasGoogleSearch = true;
-          if (toolPart.toolInvocation.state === 'call' || toolPart.toolInvocation.state === 'partial-call') {
+          if (toolState === 'call' || toolState === 'partial-call') {
             isSearching = true;
           }
         }
@@ -712,17 +720,17 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
   const isRedactedOnly = thinkContent.trim() === '[REDACTED]' || thinkContent.trim() === '';
   const hasThinking = (!!thinkContent || actuallyThinking) && thinkContent.length > 0 && !isRedactedOnly;
 
-  // Check if this is a Gemini model (uses Google Search grounding)
-  const isGeminiModel = fullModelName?.toLowerCase().includes('gemini') || fullModelName?.toLowerCase().includes('google');
+  // Detect if reasoning mentions searching (Gemini describes search activity in thinking)
+  const reasoningIndicatesSearch = !!(thinkContent && /\b(search|searching|looking up|finding|browsing|query|queries|found some|headlines|news from)\b/i.test(thinkContent));
   
   // Show search indicator when:
   // 1. We have sources (hasGoogleSearch) - always show
   // 2. Explicit search tool invocation (isSearching)
-  // 3. Streaming with Gemini model - show "Browsing" while generating (will hide if no sources at end)
-  const showSearchIndicator = hasGoogleSearch || isSearching || (isStreaming && isGeminiModel);
+  // 3. Reasoning mentions search activity (for Gemini during streaming)
+  const showSearchIndicator = hasGoogleSearch || isSearching || (isStreaming && reasoningIndicatesSearch);
   
   // Determine if we're actively searching (for animation)
-  const isActivelySearching = isStreaming && (isGeminiModel || hasGoogleSearch || isSearching);
+  const isActivelySearching = isStreaming && (hasGoogleSearch || isSearching || reasoningIndicatesSearch);
 
   return (
     <div className="w-full mb-6 group overflow-hidden">
