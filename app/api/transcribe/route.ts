@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { GoogleAuth } from "google-auth-library";
 
 export async function POST(req: NextRequest) {
   try {
@@ -16,9 +17,19 @@ export async function POST(req: NextRequest) {
     // Determine mime type
     const mimeType = audioFile.type || 'audio/webm';
 
-    // Get access token for Vertex AI
-    const { execSync } = await import('child_process');
-    const accessToken = execSync('gcloud auth application-default print-access-token').toString().trim();
+    // Get access token for Vertex AI using service account
+    const credentials = {
+      client_email: process.env.GOOGLE_CLIENT_EMAIL,
+      private_key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+    };
+    
+    const auth = new GoogleAuth({
+      credentials,
+      scopes: ['https://www.googleapis.com/auth/cloud-platform'],
+    });
+    
+    const client = await auth.getClient();
+    const accessToken = (await client.getAccessToken()).token;
 
     const projectId = process.env.GOOGLE_VERTEX_PROJECT;
     const location = process.env.GOOGLE_VERTEX_LOCATION || 'global';
