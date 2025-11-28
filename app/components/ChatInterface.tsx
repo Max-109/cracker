@@ -135,21 +135,21 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
 
   // Handle stop with saving partial content
   const handleStop = useCallback(async () => {
-    // First stop the streaming
-    stop();
-    
     const activeId = chatIdRef.current;
-    if (!activeId) return;
+    if (!activeId) {
+      stop();
+      return;
+    }
     
-    // Get the last assistant message (the one being generated)
-    const currentMessages = messagesRef.current;
+    // Get the current messages BEFORE stopping (stop() might clear them)
+    const currentMessages = [...messagesRef.current];
     const lastMessage = currentMessages[currentMessages.length - 1];
     
+    // Extract partial content if there's an assistant message
+    let partialText = '';
+    let partialReasoning = '';
+    
     if (lastMessage?.role === 'assistant') {
-      // Extract partial content from the message
-      let partialText = '';
-      let partialReasoning = '';
-      
       const msgParts = (lastMessage as { parts?: unknown[] }).parts;
       if (Array.isArray(msgParts)) {
         for (const part of msgParts) {
@@ -163,41 +163,74 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
           }
         }
       }
-      
-      // Update UI immediately with stopped indicator
-      const stoppedParts: Array<{ type: string; text?: string; reasoning?: string; stopped?: boolean }> = [];
-      if (partialReasoning) {
-        stoppedParts.push({ type: 'reasoning', text: partialReasoning });
-      }
-      if (partialText) {
-        stoppedParts.push({ type: 'text', text: partialText });
-      }
-      stoppedParts.push({ type: 'stopped', stopped: true });
-      
-      // Update the messages state to show stopped indicator
-      const updatedMessage = {
-        ...lastMessage,
-        parts: stoppedParts,
-      } as unknown as ChatMessage;
-      const updatedMessages = [...currentMessages.slice(0, -1), updatedMessage];
-      setMessages(updatedMessages as Parameters<typeof setMessages>[0]);
-      
-      // Save the stopped message to DB
-      try {
-        await fetch('/api/messages/stop', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            chatId: activeId,
-            partialText,
-            partialReasoning,
-            model: currentModelIdRef.current,
-          }),
-        });
-      } catch (e) {
-        console.error('Failed to save stopped message:', e);
-      }
     }
+    
+    // Determine stop type based on what content we have:
+    // 1. No content at all = stopped during connection (show "stopped_connection")
+    // 2. Has reasoning but no text = stopped during thinking (show "stopped_thinking")
+    // 3. Has text = stopped during streaming (no indicator, just keep text)
+    
+    let stopType: 'connection' | 'thinking' | 'streaming';
+    if (partialText) {
+      stopType = 'streaming';
+    } else if (partialReasoning) {
+      stopType = 'thinking';
+    } else {
+      stopType = 'connection';
+    }
+    
+    // Save to DB FIRST (before stop() which might clear state)
+    try {
+      await fetch('/api/messages/stop', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chatId: activeId,
+          partialText,
+          partialReasoning,
+          stopType,
+          model: currentModelIdRef.current,
+        }),
+      });
+    } catch (e) {
+      console.error('Failed to save stopped message:', e);
+    }
+    
+    // Now stop the streaming
+    stop();
+    
+    // Reload messages from database to show the stopped state properly
+    // (setMessages after stop() often gets overwritten by useChat)
+    setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/chats/${activeId}`);
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const uiMessages = data.map((msg: any) => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            let parts: Array<any>;
+            if (Array.isArray(msg.content)) {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              parts = msg.content.map((p: any) => {
+                if (typeof p === 'string') return { type: 'text', text: p };
+                if (p.type === 'text') return { type: 'text', text: p.text || '' };
+                if (p.type === 'reasoning') return { type: 'reasoning', text: p.text || p.reasoning || '' };
+                if (p.type === 'stopped') return { type: 'stopped', stopType: p.stopType };
+                if (p.type === 'source' || p.type === 'source-url') return { type: 'source', url: p.url, title: p.title, source: p.source };
+                return p;
+              });
+            } else {
+              parts = [{ type: 'text', text: msg.content || '' }];
+            }
+            return { id: msg.id, role: msg.role, parts, model: msg.model, tokensPerSecond: msg.tokensPerSecond };
+          });
+          setMessages(uiMessages as Parameters<typeof setMessages>[0]);
+        }
+      } catch (e) {
+        console.error('Failed to reload messages after stop:', e);
+      }
+    }, 100);
   }, [stop, setMessages]);
 
   // Track streaming start
@@ -244,6 +277,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                   if (typeof p === 'string') return { type: 'text', text: p };
                   if (p.type === 'text') return { type: 'text', text: p.text || '' };
                   if (p.type === 'reasoning') return { type: 'reasoning', text: p.text || p.reasoning || '' };
+                  if (p.type === 'stopped') return { type: 'stopped', stopType: p.stopType };
                   if (p.type === 'image') return { type: 'file', url: p.image || p.url, mediaType: p.mediaType || 'image/png', filename: p.name || 'image' };
                   if (p.type === 'file') return { type: 'file', url: p.data || p.url, mediaType: p.mediaType || p.mimeType || 'application/octet-stream', filename: p.filename || p.name || 'file' };
                   if (p.type === 'source' || p.type === 'source-url') return { type: 'source', url: p.url, title: p.title, source: p.source };
@@ -321,6 +355,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                     if (typeof p === 'string') return { type: 'text', text: p };
                     if (p.type === 'text') return { type: 'text', text: p.text || '' };
                     if (p.type === 'reasoning') return { type: 'reasoning', text: p.text || p.reasoning || '' };
+                    if (p.type === 'stopped') return { type: 'stopped', stopType: p.stopType };
                     if (p.type === 'source' || p.type === 'source-url') return { type: 'source', url: p.url, title: p.title, source: p.source };
                     return p;
                   });

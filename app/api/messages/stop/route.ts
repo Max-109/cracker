@@ -6,14 +6,17 @@ import { eq } from 'drizzle-orm';
 // POST - Save partial content as stopped message when user stops generation
 export async function POST(req: Request) {
   try {
-    const { chatId, partialText, partialReasoning, model } = await req.json();
+    const { chatId, partialText, partialReasoning, stopType, model } = await req.json();
     
     if (!chatId) {
       return NextResponse.json({ error: 'chatId required' }, { status: 400 });
     }
 
-    // Build content parts
-    const contentParts: Array<{ type: string; text?: string; reasoning?: string; stopped?: boolean }> = [];
+    // Build content parts based on stopType:
+    // - 'connection': stopped before any response (show stopped indicator)
+    // - 'thinking': stopped during reasoning (show reasoning + interrupted indicator)
+    // - 'streaming': stopped during text generation (just keep text, no indicator)
+    const contentParts: Array<{ type: string; text?: string; reasoning?: string; stopType?: string }> = [];
     
     // Add reasoning if present
     if (partialReasoning) {
@@ -25,26 +28,18 @@ export async function POST(req: Request) {
       contentParts.push({ type: 'text', text: partialText });
     }
     
-    // Add stopped indicator
-    contentParts.push({ type: 'stopped', stopped: true });
-    
-    // Only save if we have content
-    if (contentParts.length > 1) { // More than just the stopped indicator
-      await db.insert(messages).values({
-        chatId,
-        role: 'assistant',
-        content: contentParts,
-        model: model || null,
-      });
-    } else {
-      // If no content, still save a stopped message
-      await db.insert(messages).values({
-        chatId,
-        role: 'assistant',
-        content: [{ type: 'stopped', stopped: true, text: '' }],
-        model: model || null,
-      });
+    // Only add stopped indicator for connection and thinking phases
+    if (stopType !== 'streaming') {
+      contentParts.push({ type: 'stopped', stopType: stopType || 'connection' });
     }
+    
+    // Save the message
+    await db.insert(messages).values({
+      chatId,
+      role: 'assistant',
+      content: contentParts.length > 0 ? contentParts : [{ type: 'stopped', stopType: 'connection' }],
+      model: model || null,
+    });
     
     // Clean up any active generation records for this chat
     await db.delete(activeGenerations).where(eq(activeGenerations.chatId, chatId));

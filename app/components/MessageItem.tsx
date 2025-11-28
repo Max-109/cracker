@@ -653,7 +653,7 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
   const sources: { url: string; title?: string }[] = [];
   let hasGoogleSearch = false;
   let isSearching = false;
-  let wasStopped = false;
+  let stopType: 'connection' | 'thinking' | null = null; // null means not stopped, or stopped during streaming (no indicator)
 
   if (typeof safeContent !== 'string' && Array.isArray(safeContent)) {
     safeContent.forEach((part: MessagePart) => {
@@ -661,8 +661,11 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
         thinkContent += (part.reasoning || part.text || '');
       } else if (part.type === 'text') {
         finalContent += (part.text || '');
-      } else if ((part as { type: string; stopped?: boolean }).type === 'stopped') {
-        wasStopped = true;
+      } else if ((part as { type: string; stopType?: string }).type === 'stopped') {
+        const stoppedPart = part as { type: string; stopType?: string };
+        if (stoppedPart.stopType === 'connection' || stoppedPart.stopType === 'thinking') {
+          stopType = stoppedPart.stopType;
+        }
       } else if (part.type === 'source' || (part as { type: string }).type === 'source-url') {
         // Extract source information from converted source parts (handles both live and DB loaded)
         const sourcePart = part as { type: string; source?: { url: string; title?: string }; url?: string; title?: string };
@@ -835,16 +838,36 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
             ) : null
           )}
 
-          {/* Stopped Indicator */}
-          {wasStopped && (
-            <div className="flex items-center gap-2 text-xs text-[var(--text-secondary)] border border-[var(--border-color)] bg-[#141414] px-3 py-2 mt-2">
-              <div className="w-2 h-2 bg-amber-500/70 rounded-full" />
-              <span className="uppercase tracking-[0.12em]">Stopped</span>
+          {/* Stopped Indicator - only for connection and thinking phases */}
+          {stopType === 'connection' && (
+            <div className="border border-[var(--border-color)] bg-[#141414] px-4 py-3">
+              <div className="flex items-center gap-3">
+                <div className="relative flex items-center justify-center w-5 h-5">
+                  <div className="absolute w-2 h-2 bg-red-500/80 rounded-full" />
+                  <div className="absolute w-4 h-4 bg-red-500/20 rounded-full animate-pulse" />
+                </div>
+                <span className="text-sm text-[var(--text-secondary)] uppercase tracking-[0.14em]">
+                  Generation stopped
+                </span>
+              </div>
+            </div>
+          )}
+          {stopType === 'thinking' && (
+            <div className="border border-[var(--border-color)] bg-[#141414] px-4 py-3 mt-2">
+              <div className="flex items-center gap-3">
+                <div className="relative flex items-center justify-center w-5 h-5">
+                  <div className="absolute w-2 h-2 bg-amber-500/80 rounded-full" />
+                  <div className="absolute w-4 h-4 bg-amber-500/20 rounded-full animate-pulse" />
+                </div>
+                <span className="text-sm text-[var(--text-secondary)] uppercase tracking-[0.14em]">
+                  Thinking interrupted
+                </span>
+              </div>
             </div>
           )}
 
           {/* Action Buttons (Copy, Regenerate) + Model Info */}
-          {!isThinking && (finalContent || wasStopped) && (
+          {!isThinking && (finalContent || stopType) && (
             <div className="flex items-center justify-between mt-2 text-[11px] uppercase tracking-[0.14em] text-[var(--text-secondary)] select-none md:opacity-0 md:group-hover:opacity-100 transition-opacity">
               {/* Left: Action buttons */}
               <div className="flex items-center gap-3">

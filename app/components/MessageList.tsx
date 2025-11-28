@@ -105,6 +105,9 @@ const ThrottledMessageItem = memo(function ThrottledMessageItem({
                 }
               } as MessagePart);
             }
+          } else if (p.type === 'stopped') {
+            // Pass through stopped indicator with stopType
+            converted.push({ type: 'stopped', stopType: p.stopType } as unknown as MessagePart);
           }
         }
       }

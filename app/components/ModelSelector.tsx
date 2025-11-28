@@ -198,7 +198,7 @@ export function ModelSelector({
         </Dropdown>
 
         {/* Color Picker */}
-        <div className="relative">
+        <div className="relative group">
           <IconButton
             ref={colorButtonRef}
             onClick={() => setIsColorMenuOpen(!isColorMenuOpen)}
@@ -207,7 +207,7 @@ export function ModelSelector({
           >
             <div className={cn("ender-eye-container", !isHydrated && "opacity-0")}>
               <div
-                className={cn("ender-eye", isColorMenuOpen && "closed")}
+                className={cn("ender-eye transition-shadow duration-300 group-hover:shadow-[0_0_16px_4px_var(--text-accent)]", isColorMenuOpen && "closed")}
                 style={{ backgroundColor: accentColor }}
               />
             </div>
