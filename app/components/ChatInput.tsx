@@ -1,16 +1,12 @@
 'use client';
 
 import React, { useRef, useEffect, useState } from 'react';
-import { ArrowUp, Paperclip, Square, Sparkles, X, File as FileIcon } from 'lucide-react';
+import { ArrowUp, Paperclip, Square, Sparkles, X, File as FileIcon, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { AttachmentItem } from '@/app/hooks/useAttachments';
 import type { ReasoningEffortLevel } from '@/app/hooks/usePersistedSettings';
 import {
-  IconButton,
   Textarea,
-  Dropdown,
-  DropdownLabel,
-  DropdownItem,
   CircularProgress,
   Spinner,
 } from '@/components/ui';
@@ -109,16 +105,16 @@ export function ChatInput({
         )}
 
         <div className="flex items-end gap-3">
-          <IconButton
+          {/* Paperclip Button */}
+          <button
             onClick={() => fileInputRef.current?.click()}
-            rotateOnHover
-            className="mb-[2px]"
+            className="w-10 h-10 border border-[var(--border-color)] bg-[#141414] text-[var(--text-secondary)] hover-glow flex items-center justify-center mb-[2px] group"
           >
-            <Paperclip size={18} strokeWidth={2} />
-          </IconButton>
+            <Paperclip size={18} strokeWidth={2} className="group-hover:rotate-12 transition-transform duration-300" />
+          </button>
 
           <div className="flex-1">
-            <div className="border border-[var(--border-color)] bg-transparent flex items-end p-2 gap-2 hover-glow">
+            <div className="border border-[var(--border-color)] bg-transparent flex items-end p-2 gap-2 hover-glow transition-all duration-300">
               <Textarea
                 ref={textareaRef}
                 value={input}
@@ -139,52 +135,59 @@ export function ChatInput({
 
           <div className="flex items-center gap-2 h-[40px] mb-[2px]">
             {/* Reasoning Effort Selector */}
-            <Dropdown
-              align="right"
-              position="top"
-              contentClassName="w-[180px]"
-              trigger={
-                <IconButton
-                  title={`Reasoning Effort: ${reasoningEffort}`}
-                  rotateOnHover
-                >
-                  <Sparkles size={18} strokeWidth={2} />
-                </IconButton>
-              }
-            >
-              {(close: () => void) => (
+            <div className="relative">
+              <button
+                onClick={() => setIsEffortMenuOpen(!isEffortMenuOpen)}
+                className="w-10 h-10 border border-[var(--border-color)] bg-[#141414] text-[var(--text-secondary)] hover-glow flex items-center justify-center group"
+                title={`Reasoning Effort: ${reasoningEffort}`}
+              >
+                <Sparkles size={18} strokeWidth={2} className="group-hover:rotate-12 transition-transform duration-300" />
+              </button>
+
+              {isEffortMenuOpen && (
                 <>
-                  <DropdownLabel>Reasoning Effort</DropdownLabel>
-                  {(['low', 'medium', 'high'] as const).map((effort) => (
-                    <DropdownItem
-                      key={effort}
-                      onClick={() => {
-                        onReasoningEffortChange(effort);
-                        close();
-                      }}
-                      selected={reasoningEffort === effort}
-                    >
-                      <span className="capitalize">{effort}</span>
-                    </DropdownItem>
-                  ))}
+                  <div className="fixed inset-0 z-10" onClick={() => setIsEffortMenuOpen(false)} />
+                  <div className="absolute bottom-full right-0 mb-2 w-[180px] bg-[var(--bg-sidebar)] border border-[var(--border-color)] overflow-hidden z-20 p-1 animate-in fade-in slide-in-from-bottom-2 duration-100 origin-bottom-right">
+                    <div className="px-2 py-1.5 text-[10px] uppercase tracking-[0.16em] font-semibold text-[var(--text-secondary)]">Reasoning Effort</div>
+
+                    {(['low', 'medium', 'high'] as const).map((effort) => (
+                      <button
+                        key={effort}
+                        onClick={() => {
+                          onReasoningEffortChange(effort);
+                          setIsEffortMenuOpen(false);
+                        }}
+                        className="flex items-center justify-between w-full text-left px-2 py-2 hover:bg-[#1e1e1e] text-sm transition-colors"
+                      >
+                        <span className="text-[var(--text-primary)] capitalize">{effort}</span>
+                        {reasoningEffort === effort && <Check size={14} />}
+                      </button>
+                    ))}
+                  </div>
                 </>
               )}
-            </Dropdown>
+            </div>
 
             {isLoading ? (
-              <IconButton variant="accent" size="lg" onClick={onStop}>
+              <button
+                onClick={onStop}
+                className="w-10 h-10 border border-[var(--text-accent)] bg-black text-[var(--text-accent)] hover:bg-[var(--text-accent)] hover:text-black transition-all duration-150 flex items-center justify-center"
+              >
                 <Square size={14} fill="currentColor" />
-              </IconButton>
+              </button>
             ) : (
-              <IconButton
-                variant={canSend ? "primary" : "default"}
-                size="lg"
+              <button
                 onClick={onSend}
                 disabled={!canSend}
-                className={cn(!canSend && "cursor-not-allowed opacity-50")}
+                className={cn(
+                  "w-10 h-10 transition-all duration-150 flex items-center justify-center border",
+                  canSend
+                    ? "bg-[var(--text-accent)] text-black border-[var(--text-accent)] hover:bg-black hover:text-[var(--text-accent)]"
+                    : "bg-[#1a1a1a] text-[var(--text-secondary)] border-[var(--border-color)] cursor-not-allowed"
+                )}
               >
                 <ArrowUp size={18} strokeWidth={3} />
-              </IconButton>
+              </button>
             )}
           </div>
         </div>
