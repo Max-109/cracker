@@ -7,7 +7,7 @@ import { PanelLeft, Settings2 } from 'lucide-react';
 import type { ChatMessage, MessagePart } from '@/lib/chat-types';
 import { useChatContext } from './ChatContext';
 import { useAttachments } from '@/app/hooks/useAttachments';
-import { usePersistedSetting, useAccentColor, useResponseLength, useUserProfile, ReasoningEffortLevel } from '@/app/hooks/usePersistedSettings';
+import { usePersistedSetting, useAccentColor, useResponseLength, useUserProfile, useLearningMode, ReasoningEffortLevel } from '@/app/hooks/usePersistedSettings';
 import { ModelSelector } from './ModelSelector';
 import { ChatInput } from './ChatInput';
 import { MessageList } from './MessageList';
@@ -29,8 +29,9 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
   const { accentColor, setAccentColor, isHydrated: isColorHydrated } = useAccentColor();
   const { responseLength, setResponseLength, isHydrated: isResponseLengthHydrated } = useResponseLength();
   const { userName, setUserName, userGender, setUserGender, isHydrated: isProfileHydrated } = useUserProfile();
+  const { learningMode, setLearningMode, isHydrated: isLearningModeHydrated } = useLearningMode();
   
-  const isSettingsHydrated = isModelIdHydrated && isModelNameHydrated && isColorHydrated && isResponseLengthHydrated && isProfileHydrated;
+  const isSettingsHydrated = isModelIdHydrated && isModelNameHydrated && isColorHydrated && isResponseLengthHydrated && isProfileHydrated && isLearningModeHydrated;
   
   // Settings dialog state
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -59,12 +60,14 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
   const responseLengthRef = useRef(responseLength);
   const userNameRef = useRef(userName);
   const userGenderRef = useRef(userGender);
+  const learningModeRef = useRef(learningMode);
   
   useEffect(() => { currentModelIdRef.current = currentModelId; }, [currentModelId]);
   useEffect(() => { reasoningEffortRef.current = reasoningEffort; }, [reasoningEffort]);
   useEffect(() => { responseLengthRef.current = responseLength; }, [responseLength]);
   useEffect(() => { userNameRef.current = userName; }, [userName]);
   useEffect(() => { userGenderRef.current = userGender; }, [userGender]);
+  useEffect(() => { learningModeRef.current = learningMode; }, [learningMode]);
 
   // Update document title based on current chat
   useEffect(() => {
@@ -117,6 +120,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
       responseLength: responseLengthRef.current,
       userName: userNameRef.current,
       userGender: userGenderRef.current,
+      learningMode: learningModeRef.current,
     }),
   }), []);
 
@@ -654,6 +658,8 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
           onOpenChange={setIsSettingsOpen}
           responseLength={responseLength}
           onResponseLengthChange={setResponseLength}
+          learningMode={learningMode}
+          onLearningModeChange={setLearningMode}
           userName={userName}
           onUserNameChange={setUserName}
           userGender={userGender}

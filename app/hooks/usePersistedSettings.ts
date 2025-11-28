@@ -75,6 +75,17 @@ export function useUserProfile() {
   };
 }
 
+// Learning mode setting
+export function useLearningMode() {
+  const [learningMode, setLearningMode, isHydrated] = usePersistedSetting('CHATGPT_LEARNING_MODE', 'false');
+  
+  return {
+    learningMode: learningMode === 'true',
+    setLearningMode: (value: boolean) => setLearningMode(value ? 'true' : 'false'),
+    isHydrated,
+  };
+}
+
 export function hexToHSL(hex: string): { h: number; s: number; l: number } | null {
   let r = 0, g = 0, b = 0;
   if (hex.length === 4) {

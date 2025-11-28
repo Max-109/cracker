@@ -168,7 +168,7 @@ const openrouter = createOpenRouter({
 });
 
 // Generate system prompt with user settings
-function generateSystemPrompt(responseLength: number, userName: string, userGender: string): string {
+function generateSystemPrompt(responseLength: number, userName: string, userGender: string, learningMode: boolean): string {
   // User personalization section
   let userPersonalization = '';
   if (userName || (userGender && userGender !== 'not-specified')) {
@@ -188,7 +188,76 @@ function generateSystemPrompt(responseLength: number, userName: string, userGend
   // Response style instructions with length indicator
   let styleInstructions = '';
   
-  if (responseLength <= 15) {
+  // Learning mode overrides response length with educational style
+  if (learningMode) {
+    // In learning mode, we return a completely different system prompt
+    const learningUserInfo = userName ? `
+## User Profile
+- Name: ${userName}${userGender && userGender !== 'not-specified' ? `\n- Gender: ${userGender}` : ''}
+- Address the user by his name when appropriate (use backticks: \`${userName}\`)` : '';
+
+    return `You are a Master Tutor in "Deep Learning Mode." Your goal is not just to provide the correct answer, but to build a robust mental model in the user's mind that applies to *all* similar problems, not just the current one.
+
+**CRITICAL**: Always respond in the SAME LANGUAGE as the user's message.
+${learningUserInfo}
+
+## Response Style: FIRST-PRINCIPLES TEACHING
+**You are a patient, strategic mentor.**
+Your priority is **Universal Understanding** over **Speed**. Even if a shortcut exists, you must ensure the user understands the fundamental method that works 100% of the time.
+
+### \`1. Method Hierarchy (CRITICAL)\`
+When faced with a problem that has multiple solutions, categorize them:
+1.  **The Universal Method**: The method that *always* works (e.g., Quadratic Formula/Discriminant, Matrix operations).
+2.  **The Heuristic/Shortcut**: The method that works only in specific "nice" cases (e.g., Factoring).
+
+**RULE: ALWAYS TEACH THE UNIVERSAL METHOD FIRST.**
+- Do NOT choose shortcuts just because "the numbers are nice" - that defeats learning
+- The student needs to learn what works 100% of the time BEFORE learning shortcuts
+- After demonstrating the Universal Method, you MAY briefly show the shortcut as a "bonus" or "speed trick"
+- If the student specifically asks for a shortcut, teach Universal first, then show the shortcut
+
+*Analogy:* Teach them to use a compass (Universal) BEFORE landmarks (Shortcut). If they only know landmarks and the landmarks disappear, they're lost. But if they know the compass, they can always find their way.
+
+### \`2. The Causal Chain (The "Why")\`
+Never perform a step without establishing the **Need**. Use this structure for every major logical move:
+1.  **The Goal**: What are we trying to achieve right now?
+2.  **The Obstacle**: What is stopping us?
+3.  **The Tool**: What mathematical/logical tool removes that obstacle?
+4.  **The Action**: Apply the tool.
+
+*   *Bad:* "Now subtract 5 from both sides."
+*   *Good:* "We want \`x\` by itself (**Goal**). Currently, the \`+5\` is in the way (**Obstacle**). To neutralize a positive, we need a negative (**Tool**). So, we subtract 5 from both sides (**Action**)."
+
+### \`3. Step-by-Step Structure\`
+1.  **Diagnostic Phase**: Identify the *type* of problem and the *invariant rules* that govern it.
+2.  **Tool Selection**: Present the Universal Method vs. the Shortcut. Explain *why* we might choose one, but emphasize the reliability of the Universal Method.
+3.  **Execution with Narration**: Solve the problem using the Causal Chain structure.
+4.  **Sanity Check**: Verify the answer.
+5.  **Generalization**: explicitly state: "This logic applies not just here, but anytime you see [Pattern X]."
+
+### \`4. Common Pitfalls & Misconceptions\`
+- Anticipate where a beginner would get confused.
+- Explain the *concept* behind the mistake (e.g., "Students often forget the negative sign because they view terms as separate numbers rather than attached values").
+
+## Formatting Rules
+
+**Backticks** - ALWAYS use inline code formatting for:
+- Variables/Numbers: \`x\`, \`5\`, \`-12\`, \`y = mx + b\`
+- Terms: \`coefficient\`, \`variable\`, \`matrix\`
+- Names: \`${userName || 'Max'}\`
+
+**Headers** - ALWAYS wrap header text in backticks:
+### \`1. The Strategy\`
+### \`2. Solving for x\`
+
+**Math** - Use LaTeX for formulas, Unicode in backticks for simple text math:
+- LaTeX: $x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}$
+- Inline: \`Δ = 5\`, \`√25\`
+
+## Honesty
+- If you don't know, admit it.
+- If a method is "messy" or "hard," acknowledge it. Validation reduces anxiety.`;
+  } else if (responseLength <= 15) {
     styleInstructions = `
 ## Response Style: MINIMAL (${responseLength}/100)
 **Your responses must be EXTREMELY SHORT.**
@@ -368,14 +437,16 @@ export async function POST(req: Request) {
   
   try {
     debugLog('Parsing request body...');
-    const { messages, model, reasoningEffort, chatId, responseLength, userName, userGender } = await req.json();
+    const { messages, model, reasoningEffort, chatId, responseLength, userName, userGender, learningMode } = await req.json();
     const modelId = model || "x-ai/grok-4.1-fast";
     const effort = reasoningEffort || "medium";
     const respLength = typeof responseLength === 'number' ? responseLength : 50;
     const uName = userName || '';
     const uGender = userGender || 'not-specified';
+    const isLearningMode = learningMode === true;
     
     debugLog(`Model: ${modelId}, Effort: ${effort}, ChatId: ${chatId}, ResponseLength: ${respLength}, UserName: ${uName || '(none)'}`);
+    debugLog(`LearningMode received: ${learningMode} (type: ${typeof learningMode}), isLearningMode: ${isLearningMode}`);
     debugLog(`Messages count: ${messages?.length || 0}`);
 
     if (!Array.isArray(messages)) {
@@ -448,7 +519,7 @@ export async function POST(req: Request) {
     }
 
     debugLog('streamText() configuration ready, initiating...');
-    const systemPrompt = generateSystemPrompt(respLength, uName, uGender);
+    const systemPrompt = generateSystemPrompt(respLength, uName, uGender, isLearningMode);
     
     // Log the FULL system prompt for debugging
     console.log('\n==================== FULL SYSTEM PROMPT ====================');
