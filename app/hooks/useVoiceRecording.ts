@@ -10,14 +10,23 @@ interface UseVoiceRecordingOptions {
 }
 
 // Calculate estimated transcription time based on audio duration
-// Formula: ~0.6-0.7x of audio duration (3s audio ≈ 2s wait)
-// With a minimum of 1.5s and a slight logarithmic curve for longer audio
+// The model processes longer audio more efficiently (sub-linear scaling)
+// Formula: baseOverhead + coefficient * sqrt(audioDuration)
+// This gives: 3s audio ≈ 2.5s wait, 6s ≈ 3.2s, 15s ≈ 4.7s, 30s ≈ 6.3s
 export function calculateEstimatedTime(audioDurationMs: number): number {
   const audioDurationSec = audioDurationMs / 1000;
-  // Base ratio of 0.65, with slight reduction for longer audio (model batches efficiently)
-  const ratio = 0.65 - Math.min(0.15, audioDurationSec / 100);
-  const estimated = Math.max(1.5, audioDurationSec * ratio);
-  return estimated * 1000; // Return in ms
+  
+  // Base overhead for API call/network latency (in seconds)
+  const baseOverhead = 0.8;
+  
+  // Square root scaling - longer audio has proportionally less wait time
+  const coefficient = 1.0;
+  const estimated = baseOverhead + coefficient * Math.sqrt(audioDurationSec);
+  
+  // Minimum 1.5s, cap at reasonable max
+  const clamped = Math.max(1.5, Math.min(estimated, 15));
+  
+  return clamped * 1000; // Return in ms
 }
 
 export function useVoiceRecording({ onTranscription, onError }: UseVoiceRecordingOptions = {}) {
