@@ -316,9 +316,9 @@ export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose
                                     <div key={label} className="mb-3">
                                         {/* Group Header */}
                                         <div className="flex items-center gap-2 px-2 py-2">
-                                            <Clock size={10} className="text-[var(--text-accent)] opacity-60" />
-                                            <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--text-secondary)]">{label}</span>
-                                            <span className="text-[9px] text-[var(--text-secondary)] opacity-50">({chats.length})</span>
+                                            <Clock size={10} className="text-[var(--text-accent)]" />
+                                            <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--text-primary)]">{label}</span>
+                                            <span className="text-[9px] text-[var(--text-accent)] opacity-70">({chats.length})</span>
                                         </div>
                                         
                                         {/* Chat Items */}

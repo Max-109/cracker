@@ -578,18 +578,20 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
     <div className="flex h-full w-full bg-[var(--bg-main)] text-[var(--text-primary)]">
       <main className="flex-1 flex flex-col h-full min-h-0">
         {/* Top Bar - outside overflow to allow dropdowns */}
-        <div className="flex-shrink-0 w-full h-14 flex items-center justify-between px-4 bg-[var(--bg-main)] border-b border-[var(--border-color)] relative z-50 dropdown-container">
+        <div className="flex-shrink-0 w-full h-14 flex items-center justify-between px-4 bg-[var(--bg-sidebar)] border-b border-[var(--border-color)] relative z-50 dropdown-container">
+          {/* Left: Mobile menu button */}
           <div className="flex items-center gap-2 md:hidden">
             <button
               onClick={toggleSidebar}
-              className="px-2 py-1 border border-[var(--border-color)] text-[var(--text-secondary)] hover:border-[var(--border-active)]"
+              className="w-10 h-10 border border-[var(--border-color)] bg-[#1a1a1a] text-[var(--text-secondary)] hover:border-[var(--text-accent)]/50 hover:text-[var(--text-accent)] flex items-center justify-center transition-all duration-150"
               aria-label="Toggle sidebar"
             >
-              <PanelLeft size={20} />
+              <PanelLeft size={18} />
             </button>
           </div>
 
-          <div className="ml-auto md:ml-0 md:mr-auto">
+          {/* Center/Left: Model Selector */}
+          <div className="flex-1 flex justify-center md:justify-start">
             <ModelSelector
               currentModelId={currentModelId}
               currentModelName={currentModelName}

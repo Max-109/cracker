@@ -104,17 +104,17 @@ export function ChatInput({
           </div>
         )}
 
-        <div className="flex items-end gap-3">
+        <div className="flex items-end gap-2">
           {/* Paperclip Button */}
           <button
             onClick={() => fileInputRef.current?.click()}
-            className="w-10 h-10 border border-[var(--border-color)] bg-[#141414] text-[var(--text-secondary)] hover-glow flex items-center justify-center mb-[2px] group"
+            className="w-10 h-10 border border-[var(--border-color)] bg-[#1a1a1a] text-[var(--text-secondary)] hover:border-[var(--text-accent)]/50 hover:text-[var(--text-accent)] flex items-center justify-center mb-[2px] group transition-all duration-150"
           >
-            <Paperclip size={18} strokeWidth={2} className="group-hover:rotate-12 transition-transform duration-300" />
+            <Paperclip size={16} strokeWidth={2} className="group-hover:rotate-12 transition-transform duration-200" />
           </button>
 
           <div className="flex-1">
-            <div className="border border-[var(--border-color)] bg-transparent flex items-end p-2 gap-2 hover-glow transition-all duration-300">
+            <div className="border border-[var(--border-color)] bg-[#1a1a1a] flex items-end p-2.5 gap-2 hover:border-[var(--text-accent)]/30 focus-within:border-[var(--text-accent)]/50 transition-all duration-150">
               <Textarea
                 ref={textareaRef}
                 value={input}
@@ -127,7 +127,7 @@ export function ChatInput({
                 maxHeight={200}
                 rows={1}
                 disabled={disabled}
-                className="pb-1 no-outline"
+                className="pb-1 no-outline bg-transparent"
                 autoFocus
               />
             </div>
@@ -138,10 +138,15 @@ export function ChatInput({
             <div className="relative">
               <button
                 onClick={() => setIsEffortMenuOpen(!isEffortMenuOpen)}
-                className="w-10 h-10 border border-[var(--border-color)] bg-[#141414] text-[var(--text-secondary)] hover-glow flex items-center justify-center group"
+                className={cn(
+                  "w-10 h-10 border bg-[#1a1a1a] flex items-center justify-center group transition-all duration-150",
+                  isEffortMenuOpen 
+                    ? "border-[var(--text-accent)] text-[var(--text-accent)]"
+                    : "border-[var(--border-color)] text-[var(--text-secondary)] hover:border-[var(--text-accent)]/50 hover:text-[var(--text-accent)]"
+                )}
                 title={`Reasoning Effort: ${reasoningEffort}`}
               >
-                <Sparkles size={18} strokeWidth={2} className="group-hover:rotate-12 transition-transform duration-300" />
+                <Sparkles size={16} strokeWidth={2} className="group-hover:scale-110 transition-transform duration-200" />
               </button>
 
               {isEffortMenuOpen && (
@@ -236,9 +241,9 @@ export function ChatInput({
             {isLoading ? (
               <button
                 onClick={onStop}
-                className="w-10 h-10 border border-[var(--text-accent)] bg-black text-[var(--text-accent)] hover:bg-[var(--text-accent)] hover:text-black transition-all duration-150 flex items-center justify-center"
+                className="w-10 h-10 border-2 border-[var(--text-accent)] bg-[#1a1a1a] text-[var(--text-accent)] hover:bg-[var(--text-accent)] hover:text-black transition-all duration-150 flex items-center justify-center"
               >
-                <Square size={14} fill="currentColor" />
+                <Square size={12} fill="currentColor" />
               </button>
             ) : (
               <button
@@ -247,11 +252,11 @@ export function ChatInput({
                 className={cn(
                   "w-10 h-10 transition-all duration-150 flex items-center justify-center border",
                   canSend
-                    ? "bg-[var(--text-accent)] text-black border-[var(--text-accent)] hover:bg-black hover:text-[var(--text-accent)]"
-                    : "bg-[#1a1a1a] text-[var(--text-secondary)] border-[var(--border-color)] cursor-not-allowed"
+                    ? "bg-[var(--text-accent)] text-black border-[var(--text-accent)] hover:bg-[#1a1a1a] hover:text-[var(--text-accent)]"
+                    : "bg-[#1a1a1a] text-[var(--text-secondary)] border-[var(--border-color)] cursor-not-allowed opacity-50"
                 )}
               >
-                <ArrowUp size={18} strokeWidth={3} />
+                <ArrowUp size={16} strokeWidth={2.5} />
               </button>
             )}
           </div>
