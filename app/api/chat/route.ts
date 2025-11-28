@@ -42,11 +42,16 @@ function createDebugVertexFetch(): typeof fetch {
   };
 }
 
-// Initialize Vertex AI provider with debug fetch
-// Uses ADC (Application Default Credentials) - run: gcloud auth application-default login
+// Initialize Vertex AI provider with debug fetch and explicit credentials
 const vertex = createVertex({
   project: process.env.GOOGLE_VERTEX_PROJECT,
   location: process.env.GOOGLE_VERTEX_LOCATION || 'global',
+  googleAuthOptions: {
+    credentials: {
+      client_email: process.env.GOOGLE_CLIENT_EMAIL,
+      private_key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+    },
+  },
   fetch: createDebugVertexFetch(),
 });
 
