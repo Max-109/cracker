@@ -1,4 +1,4 @@
-import { SquarePen, X, Pencil, Trash2, Check, MessageSquare, Clock, Sparkles } from 'lucide-react';
+import { SquarePen, X, Pencil, Trash2, Check, MessageSquare, Clock, Sparkles, AlertTriangle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Skeleton } from './Skeleton';
 import { useState, useEffect, useRef } from 'react';
@@ -196,32 +196,84 @@ export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose
 
             {/* Delete Confirmation Dialog */}
             <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
-                <AlertDialogContent className="bg-[var(--bg-sidebar)] border border-[var(--border-color)] text-[var(--text-primary)]">
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>Delete chat?</AlertDialogTitle>
-                        <AlertDialogDescription className="text-[var(--text-secondary)]">
-                            This will permanently delete your chat history. This action cannot be undone.
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel className="bg-transparent border-[var(--border-color)] text-[var(--text-primary)] hover-glow uppercase tracking-[0.12em] text-xs font-semibold px-4 py-2">Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleDelete} className="bg-transparent border-[var(--border-color)] text-red-400 hover-glow-danger uppercase tracking-[0.12em] text-xs font-semibold px-4 py-2">Delete</AlertDialogAction>
+                <AlertDialogContent className="bg-[var(--bg-sidebar)] border border-[var(--border-color)] text-[var(--text-primary)] p-0 gap-0 max-w-[360px]">
+                    {/* Header */}
+                    <div className="px-4 py-3 border-b border-[var(--border-color)] bg-[#0f0f0f]">
+                        <div className="flex items-center gap-2">
+                            <div className="w-7 h-7 flex items-center justify-center border border-red-400/30 bg-red-400/10">
+                                <Trash2 size={14} className="text-red-400" />
+                            </div>
+                            <span className="text-[11px] uppercase tracking-[0.14em] font-semibold text-[var(--text-primary)]">Delete Chat</span>
+                        </div>
+                    </div>
+                    
+                    {/* Content */}
+                    <div className="px-4 py-4">
+                        <AlertDialogHeader className="gap-3">
+                            <AlertDialogTitle className="text-base font-semibold text-[var(--text-primary)]">Are you sure?</AlertDialogTitle>
+                            <AlertDialogDescription className="text-[var(--text-secondary)] text-sm leading-relaxed">
+                                This will permanently delete this chat and all its messages. This action cannot be undone.
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        
+                        {/* Warning Box */}
+                        <div className="mt-4 p-3 border border-red-400/20 bg-red-400/5 flex items-start gap-2">
+                            <AlertTriangle size={14} className="text-red-400 flex-shrink-0 mt-0.5" />
+                            <p className="text-[11px] text-red-400/80 leading-relaxed">
+                                All messages in this conversation will be lost forever.
+                            </p>
+                        </div>
+                    </div>
+                    
+                    {/* Footer */}
+                    <AlertDialogFooter className="px-4 py-3 border-t border-[var(--border-color)] bg-[#0f0f0f] flex-row gap-2">
+                        <AlertDialogCancel className="flex-1 bg-[#1a1a1a] border-[var(--border-color)] text-[var(--text-primary)] hover:border-[var(--text-accent)]/50 hover:text-[var(--text-accent)] uppercase tracking-[0.12em] text-xs font-semibold px-4 py-2.5 transition-all duration-150">
+                            Cancel
+                        </AlertDialogCancel>
+                        <AlertDialogAction onClick={handleDelete} className="flex-1 bg-[#1a1a1a] border-red-400/50 text-red-400 hover:bg-red-400 hover:text-black hover:border-red-400 uppercase tracking-[0.12em] text-xs font-semibold px-4 py-2.5 transition-all duration-150">
+                            Delete
+                        </AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
 
             {/* Delete All Chats Confirmation Dialog */}
             <AlertDialog open={showDeleteAllDialog} onOpenChange={(open) => !open && !isDeletingAll && setShowDeleteAllDialog(false)}>
-                <AlertDialogContent className="bg-[var(--bg-sidebar)] border border-[var(--border-color)] text-[var(--text-primary)]">
-                    <AlertDialogHeader>
-                        <AlertDialogTitle>Delete all chats?</AlertDialogTitle>
-                        <AlertDialogDescription className="text-[var(--text-secondary)]">
-                            This will permanently delete all {chats.length} chat{chats.length !== 1 ? 's' : ''} and their history. This action cannot be undone.
-                        </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                        <AlertDialogCancel disabled={isDeletingAll} className="bg-transparent border-[var(--border-color)] text-[var(--text-primary)] hover-glow uppercase tracking-[0.12em] text-xs font-semibold px-4 py-2 disabled:opacity-50">Cancel</AlertDialogCancel>
-                        <AlertDialogAction onClick={handleDeleteAll} disabled={isDeletingAll} className="bg-transparent border-[var(--border-color)] text-red-400 hover-glow-danger uppercase tracking-[0.12em] text-xs font-semibold px-4 py-2 disabled:opacity-50">
+                <AlertDialogContent className="bg-[var(--bg-sidebar)] border border-[var(--border-color)] text-[var(--text-primary)] p-0 gap-0 max-w-[360px]">
+                    {/* Header */}
+                    <div className="px-4 py-3 border-b border-[var(--border-color)] bg-[#0f0f0f]">
+                        <div className="flex items-center gap-2">
+                            <div className="w-7 h-7 flex items-center justify-center border border-red-400/30 bg-red-400/10">
+                                <Trash2 size={14} className="text-red-400" />
+                            </div>
+                            <span className="text-[11px] uppercase tracking-[0.14em] font-semibold text-[var(--text-primary)]">Delete All Chats</span>
+                        </div>
+                    </div>
+                    
+                    {/* Content */}
+                    <div className="px-4 py-4">
+                        <AlertDialogHeader className="gap-3">
+                            <AlertDialogTitle className="text-base font-semibold text-[var(--text-primary)]">Delete everything?</AlertDialogTitle>
+                            <AlertDialogDescription className="text-[var(--text-secondary)] text-sm leading-relaxed">
+                                This will permanently delete all <span className="text-[var(--text-accent)] font-semibold">{chats.length}</span> chat{chats.length !== 1 ? 's' : ''} and their entire history.
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        
+                        {/* Warning Box */}
+                        <div className="mt-4 p-3 border border-red-400/20 bg-red-400/5 flex items-start gap-2">
+                            <AlertTriangle size={14} className="text-red-400 flex-shrink-0 mt-0.5" />
+                            <p className="text-[11px] text-red-400/80 leading-relaxed">
+                                This action is irreversible. All conversations will be permanently erased.
+                            </p>
+                        </div>
+                    </div>
+                    
+                    {/* Footer */}
+                    <AlertDialogFooter className="px-4 py-3 border-t border-[var(--border-color)] bg-[#0f0f0f] flex-row gap-2">
+                        <AlertDialogCancel disabled={isDeletingAll} className="flex-1 bg-[#1a1a1a] border-[var(--border-color)] text-[var(--text-primary)] hover:border-[var(--text-accent)]/50 hover:text-[var(--text-accent)] uppercase tracking-[0.12em] text-xs font-semibold px-4 py-2.5 transition-all duration-150 disabled:opacity-50">
+                            Cancel
+                        </AlertDialogCancel>
+                        <AlertDialogAction onClick={handleDeleteAll} disabled={isDeletingAll} className="flex-1 bg-[#1a1a1a] border-red-400/50 text-red-400 hover:bg-red-400 hover:text-black hover:border-red-400 uppercase tracking-[0.12em] text-xs font-semibold px-4 py-2.5 transition-all duration-150 disabled:opacity-50">
                             {isDeletingAll ? 'Deleting...' : 'Delete All'}
                         </AlertDialogAction>
                     </AlertDialogFooter>

@@ -633,6 +633,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
           onRemoveAttachment={removeAttachment}
           reasoningEffort={reasoningEffort}
           onReasoningEffortChange={setReasoningEffort}
+          chatId={currentChatId}
         />
       </main>
     </div>

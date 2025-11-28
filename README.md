@@ -615,6 +615,177 @@ const EFFORT_OPTIONS = [
 </div>
 ```
 
+### Dialog / Modal Pattern
+
+Dialogs follow the same header/content/footer structure as dropdowns:
+
+```
+┌─────────────────────────────────┐
+│ [Icon] DIALOG TITLE             │  ← Dark header with icon box
+├─────────────────────────────────┤
+│                                 │
+│ Main Title                      │
+│ Description text...             │
+│                                 │
+│ ┌─ Warning Box ───────────────┐ │  ← Optional warning
+│ │ ⚠ Warning message           │ │
+│ └─────────────────────────────┘ │
+│                                 │
+├─────────────────────────────────┤
+│ [Cancel]           [Action]     │  ← Footer with buttons
+└─────────────────────────────────┘
+```
+
+#### Dialog Structure
+```tsx
+<AlertDialogContent className="bg-[var(--bg-sidebar)] border border-[var(--border-color)] p-0 gap-0 max-w-[360px]">
+  {/* Header */}
+  <div className="px-4 py-3 border-b border-[var(--border-color)] bg-[#0f0f0f]">
+    <div className="flex items-center gap-2">
+      <div className="w-7 h-7 flex items-center justify-center border border-red-400/30 bg-red-400/10">
+        <Trash2 size={14} className="text-red-400" />
+      </div>
+      <span className="text-[11px] uppercase tracking-[0.14em] font-semibold text-[var(--text-primary)]">
+        Dialog Title
+      </span>
+    </div>
+  </div>
+  
+  {/* Content */}
+  <div className="px-4 py-4">
+    <AlertDialogHeader className="gap-3">
+      <AlertDialogTitle>Main Question</AlertDialogTitle>
+      <AlertDialogDescription>Description text...</AlertDialogDescription>
+    </AlertDialogHeader>
+    
+    {/* Warning Box (for destructive actions) */}
+    <div className="mt-4 p-3 border border-red-400/20 bg-red-400/5 flex items-start gap-2">
+      <AlertTriangle size={14} className="text-red-400 flex-shrink-0 mt-0.5" />
+      <p className="text-[11px] text-red-400/80 leading-relaxed">
+        Warning message about consequences.
+      </p>
+    </div>
+  </div>
+  
+  {/* Footer */}
+  <AlertDialogFooter className="px-4 py-3 border-t border-[var(--border-color)] bg-[#0f0f0f] flex-row gap-2">
+    <AlertDialogCancel className="flex-1 bg-[#1a1a1a] border-[var(--border-color)] ...">
+      Cancel
+    </AlertDialogCancel>
+    <AlertDialogAction className="flex-1 bg-[#1a1a1a] border-red-400/50 text-red-400 hover:bg-red-400 hover:text-black ...">
+      Delete
+    </AlertDialogAction>
+  </AlertDialogFooter>
+</AlertDialogContent>
+```
+
+#### Dialog Button States
+```tsx
+// Cancel button - accent hover
+"bg-[#1a1a1a] border-[var(--border-color)] text-[var(--text-primary)] hover:border-[var(--text-accent)]/50 hover:text-[var(--text-accent)]"
+
+// Destructive action button - red theme
+"bg-[#1a1a1a] border-red-400/50 text-red-400 hover:bg-red-400 hover:text-black hover:border-red-400"
+
+// Primary action button - accent theme
+"bg-[#1a1a1a] border-[var(--text-accent)]/50 text-[var(--text-accent)] hover:bg-[var(--text-accent)] hover:text-black"
+```
+
+### Attachment Preview Pattern
+
+File attachments follow the same design language with icon boxes and badges:
+
+```tsx
+{/* Attachments Container */}
+<div className="border border-[var(--border-color)] bg-[#1a1a1a] p-3">
+  {/* Header */}
+  <div className="flex items-center gap-2 mb-3">
+    <Paperclip size={12} className="text-[var(--text-accent)]" />
+    <span className="text-[10px] uppercase tracking-[0.14em] font-semibold text-[var(--text-primary)]">
+      Attachments
+    </span>
+    <span className="text-[9px] text-[var(--text-accent)] opacity-70">({count})</span>
+  </div>
+  
+  {/* Attachment Cards */}
+  <div className="flex gap-2 overflow-x-auto">
+    {attachments.map(attachment => <AttachmentCard ... />)}
+  </div>
+  
+  {/* Pending Status (optional) */}
+  {hasPending && (
+    <div className="mt-3 pt-3 border-t border-[var(--border-color)] flex items-center gap-2">
+      <Spinner size="xs" variant="accent" />
+      <span className="text-[10px] uppercase tracking-wider text-[var(--text-accent)]">
+        Preparing files...
+      </span>
+    </div>
+  )}
+</div>
+```
+
+#### Attachment Card Structure
+```tsx
+// Image attachment
+<div className="w-20 h-20 relative">
+  <img src={preview} className="w-full h-full object-cover" />
+  {/* Type badge overlay */}
+  <div className="absolute bottom-1 left-1 px-1.5 py-0.5 bg-black/80 border border-[var(--border-color)]">
+    <span className="text-[8px] uppercase tracking-wider text-[var(--text-accent)] font-semibold">
+      PNG
+    </span>
+  </div>
+</div>
+
+// File attachment
+<div className="flex items-center gap-2.5 p-2.5">
+  {/* Icon Box */}
+  <div className="w-10 h-10 bg-[#0f0f0f] border border-[var(--border-color)] flex items-center justify-center group-hover:border-[var(--text-accent)]/50">
+    <FileIcon size={16} className="text-[var(--text-secondary)] group-hover:text-[var(--text-accent)]" />
+  </div>
+  
+  {/* File Info */}
+  <div className="flex flex-col">
+    <span className="text-[11px] font-medium truncate">{name}</span>
+    {/* Type Badge */}
+    <span className="text-[8px] uppercase px-1.5 py-0.5 bg-[var(--text-accent)]/10 border border-[var(--text-accent)]/30 text-[var(--text-accent)]">
+      PDF
+    </span>
+  </div>
+</div>
+```
+
+### Input Area Pattern
+
+The prompt input area follows consistent styling:
+
+```tsx
+{/* Input container */}
+<div className="border border-[var(--border-color)] bg-[#1a1a1a] p-2.5 hover:border-[var(--text-accent)]/30 focus-within:border-[var(--text-accent)]/50 transition-all duration-150">
+  <Textarea ... />
+</div>
+
+{/* Icon buttons (attachment, settings) */}
+<button className="w-10 h-10 border border-[var(--border-color)] bg-[#1a1a1a] text-[var(--text-secondary)] hover:border-[var(--text-accent)]/50 hover:text-[var(--text-accent)] flex items-center justify-center transition-all duration-150">
+  <Icon size={16} />
+</button>
+
+{/* Send button - primary action */}
+<button className={cn(
+  "w-10 h-10 border transition-all duration-150",
+  canSend
+    ? "bg-[var(--text-accent)] text-black border-[var(--text-accent)] hover:bg-[#1a1a1a] hover:text-[var(--text-accent)]"
+    : "bg-[#1a1a1a] text-[var(--text-secondary)] border-[var(--border-color)] opacity-50"
+)}>
+  <ArrowUp size={16} />
+</button>
+
+{/* Stop button - accent outline */}
+<button className="w-10 h-10 border-2 border-[var(--text-accent)] bg-[#1a1a1a] text-[var(--text-accent)] hover:bg-[var(--text-accent)] hover:text-black">
+  <Square size={12} fill="currentColor" />
+</button>
+```
+
 ### Summary: Do's and Don'ts
 
 #### Do's

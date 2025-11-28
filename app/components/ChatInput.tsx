@@ -25,6 +25,7 @@ interface ChatInputProps {
   reasoningEffort: ReasoningEffortLevel;
   onReasoningEffortChange: (effort: ReasoningEffortLevel) => void;
   disabled?: boolean;
+  chatId?: string | null;
 }
 
 export function ChatInput({
@@ -41,10 +42,19 @@ export function ChatInput({
   reasoningEffort,
   onReasoningEffortChange,
   disabled,
+  chatId,
 }: ChatInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isEffortMenuOpen, setIsEffortMenuOpen] = useState(false);
+
+  // Auto-focus textarea when chat changes or on mount
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      textareaRef.current?.focus();
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [chatId]);
 
   // Handle mobile keyboard
   const handleFocus = () => {
