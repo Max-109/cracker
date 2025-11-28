@@ -216,10 +216,7 @@ export function ChatInput({
                               ))}
                             </div>
 
-                            {/* Check */}
-                            {isSelected && (
-                              <Check size={14} className="text-[var(--text-accent)] ml-1" />
-                            )}
+
                           </button>
                         );
                       })}

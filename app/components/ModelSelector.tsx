@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { HexColorPicker } from "react-colorful";
 import { cn } from '@/lib/utils';
-import { Check, ChevronDown, Cpu, Sparkles, Zap, Rocket, Settings2 } from 'lucide-react';
+import { ChevronDown, Cpu, Sparkles, Zap, Rocket, Settings2 } from 'lucide-react';
 import {
   Dialog,
   DialogHeader,
@@ -203,11 +203,6 @@ export function ModelSelector({
                             />
                           ))}
                         </div>
-
-                        {/* Check */}
-                        {isSelected && (
-                          <Check size={14} className="text-[var(--text-accent)] ml-1" />
-                        )}
                       </button>
                     );
                   })}
