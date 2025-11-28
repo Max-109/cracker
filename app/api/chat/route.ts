@@ -228,14 +228,23 @@ function generateSystemPrompt(responseLength: number, userName: string, userGend
 
   // User personalization
   let userPersonalization = '';
-  if (userName) {
-    const pronoun = userGender === 'male' ? 'him' : userGender === 'female' ? 'her' : 'them';
+  if (userName || (userGender && userGender !== 'not-specified')) {
+    const genderText = userGender === 'male' ? 'male' : userGender === 'female' ? 'female' : null;
+    const pronoun = userGender === 'male' ? 'he/him' : userGender === 'female' ? 'she/her' : 'they/them';
     const possessive = userGender === 'male' ? 'his' : userGender === 'female' ? 'her' : 'their';
+    
     userPersonalization = `
-## User Information
-- User's name: ${userName}
-- Address the user by ${possessive} name when appropriate
-- Tailor responses to be helpful and personalized for ${pronoun}`;
+## User Information`;
+    if (userName) {
+      userPersonalization += `
+- User's name: ${userName}`;
+    }
+    if (genderText) {
+      userPersonalization += `
+- User's gender: ${genderText} (${pronoun})`;
+    }
+    userPersonalization += `
+- Address the user by ${possessive} name when appropriate and personalize responses accordingly`;
   }
 
   return `You are a highly knowledgeable and helpful AI assistant. Your goal is to provide accurate, clear, and insightful responses.
