@@ -69,24 +69,51 @@ export function SettingsDialog({
   const [localUserGender, setLocalUserGender] = useState(userGender);
   const [localAccentColor, setLocalAccentColor] = useState(accentColor);
 
-  // Reset local state when dialog opens (use key pattern on Dialog would be cleaner but this works)
+  // Reset local state when dialog opens - read directly from localStorage to avoid stale props
   const prevOpenRef = useRef(open);
   useEffect(() => {
     if (open && !prevOpenRef.current) {
-      // Dialog just opened, sync state from props
-      setLocalResponseLength(responseLength);
-      setLocalUserName(userName);
-      setLocalUserGender(userGender);
-      setLocalAccentColor(accentColor);
+      // Dialog just opened - read fresh values from localStorage
+      const storedResponseLength = window.localStorage.getItem('CHATGPT_RESPONSE_LENGTH');
+      const storedUserName = window.localStorage.getItem('CHATGPT_USER_NAME');
+      const storedUserGender = window.localStorage.getItem('CHATGPT_USER_GENDER');
+      const storedAccentColor = window.localStorage.getItem('CHATGPT_ACCENT_COLOR');
+      
+      const parsedStored = storedResponseLength ? parseInt(storedResponseLength) : NaN;
+      const freshResponseLength = isNaN(parsedStored) ? responseLength : parsedStored;
+      const freshUserName = storedUserName ?? userName;
+      const freshUserGender = storedUserGender ?? userGender;
+      const freshAccentColor = storedAccentColor ?? accentColor;
+      
+      console.log('[SettingsDialog] Dialog opened - localStorage responseLength:', storedResponseLength, '-> using:', freshResponseLength);
+      
+      setLocalResponseLength(freshResponseLength);
+      setLocalUserName(freshUserName);
+      setLocalUserGender(freshUserGender);
+      setLocalAccentColor(freshAccentColor);
     }
     prevOpenRef.current = open;
   }, [open, responseLength, userName, userGender, accentColor]);
 
   const handleSave = () => {
+    console.log('[Settings] ===== SAVING =====');
+    console.log('[Settings] responseLength:', localResponseLength);
+    console.log('[Settings] userName:', localUserName);
+    console.log('[Settings] userGender:', localUserGender);
+    console.log('[Settings] accentColor:', localAccentColor);
+    
     onResponseLengthChange(localResponseLength);
     onUserNameChange(localUserName);
     onUserGenderChange(localUserGender);
     onAccentColorChange(localAccentColor);
+    
+    // Verify localStorage after a short delay
+    setTimeout(() => {
+      console.log('[Settings] ===== VERIFY SAVE =====');
+      console.log('[Settings] localStorage CHATGPT_RESPONSE_LENGTH:', window.localStorage.getItem('CHATGPT_RESPONSE_LENGTH'));
+      console.log('[Settings] localStorage CHATGPT_USER_NAME:', window.localStorage.getItem('CHATGPT_USER_NAME'));
+    }, 200);
+    
     onOpenChange(false);
   };
 

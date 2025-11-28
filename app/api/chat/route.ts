@@ -170,48 +170,60 @@ const openrouter = createOpenRouter({
 // Generate system prompt with user settings
 function generateSystemPrompt(responseLength: number, userName: string, userGender: string): string {
   // Determine response style based on length setting (0-100 scale)
+  // CRITICAL: These instructions must be very explicit and forceful
   let responseLengthInstructions = '';
   if (responseLength <= 15) {
     responseLengthInstructions = `
-## Response Style: MINIMAL
-- Be extremely concise - just the answer, nothing more
-- No elaboration, no context, no examples
-- Skip greetings and pleasantries
-- If asked a question, answer it directly and stop
-- Treat every word as precious`;
+## Response Style: MINIMAL (${responseLength}/100)
+**CRITICAL INSTRUCTION**: Your responses must be EXTREMELY SHORT.
+- Maximum 1-2 sentences per response
+- Answer ONLY what was asked, nothing more
+- NO greetings, NO pleasantries, NO "let me explain"
+- NO examples unless explicitly requested
+- NO background context or elaboration
+- If someone asks "what is X?" - define X in one sentence and STOP
+- Bullet points only if listing multiple items
+- Every extra word is a failure to follow instructions`;
   } else if (responseLength <= 30) {
     responseLengthInstructions = `
-## Response Style: BRIEF
-- Be concise and to the point
-- Include only essential information
-- Skip background context unless critical
-- One key point per topic, no tangents
-- Direct and efficient communication`;
+## Response Style: BRIEF (${responseLength}/100)
+**CRITICAL INSTRUCTION**: Keep responses SHORT and DIRECT.
+- Maximum 2-4 sentences for most responses
+- Get to the point immediately
+- Include only the most essential information
+- Skip introductions and conclusions
+- ONE example maximum, only if truly necessary
+- No tangents or "nice to know" information
+- Resist the urge to elaborate`;
   } else if (responseLength <= 60) {
     responseLengthInstructions = `
-## Response Style: BALANCED
-- Provide clear, well-structured responses
-- Include relevant context and explanation
-- Add an example when it aids understanding
-- Cover the main points without over-explaining
-- Professional and informative tone`;
+## Response Style: BALANCED (${responseLength}/100)
+**INSTRUCTION**: Provide clear, moderately detailed responses.
+- A few short paragraphs maximum
+- Include key context but don't over-explain
+- One example if it genuinely helps understanding
+- Stay focused on what was asked
+- Don't volunteer extra information unless relevant
+- Avoid lengthy introductions or summaries`;
   } else if (responseLength <= 85) {
     responseLengthInstructions = `
-## Response Style: THOROUGH
-- Explain concepts fully with proper context
-- Include multiple examples where helpful
-- Address potential follow-up questions proactively
-- Cover edge cases and important considerations
-- Comprehensive but still focused`;
+## Response Style: THOROUGH (${responseLength}/100)
+**INSTRUCTION**: Provide detailed, comprehensive responses.
+- Full explanations with proper context
+- Multiple examples when helpful
+- Cover important edge cases
+- Address likely follow-up questions
+- Well-structured with clear sections if needed`;
   } else {
     responseLengthInstructions = `
-## Response Style: COMPREHENSIVE
-- Provide exhaustive, in-depth responses
-- Cover all angles, nuances, and edge cases
-- Include detailed examples and explanations
-- Address caveats, alternatives, and considerations
-- Leave no stone unturned - be as thorough as possible
-- Assume the user wants the complete picture`;
+## Response Style: COMPREHENSIVE (${responseLength}/100)
+**INSTRUCTION**: Provide exhaustive, in-depth responses.
+- Cover all angles and nuances thoroughly
+- Multiple detailed examples
+- All relevant edge cases and caveats
+- Anticipate and address related questions
+- Structured with headers/sections for clarity
+- Leave nothing important unsaid`;
   }
 
   // User personalization
@@ -425,7 +437,7 @@ export async function POST(req: Request) {
     const uName = userName || '';
     const uGender = userGender || 'not-specified';
     
-    debugLog(`Model: ${modelId}, Effort: ${effort}, ChatId: ${chatId}, ResponseLength: ${respLength}`);
+    debugLog(`Model: ${modelId}, Effort: ${effort}, ChatId: ${chatId}, ResponseLength: ${respLength}, UserName: ${uName || '(none)'}`);
     debugLog(`Messages count: ${messages?.length || 0}`);
 
     if (!Array.isArray(messages)) {
@@ -499,6 +511,11 @@ export async function POST(req: Request) {
 
     debugLog('streamText() configuration ready, initiating...');
     const systemPrompt = generateSystemPrompt(respLength, uName, uGender);
+    
+    // Log the FULL system prompt for debugging
+    console.log('\n==================== FULL SYSTEM PROMPT ====================');
+    console.log(systemPrompt);
+    console.log('=============================================================\n');
     const result = streamText({
       model: selectedModel,
       system: systemPrompt,

@@ -36,9 +36,27 @@ export type ReasoningEffortLevel = 'low' | 'medium' | 'high';
 // Response length settings hook
 export function useResponseLength() {
   const [responseLength, setResponseLength, isHydrated] = usePersistedSetting('CHATGPT_RESPONSE_LENGTH', '50');
+  
+  const parsed = parseInt(responseLength);
+  const parsedValue = isNaN(parsed) ? 50 : parsed;
+  
+  // Debug logging
+  if (typeof window !== 'undefined') {
+    const storedValue = window.localStorage.getItem('CHATGPT_RESPONSE_LENGTH');
+    console.log('[useResponseLength] State:', responseLength, '| localStorage:', storedValue, '| parsed:', parsedValue, '| hydrated:', isHydrated);
+  }
+  
   return {
-    responseLength: parseInt(responseLength) || 50,
-    setResponseLength: (value: number) => setResponseLength(String(value)),
+    responseLength: parsedValue,
+    setResponseLength: (value: number) => {
+      console.log('[useResponseLength] Setting to:', value);
+      setResponseLength(String(value));
+      // Verify it was saved
+      setTimeout(() => {
+        const saved = window.localStorage.getItem('CHATGPT_RESPONSE_LENGTH');
+        console.log('[useResponseLength] After save, localStorage has:', saved);
+      }, 100);
+    },
     isHydrated,
   };
 }
