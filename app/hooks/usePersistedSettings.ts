@@ -33,6 +33,30 @@ export function usePersistedSetting(key: string, fallback: string) {
 
 export type ReasoningEffortLevel = 'low' | 'medium' | 'high';
 
+// Response length settings hook
+export function useResponseLength() {
+  const [responseLength, setResponseLength, isHydrated] = usePersistedSetting('CHATGPT_RESPONSE_LENGTH', '50');
+  return {
+    responseLength: parseInt(responseLength) || 50,
+    setResponseLength: (value: number) => setResponseLength(String(value)),
+    isHydrated,
+  };
+}
+
+// User profile settings
+export function useUserProfile() {
+  const [userName, setUserName, isNameHydrated] = usePersistedSetting('CHATGPT_USER_NAME', '');
+  const [userGender, setUserGender, isGenderHydrated] = usePersistedSetting('CHATGPT_USER_GENDER', 'not-specified');
+  
+  return {
+    userName,
+    setUserName,
+    userGender,
+    setUserGender,
+    isHydrated: isNameHydrated && isGenderHydrated,
+  };
+}
+
 export function hexToHSL(hex: string): { h: number; s: number; l: number } | null {
   let r = 0, g = 0, b = 0;
   if (hex.length === 4) {

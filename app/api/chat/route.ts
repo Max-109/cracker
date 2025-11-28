@@ -167,7 +167,68 @@ const openrouter = createOpenRouter({
   fetch: createFilteredFetch(),
 });
 
-const SYSTEM_PROMPT = `You are a highly knowledgeable and helpful AI assistant. Your goal is to provide accurate, clear, and insightful responses.
+// Generate system prompt with user settings
+function generateSystemPrompt(responseLength: number, userName: string, userGender: string): string {
+  // Determine response style based on length setting (0-100 scale)
+  let responseLengthInstructions = '';
+  if (responseLength <= 15) {
+    responseLengthInstructions = `
+## Response Style: MINIMAL
+- Be extremely concise - just the answer, nothing more
+- No elaboration, no context, no examples
+- Skip greetings and pleasantries
+- If asked a question, answer it directly and stop
+- Treat every word as precious`;
+  } else if (responseLength <= 30) {
+    responseLengthInstructions = `
+## Response Style: BRIEF
+- Be concise and to the point
+- Include only essential information
+- Skip background context unless critical
+- One key point per topic, no tangents
+- Direct and efficient communication`;
+  } else if (responseLength <= 60) {
+    responseLengthInstructions = `
+## Response Style: BALANCED
+- Provide clear, well-structured responses
+- Include relevant context and explanation
+- Add an example when it aids understanding
+- Cover the main points without over-explaining
+- Professional and informative tone`;
+  } else if (responseLength <= 85) {
+    responseLengthInstructions = `
+## Response Style: THOROUGH
+- Explain concepts fully with proper context
+- Include multiple examples where helpful
+- Address potential follow-up questions proactively
+- Cover edge cases and important considerations
+- Comprehensive but still focused`;
+  } else {
+    responseLengthInstructions = `
+## Response Style: COMPREHENSIVE
+- Provide exhaustive, in-depth responses
+- Cover all angles, nuances, and edge cases
+- Include detailed examples and explanations
+- Address caveats, alternatives, and considerations
+- Leave no stone unturned - be as thorough as possible
+- Assume the user wants the complete picture`;
+  }
+
+  // User personalization
+  let userPersonalization = '';
+  if (userName) {
+    const pronoun = userGender === 'male' ? 'him' : userGender === 'female' ? 'her' : 'them';
+    const possessive = userGender === 'male' ? 'his' : userGender === 'female' ? 'her' : 'their';
+    userPersonalization = `
+## User Information
+- User's name: ${userName}
+- Address the user by ${possessive} name when appropriate
+- Tailor responses to be helpful and personalized for ${pronoun}`;
+  }
+
+  return `You are a highly knowledgeable and helpful AI assistant. Your goal is to provide accurate, clear, and insightful responses.
+${responseLengthInstructions}
+${userPersonalization}
 
 ## Formatting Guidelines
 
@@ -266,6 +327,7 @@ When providing code:
 - Acknowledge when information might be outdated
 - Distinguish between facts and opinions/recommendations
 - If unsure, say so clearly rather than guessing`;
+}
 
 // Store the last completion stats for retrieval by chatId
 const completionStatsStore = new Map<string, { modelId: string; tokensPerSecond: number; timestamp: number }>();
@@ -356,11 +418,14 @@ export async function POST(req: Request) {
   
   try {
     debugLog('Parsing request body...');
-    const { messages, model, reasoningEffort, chatId } = await req.json();
+    const { messages, model, reasoningEffort, chatId, responseLength, userName, userGender } = await req.json();
     const modelId = model || "x-ai/grok-4.1-fast";
     const effort = reasoningEffort || "medium";
+    const respLength = typeof responseLength === 'number' ? responseLength : 50;
+    const uName = userName || '';
+    const uGender = userGender || 'not-specified';
     
-    debugLog(`Model: ${modelId}, Effort: ${effort}, ChatId: ${chatId}`);
+    debugLog(`Model: ${modelId}, Effort: ${effort}, ChatId: ${chatId}, ResponseLength: ${respLength}`);
     debugLog(`Messages count: ${messages?.length || 0}`);
 
     if (!Array.isArray(messages)) {
@@ -433,9 +498,10 @@ export async function POST(req: Request) {
     }
 
     debugLog('streamText() configuration ready, initiating...');
+    const systemPrompt = generateSystemPrompt(respLength, uName, uGender);
     const result = streamText({
       model: selectedModel,
-      system: SYSTEM_PROMPT,
+      system: systemPrompt,
       messages: modelMessages,
       tools,
       providerOptions: isGoogle

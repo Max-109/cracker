@@ -3,14 +3,15 @@
 import React, { useMemo, useState, useRef, useEffect, useCallback } from 'react';
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
-import { PanelLeft } from 'lucide-react';
+import { PanelLeft, Settings2 } from 'lucide-react';
 import type { ChatMessage, MessagePart } from '@/lib/chat-types';
 import { useChatContext } from './ChatContext';
 import { useAttachments } from '@/app/hooks/useAttachments';
-import { usePersistedSetting, useAccentColor, ReasoningEffortLevel } from '@/app/hooks/usePersistedSettings';
+import { usePersistedSetting, useAccentColor, useResponseLength, useUserProfile, ReasoningEffortLevel } from '@/app/hooks/usePersistedSettings';
 import { ModelSelector } from './ModelSelector';
 import { ChatInput } from './ChatInput';
 import { MessageList } from './MessageList';
+import { SettingsDialog } from './SettingsDialog';
 
 interface ChatInterfaceProps {
   initialChatId?: string;
@@ -26,8 +27,13 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
   const [currentModelName, setCurrentModelName, isModelNameHydrated] = usePersistedSetting('CHATGPT_MODEL_NAME', "Smart");
   const [rawReasoningEffort, setRawReasoningEffort] = usePersistedSetting('CHATGPT_REASONING_EFFORT', "medium");
   const { accentColor, setAccentColor, isHydrated: isColorHydrated } = useAccentColor();
+  const { responseLength, setResponseLength, isHydrated: isResponseLengthHydrated } = useResponseLength();
+  const { userName, setUserName, userGender, setUserGender, isHydrated: isProfileHydrated } = useUserProfile();
   
-  const isSettingsHydrated = isModelIdHydrated && isModelNameHydrated && isColorHydrated;
+  const isSettingsHydrated = isModelIdHydrated && isModelNameHydrated && isColorHydrated && isResponseLengthHydrated && isProfileHydrated;
+  
+  // Settings dialog state
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const reasoningEffort = (rawReasoningEffort as ReasoningEffortLevel) ?? 'medium';
   const setReasoningEffort = useCallback((value: ReasoningEffortLevel) => {
     setRawReasoningEffort(value);
@@ -50,8 +56,15 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
   const currentModelIdRef = useRef(currentModelId);
   const reasoningEffortRef = useRef(reasoningEffort);
 
+  const responseLengthRef = useRef(responseLength);
+  const userNameRef = useRef(userName);
+  const userGenderRef = useRef(userGender);
+  
   useEffect(() => { currentModelIdRef.current = currentModelId; }, [currentModelId]);
   useEffect(() => { reasoningEffortRef.current = reasoningEffort; }, [reasoningEffort]);
+  useEffect(() => { responseLengthRef.current = responseLength; }, [responseLength]);
+  useEffect(() => { userNameRef.current = userName; }, [userName]);
+  useEffect(() => { userGenderRef.current = userGender; }, [userGender]);
 
   // Update document title based on current chat
   useEffect(() => {
@@ -100,7 +113,10 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
     body: () => ({
       model: currentModelIdRef.current,
       reasoningEffort: reasoningEffortRef.current,
-      chatId: chatIdRef.current
+      chatId: chatIdRef.current,
+      responseLength: responseLengthRef.current,
+      userName: userNameRef.current,
+      userGender: userGenderRef.current,
     }),
   }), []);
 
@@ -590,7 +606,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
       <main className="flex-1 flex flex-col h-full min-h-0">
         {/* Top Bar - outside overflow to allow dropdowns */}
         <div className="flex-shrink-0 w-full h-14 flex items-center justify-between px-4 bg-[var(--bg-sidebar)] border-b border-[var(--border-color)] relative z-50 dropdown-container">
-          {/* Left: Mobile menu button */}
+          {/* Left: Mobile menu button + Settings */}
           <div className="flex items-center gap-2 md:hidden">
             <button
               onClick={toggleSidebar}
@@ -598,6 +614,13 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
               aria-label="Toggle sidebar"
             >
               <PanelLeft size={18} />
+            </button>
+            <button
+              onClick={() => setIsSettingsOpen(true)}
+              className="w-10 h-10 border border-[var(--border-color)] bg-[#1a1a1a] text-[var(--text-secondary)] hover:border-[var(--text-accent)]/50 hover:text-[var(--text-accent)] flex items-center justify-center transition-all duration-150 group"
+              aria-label="Settings"
+            >
+              <Settings2 size={18} className="group-hover:rotate-45 transition-transform duration-300" />
             </button>
           </div>
 
@@ -612,7 +635,32 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
               isHydrated={isSettingsHydrated}
             />
           </div>
+
+          {/* Right: Settings Button */}
+          <div className="hidden md:flex items-center">
+            <button
+              onClick={() => setIsSettingsOpen(true)}
+              className="w-10 h-10 border border-[var(--border-color)] bg-[#1a1a1a] text-[var(--text-secondary)] hover:border-[var(--text-accent)]/50 hover:text-[var(--text-accent)] flex items-center justify-center transition-all duration-150 group"
+              aria-label="Settings"
+            >
+              <Settings2 size={18} className="group-hover:rotate-45 transition-transform duration-300" />
+            </button>
+          </div>
         </div>
+
+        {/* Settings Dialog */}
+        <SettingsDialog
+          open={isSettingsOpen}
+          onOpenChange={setIsSettingsOpen}
+          responseLength={responseLength}
+          onResponseLengthChange={setResponseLength}
+          userName={userName}
+          onUserNameChange={setUserName}
+          userGender={userGender}
+          onUserGenderChange={setUserGender}
+          accentColor={accentColor}
+          onAccentColorChange={setAccentColor}
+        />
 
         {/* Messages - this container can have overflow hidden */}
         <MessageList
