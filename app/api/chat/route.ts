@@ -1,5 +1,6 @@
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
-import { createGoogleGenerativeAI, GoogleGenerativeAIProviderMetadata } from "@ai-sdk/google";
+import { createVertex } from "@ai-sdk/google-vertex";
+import { GoogleGenerativeAIProviderMetadata } from "@ai-sdk/google";
 import { streamText, convertToModelMessages, UIMessage } from "ai";
 import { db } from "@/db";
 import { messages as messagesTable, activeGenerations } from "@/db/schema";
@@ -8,13 +9,43 @@ import { randomUUID } from "crypto";
 
 export const maxDuration = 300;
 
-// Initialize Google Generative AI provider
-const google = createGoogleGenerativeAI({
-  apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY!,
+// Debug fetch wrapper for Vertex AI API calls
+function createDebugVertexFetch(): typeof fetch {
+  return async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = typeof input === 'string' ? input : input instanceof URL ? input.href : (input as Request).url;
+    const startTime = Date.now();
+    console.log(`[VERTEX_FETCH] === STARTING REQUEST ===`);
+    console.log(`[VERTEX_FETCH] URL: ${url}`);
+    console.log(`[VERTEX_FETCH] Method: ${init?.method || 'GET'}`);
+    console.log(`[VERTEX_FETCH] Timestamp: ${new Date().toISOString()}`);
+    
+    try {
+      console.log(`[VERTEX_FETCH] Calling fetch()...`);
+      const response = await fetch(input, init);
+      const elapsed = ((Date.now() - startTime) / 1000).toFixed(3);
+      console.log(`[VERTEX_FETCH] === RESPONSE RECEIVED === (+${elapsed}s)`);
+      console.log(`[VERTEX_FETCH] Status: ${response.status} ${response.statusText}`);
+      console.log(`[VERTEX_FETCH] Content-Type: ${response.headers.get('content-type')}`);
+      return response;
+    } catch (error) {
+      const elapsed = ((Date.now() - startTime) / 1000).toFixed(3);
+      console.log(`[VERTEX_FETCH] === FETCH ERROR === (+${elapsed}s)`);
+      console.log(`[VERTEX_FETCH] Error: ${error}`);
+      throw error;
+    }
+  };
+}
+
+// Initialize Vertex AI provider with debug fetch
+// Uses ADC (Application Default Credentials) - run: gcloud auth application-default login
+const vertex = createVertex({
+  project: process.env.GOOGLE_VERTEX_PROJECT,
+  location: process.env.GOOGLE_VERTEX_LOCATION || 'global',
+  fetch: createDebugVertexFetch(),
 });
 
-// Reference to the google provider for tools access
-const googleProvider = google;
+// Reference to the vertex provider for tools access
+const vertexProvider = vertex;
 
 // Custom fetch that filters out problematic file annotations from OpenRouter responses
 function createFilteredFetch(): typeof fetch {
@@ -304,17 +335,31 @@ function getGoogleModelId(modelId: string): string {
 }
 
 export async function POST(req: Request) {
+  const requestReceivedAt = Date.now();
+  const debugLog = (msg: string) => {
+    const elapsed = ((Date.now() - requestReceivedAt) / 1000).toFixed(3);
+    console.log(`[DEBUG +${elapsed}s] ${msg}`);
+  };
+  
+  debugLog('=== REQUEST RECEIVED ===');
+  
   try {
+    debugLog('Parsing request body...');
     const { messages, model, reasoningEffort, chatId } = await req.json();
     const modelId = model || "x-ai/grok-4.1-fast";
     const effort = reasoningEffort || "medium";
+    
+    debugLog(`Model: ${modelId}, Effort: ${effort}, ChatId: ${chatId}`);
+    debugLog(`Messages count: ${messages?.length || 0}`);
 
     if (!Array.isArray(messages)) {
       throw new Error("Messages must be an array");
     }
 
     // Convert UI messages to model messages using the SDK helper
+    debugLog('Converting UI messages to model messages...');
     const modelMessages = convertToModelMessages(messages as UIMessage[]);
+    debugLog(`Converted ${modelMessages.length} model messages`);
 
     // Store the model immediately for this chat
     if (chatId) {
@@ -328,22 +373,30 @@ export async function POST(req: Request) {
 
     // Route to appropriate provider based on model
     const isGoogle = isGoogleModel(modelId);
+    debugLog(`Provider: ${isGoogle ? 'VERTEX_AI' : 'OPENROUTER'}`);
 
     // Select the model based on provider
+    debugLog('Creating model instance...');
     const selectedModel = isGoogle
-      ? google(getGoogleModelId(modelId))
+      ? vertex(getGoogleModelId(modelId))
       : openrouter(modelId);
+    debugLog('Model instance created');
 
-    // Build tools object - add Google Search for Google models
+    // Build tools object - add Google Search for Google/Vertex models
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const tools: Record<string, any> | undefined = isGoogle
       ? {
-          google_search: googleProvider.tools.googleSearch({}),
+          google_search: vertexProvider.tools.googleSearch({}),
         }
       : undefined;
+    
+    if (isGoogle) {
+      debugLog('Google Search tool enabled (Vertex AI)');
+    }
 
     // Track timing for TPS calculation
     const requestStartTime = Date.now();
+    debugLog('=== CALLING streamText() ===');
     let firstChunkTime: number | null = null;
     
     // Track partial content for background resume support
@@ -368,6 +421,7 @@ export async function POST(req: Request) {
       }).catch(e => console.error('[Chat] Failed to create generation record:', e));
     }
 
+    debugLog('streamText() configuration ready, initiating...');
     const result = streamText({
       model: selectedModel,
       system: SYSTEM_PROMPT,
@@ -401,6 +455,9 @@ export async function POST(req: Request) {
         // Track first chunk time (any type - including reasoning)
         if (!firstChunkTime) {
           firstChunkTime = Date.now();
+          const timeToFirstChunk = ((firstChunkTime - requestStartTime) / 1000).toFixed(3);
+          debugLog(`=== FIRST CHUNK RECEIVED === (${timeToFirstChunk}s after streamText call)`);
+          debugLog(`First chunk type: ${chunk.type}`);
           // Update first chunk time in DB
           if (generationId) {
             db.update(activeGenerations)
@@ -408,6 +465,11 @@ export async function POST(req: Request) {
               .where(eq(activeGenerations.id, generationId))
               .catch(() => {});
           }
+        }
+        
+        // Log every 10th chunk to avoid spam but track progress
+        if (chunkCount % 10 === 0) {
+          debugLog(`Chunk #${chunkCount}, type: ${chunk.type}`);
         }
         
         const chunkAny = chunk as Record<string, unknown>;
@@ -446,6 +508,8 @@ export async function POST(req: Request) {
         }
       },
       onFinish: async ({ response, providerMetadata, usage }) => {
+        debugLog('=== STREAM FINISHED (onFinish) ===');
+        debugLog(`Total chunks received: ${chunkCount}`);
         let tps = 0;
         const endTime = Date.now();
         
@@ -593,12 +657,17 @@ export async function POST(req: Request) {
       },
     });
 
+    debugLog('streamText() returned result object');
+    debugLog('=== RETURNING STREAM RESPONSE TO CLIENT ===');
+
     return result.toUIMessageStreamResponse({
       sendReasoning: true,
       sendSources: true,
     });
   } catch (error: unknown) {
     console.error("API Route Error:", error);
+    console.log(`[DEBUG ERROR] Request failed at ${new Date().toISOString()}`);
+    console.log(`[DEBUG ERROR] Error details:`, error);
     const err = error as Error;
     return new Response(
       JSON.stringify({

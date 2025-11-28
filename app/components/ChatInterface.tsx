@@ -235,11 +235,15 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
 
   // Track streaming start
   useEffect(() => {
+    console.log(`[CLIENT DEBUG] ${new Date().toISOString()} useChat status changed: ${status}`);
     if (status === 'streaming' && !streamingStartTimeRef.current) {
       streamingStartTimeRef.current = Date.now();
+      console.log(`[CLIENT DEBUG] ${new Date().toISOString()} === STREAMING STARTED ===`);
       setStreamingStats({ modelId: currentModelId, tokensPerSecond: 0 });
     } else if (status === 'ready') {
       streamingStartTimeRef.current = null;
+    } else if (status === 'submitted') {
+      console.log(`[CLIENT DEBUG] ${new Date().toISOString()} === REQUEST SUBMITTED (waiting for response) ===`);
     }
   }, [status, currentModelId]);
 
@@ -540,6 +544,9 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
         return;
       }
 
+      console.log(`[CLIENT DEBUG] ${new Date().toISOString()} === CALLING sendMessage() ===`);
+      console.log(`[CLIENT DEBUG] Model: ${currentModelIdRef.current}, ChatId: ${activeChatId}`);
+      
       if (processedAttachments.length > 0) {
         const fileUIParts = processedAttachments.map(att => ({
           type: 'file' as const,
@@ -551,8 +558,9 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
       } else {
         sendMessage({ text: userMessage });
       }
+      console.log(`[CLIENT DEBUG] ${new Date().toISOString()} sendMessage() called, waiting for response...`);
     } catch (err) {
-      console.error("Failed to send message:", err);
+      console.error("[CLIENT DEBUG] Failed to send message:", err);
     }
   }, [input, attachments, hasPendingAttachments, currentChatId, clearAttachments, refreshChats, sendMessage]);
 
