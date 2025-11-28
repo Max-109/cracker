@@ -284,7 +284,6 @@ export function ModelSelector({
                       '#87afaf', // Teal
                       '#af87af', // Mauve
                       '#ff6b6b', // Coral
-                      '#4ecdc4', // Turquoise
                     ].map((color) => (
                       <button
                         key={color}

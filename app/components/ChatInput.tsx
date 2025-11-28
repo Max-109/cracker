@@ -86,21 +86,36 @@ export function ChatInput({
 
         {/* Attachments Preview */}
         {attachments.length > 0 && (
-          <div className="flex gap-3 overflow-x-auto px-1 py-2 mb-2">
-            {attachments.map((attachment) => (
-              <AttachmentCard
-                key={attachment.id}
-                attachment={attachment}
-                onRemove={() => onRemoveAttachment(attachment.id)}
-              />
-            ))}
-          </div>
-        )}
+          <div className="border border-[var(--border-color)] bg-[#1a1a1a] p-3 mb-2">
+            {/* Header */}
+            <div className="flex items-center gap-2 mb-3">
+              <Paperclip size={12} className="text-[var(--text-accent)]" />
+              <span className="text-[10px] uppercase tracking-[0.14em] font-semibold text-[var(--text-primary)]">
+                Attachments
+              </span>
+              <span className="text-[9px] text-[var(--text-accent)] opacity-70">({attachments.length})</span>
+            </div>
+            
+            {/* Attachment Grid */}
+            <div className="flex gap-2 overflow-x-auto">
+              {attachments.map((attachment) => (
+                <AttachmentCard
+                  key={attachment.id}
+                  attachment={attachment}
+                  onRemove={() => onRemoveAttachment(attachment.id)}
+                />
+              ))}
+            </div>
 
-        {hasPendingAttachments && (
-          <div className="px-1 mb-2 text-xs text-[var(--text-accent)] flex items-center gap-2">
-            <Spinner size="xs" variant="accent" />
-            <span>Preparing {attachments.filter(a => a.isUploading).length} file(s)...</span>
+            {/* Pending Status */}
+            {hasPendingAttachments && (
+              <div className="mt-3 pt-3 border-t border-[var(--border-color)] flex items-center gap-2">
+                <Spinner size="xs" variant="accent" />
+                <span className="text-[10px] uppercase tracking-wider text-[var(--text-accent)]">
+                  Preparing {attachments.filter(a => a.isUploading).length} file(s)...
+                </span>
+              </div>
+            )}
           </div>
         )}
 
@@ -273,10 +288,13 @@ interface AttachmentCardProps {
 }
 
 function AttachmentCard({ attachment, onRemove }: AttachmentCardProps) {
+  const isImage = attachment.mediaType.startsWith('image/');
+  const fileExt = attachment.mediaType.split('/')[1]?.toUpperCase() || 'FILE';
+  
   return (
-    <div className="relative group flex-shrink-0 bg-[#1a1a1a] border border-[var(--border-color)] overflow-hidden">
-      {attachment.mediaType.startsWith('image/') ? (
-        <div className="w-24 h-24 relative">
+    <div className="relative group flex-shrink-0 bg-[#141414] border border-[var(--border-color)] overflow-hidden hover:border-[var(--text-accent)]/50 transition-all duration-150">
+      {isImage ? (
+        <div className="w-20 h-20 relative">
           {attachment.previewUrl ? (
             /* eslint-disable-next-line @next/next/no-img-element */
             <img
@@ -285,22 +303,32 @@ function AttachmentCard({ attachment, onRemove }: AttachmentCardProps) {
               className="w-full h-full object-cover"
             />
           ) : (
-            <div className="w-full h-full bg-[#141414] flex items-center justify-center">
-              <FileIcon className="text-[var(--text-secondary)]" size={24} />
+            <div className="w-full h-full bg-[#0f0f0f] flex items-center justify-center">
+              <FileIcon className="text-[var(--text-secondary)]" size={20} />
             </div>
           )}
+          {/* Image type badge */}
+          <div className="absolute bottom-1 left-1 px-1.5 py-0.5 bg-black/80 border border-[var(--border-color)]">
+            <span className="text-[8px] uppercase tracking-wider text-[var(--text-accent)] font-semibold">{fileExt}</span>
+          </div>
         </div>
       ) : (
-        <div className="flex items-center gap-3 px-3 py-2 min-w-[180px]">
-          <div className="w-10 h-10 bg-[#141414] border border-[var(--border-color)] flex items-center justify-center flex-shrink-0">
-            <FileIcon className="text-[var(--text-secondary)]" size={18} />
+        <div className="flex items-center gap-2.5 p-2.5 min-w-[160px]">
+          {/* File Icon Box */}
+          <div className="w-10 h-10 bg-[#0f0f0f] border border-[var(--border-color)] flex items-center justify-center flex-shrink-0 group-hover:border-[var(--text-accent)]/50 group-hover:text-[var(--text-accent)] transition-all duration-150">
+            <FileIcon className="text-[var(--text-secondary)] group-hover:text-[var(--text-accent)]" size={16} />
           </div>
-          <div className="flex flex-col overflow-hidden">
-            <span className="text-sm font-medium text-[var(--text-primary)] truncate max-w-[120px]">
+          
+          {/* File Info */}
+          <div className="flex flex-col overflow-hidden min-w-0 flex-1">
+            <span className="text-[11px] font-medium text-[var(--text-primary)] truncate">
               {attachment.name}
             </span>
-            <span className="text-xs text-[var(--text-secondary)]">
-              {attachment.mediaType.split('/')[1]?.toUpperCase() || 'FILE'}
+            {/* File Type Badge */}
+            <span className="inline-flex mt-1">
+              <span className="text-[8px] uppercase tracking-wider px-1.5 py-0.5 bg-[var(--text-accent)]/10 border border-[var(--text-accent)]/30 text-[var(--text-accent)] font-semibold">
+                {fileExt}
+              </span>
             </span>
           </div>
         </div>
@@ -309,16 +337,16 @@ function AttachmentCard({ attachment, onRemove }: AttachmentCardProps) {
       {/* Remove button */}
       <button
         onClick={onRemove}
-        className="absolute top-1 right-1 w-5 h-5 bg-black/80 text-[var(--text-accent)] border border-[var(--border-color)] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-[var(--text-accent)] hover:text-black"
+        className="absolute top-1 right-1 w-5 h-5 bg-[#0f0f0f] text-[var(--text-secondary)] border border-[var(--border-color)] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-150 hover:bg-[var(--text-accent)] hover:text-black hover:border-[var(--text-accent)]"
       >
-        <X size={12} />
+        <X size={10} />
       </button>
 
       {/* Upload Progress Overlay */}
       {attachment.isUploading && (
-        <div className="absolute inset-0 bg-black/80 flex flex-col items-center justify-center gap-2 backdrop-blur-sm">
-          <CircularProgress progress={attachment.progress} size={48} />
-          <span className="text-[10px] uppercase tracking-wider text-[var(--text-secondary)]">
+        <div className="absolute inset-0 bg-[#0f0f0f]/90 flex flex-col items-center justify-center gap-2 backdrop-blur-sm">
+          <CircularProgress progress={attachment.progress} size={40} />
+          <span className="text-[9px] uppercase tracking-wider text-[var(--text-accent)]">
             {attachment.progress < 100 ? 'Uploading...' : 'Processing...'}
           </span>
         </div>
