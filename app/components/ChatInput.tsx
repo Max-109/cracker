@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useRef, useEffect, useState } from 'react';
-import { ArrowUp, Paperclip, Square, Sparkles, X, File as FileIcon, Check } from 'lucide-react';
+import { ArrowUp, Paperclip, Square, Sparkles, X, File as FileIcon, Check, Zap, Brain, Flame } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { AttachmentItem } from '@/app/hooks/useAttachments';
 import type { ReasoningEffortLevel } from '@/app/hooks/usePersistedSettings';
@@ -147,22 +147,90 @@ export function ChatInput({
               {isEffortMenuOpen && (
                 <>
                   <div className="fixed inset-0 z-[9998]" onClick={() => setIsEffortMenuOpen(false)} />
-                  <div className="absolute bottom-full right-0 mb-2 w-[180px] bg-[var(--bg-sidebar)] border border-[var(--border-color)] overflow-hidden z-[9999] p-1 animate-in fade-in slide-in-from-bottom-2 duration-100 origin-bottom-right">
-                    <div className="px-2 py-1.5 text-[10px] uppercase tracking-[0.16em] font-semibold text-[var(--text-secondary)]">Reasoning Effort</div>
+                  <div className="absolute bottom-full right-0 mb-2 w-[220px] bg-[var(--bg-sidebar)] border border-[var(--border-color)] overflow-hidden z-[9999] animate-in fade-in slide-in-from-bottom-2 duration-150 origin-bottom-right">
+                    {/* Header */}
+                    <div className="px-3 py-2.5 border-b border-[var(--border-color)] bg-[#0f0f0f]">
+                      <div className="flex items-center gap-2">
+                        <Sparkles size={12} className="text-[var(--text-accent)]" />
+                        <span className="text-[10px] uppercase tracking-[0.16em] font-semibold text-[var(--text-secondary)]">Reasoning Effort</span>
+                      </div>
+                    </div>
 
-                    {(['low', 'medium', 'high'] as const).map((effort) => (
-                      <button
-                        key={effort}
-                        onClick={() => {
-                          onReasoningEffortChange(effort);
-                          setIsEffortMenuOpen(false);
-                        }}
-                        className="flex items-center justify-between w-full text-left px-2 py-2 hover:bg-[#1e1e1e] text-sm transition-colors"
-                      >
-                        <span className="text-[var(--text-primary)] capitalize">{effort}</span>
-                        {reasoningEffort === effort && <Check size={14} />}
-                      </button>
-                    ))}
+                    <div className="p-1.5">
+                      {([
+                        { level: 'low' as const, icon: Zap, label: 'Quick', desc: 'Fast responses', bars: 1 },
+                        { level: 'medium' as const, icon: Brain, label: 'Balanced', desc: 'Standard reasoning', bars: 2 },
+                        { level: 'high' as const, icon: Flame, label: 'Deep', desc: 'Maximum analysis', bars: 3 },
+                      ]).map(({ level, icon: Icon, label, desc, bars }) => {
+                        const isSelected = reasoningEffort === level;
+                        return (
+                          <button
+                            key={level}
+                            onClick={() => {
+                              onReasoningEffortChange(level);
+                              setIsEffortMenuOpen(false);
+                            }}
+                            className={cn(
+                              "flex items-center gap-3 w-full text-left px-3 py-2.5 text-sm transition-all duration-150 group relative",
+                              isSelected 
+                                ? "bg-[var(--text-accent)]/10 border-l-2 border-l-[var(--text-accent)]" 
+                                : "hover:bg-[#1e1e1e] border-l-2 border-l-transparent"
+                            )}
+                          >
+                            {/* Icon */}
+                            <div className={cn(
+                              "w-7 h-7 flex items-center justify-center border transition-all duration-150",
+                              isSelected 
+                                ? "bg-[var(--text-accent)] border-[var(--text-accent)] text-black" 
+                                : "bg-[#1a1a1a] border-[var(--border-color)] text-[var(--text-secondary)] group-hover:border-[var(--text-accent)]/50 group-hover:text-[var(--text-accent)]"
+                            )}>
+                              <Icon size={14} />
+                            </div>
+                            
+                            {/* Text */}
+                            <div className="flex-1 min-w-0">
+                              <div className={cn(
+                                "font-semibold uppercase tracking-[0.1em] text-xs",
+                                isSelected ? "text-[var(--text-accent)]" : "text-[var(--text-primary)]"
+                              )}>
+                                {label}
+                              </div>
+                              <div className="text-[10px] text-[var(--text-secondary)] mt-0.5">{desc}</div>
+                            </div>
+
+                            {/* Intensity Bars */}
+                            <div className="flex items-center gap-0.5">
+                              {[1, 2, 3].map((bar) => (
+                                <div
+                                  key={bar}
+                                  className={cn(
+                                    "w-1 transition-all duration-150",
+                                    bar === 1 ? "h-2" : bar === 2 ? "h-3" : "h-4",
+                                    bar <= bars 
+                                      ? isSelected 
+                                        ? "bg-[var(--text-accent)]" 
+                                        : "bg-[var(--text-secondary)] group-hover:bg-[var(--text-accent)]/70"
+                                      : "bg-[#2a2a2a]"
+                                  )}
+                                />
+                              ))}
+                            </div>
+
+                            {/* Check */}
+                            {isSelected && (
+                              <Check size={14} className="text-[var(--text-accent)] ml-1" />
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Footer hint */}
+                    <div className="px-3 py-2 border-t border-[var(--border-color)] bg-[#0f0f0f]">
+                      <p className="text-[9px] text-[var(--text-secondary)] uppercase tracking-wider">
+                        Higher effort = deeper thinking
+                      </p>
+                    </div>
                   </div>
                 </>
               )}
