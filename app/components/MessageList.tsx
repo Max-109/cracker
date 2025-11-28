@@ -7,6 +7,8 @@ import { Skeleton } from './Skeleton';
 import { LoadingIndicator } from './LoadingIndicator';
 import { ResumedStreamingMessage } from './ResumedStreamingMessage';
 import { FadeWrapper, ErrorAlert } from '@/components/ui';
+import { Sparkles, Code, Lightbulb, PenLine, Zap, ArrowRight } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 // Custom hook for throttling values
 function useThrottledValue<T>(value: T, limit: number): T {
@@ -163,7 +165,16 @@ interface MessageListProps {
   onRetry: () => void;
   onDismissError: () => void;
   dismissedError: boolean;
+  onSuggestionClick?: (suggestion: string) => void;
 }
+
+// Suggestion cards for empty state
+const SUGGESTIONS = [
+  { icon: Code, label: 'Code', text: 'Help me write a Python script', desc: 'Get coding assistance' },
+  { icon: Lightbulb, label: 'Ideas', text: 'Brainstorm ideas for my project', desc: 'Creative thinking' },
+  { icon: PenLine, label: 'Write', text: 'Write a professional email', desc: 'Content creation' },
+  { icon: Zap, label: 'Explain', text: 'Explain quantum computing simply', desc: 'Learn anything' },
+];
 
 export function MessageList({
   messages,
@@ -178,6 +189,7 @@ export function MessageList({
   onRetry,
   onDismissError,
   dismissedError,
+  onSuggestionClick,
 }: MessageListProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -252,8 +264,62 @@ export function MessageList({
         <FadeWrapper show={!isMessagesLoading} className="relative z-0">
           <>
             {messages.length === 0 && !currentChatId && (
-              <div className="flex flex-col items-center justify-center h-[60vh] text-center opacity-100">
-                <h2 className="text-2xl font-semibold text-[var(--text-primary)]">Hi!</h2>
+              <div className="flex flex-col items-center justify-center min-h-[60vh] px-4 py-8">
+                {/* Welcome Header */}
+                <div className="flex flex-col items-center mb-10">
+                  <div className="w-16 h-16 flex items-center justify-center border border-[var(--text-accent)]/30 bg-[var(--text-accent)]/10 mb-6">
+                    <Sparkles size={28} className="text-[var(--text-accent)]" />
+                  </div>
+                  <h1 className="text-2xl font-semibold text-[var(--text-primary)] mb-2 tracking-tight">
+                    What can I help with?
+                  </h1>
+                  <p className="text-sm text-[var(--text-secondary)] max-w-md text-center">
+                    Start a conversation or try one of these suggestions
+                  </p>
+                </div>
+
+                {/* Suggestion Cards */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full max-w-2xl">
+                  {SUGGESTIONS.map(({ icon: Icon, label, text, desc }) => (
+                    <button
+                      key={label}
+                      onClick={() => onSuggestionClick?.(text)}
+                      className="group flex items-start gap-3 p-4 border border-[var(--border-color)] bg-[#1a1a1a] hover:border-[var(--text-accent)]/50 hover:bg-[#1e1e1e] transition-all duration-150 text-left"
+                    >
+                      {/* Icon Box */}
+                      <div className="w-10 h-10 flex items-center justify-center border border-[var(--border-color)] bg-[#141414] group-hover:border-[var(--text-accent)]/50 group-hover:bg-[var(--text-accent)] group-hover:text-black transition-all duration-150 flex-shrink-0">
+                        <Icon size={18} className="text-[var(--text-secondary)] group-hover:text-black transition-colors" />
+                      </div>
+                      
+                      {/* Text */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-xs font-semibold uppercase tracking-[0.1em] text-[var(--text-accent)]">
+                            {label}
+                          </span>
+                        </div>
+                        <p className="text-sm text-[var(--text-primary)] group-hover:text-[var(--text-accent)] transition-colors line-clamp-1">
+                          {text}
+                        </p>
+                        <p className="text-[11px] text-[var(--text-secondary)] mt-1">
+                          {desc}
+                        </p>
+                      </div>
+
+                      {/* Arrow */}
+                      <ArrowRight size={16} className="text-[var(--text-secondary)] group-hover:text-[var(--text-accent)] group-hover:translate-x-1 transition-all duration-150 mt-1 flex-shrink-0 opacity-0 group-hover:opacity-100" />
+                    </button>
+                  ))}
+                </div>
+
+                {/* Footer Hint */}
+                <div className="mt-8 flex items-center gap-2 text-[var(--text-secondary)]">
+                  <div className="w-1.5 h-1.5 bg-[var(--text-accent)] opacity-60" />
+                  <span className="text-[10px] uppercase tracking-wider">
+                    Type anything to start
+                  </span>
+                  <div className="w-1.5 h-1.5 bg-[var(--text-accent)] opacity-60" />
+                </div>
               </div>
             )}
 

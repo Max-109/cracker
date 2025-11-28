@@ -460,16 +460,31 @@ export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose
                 </div>
             </div>
 
-            {/* User Profile Section */}
+            {/* Footer Branding */}
             <div className="mt-auto pt-3 border-t border-[var(--border-color)] z-10 relative bg-[var(--bg-sidebar)]">
-                <div className="flex items-center justify-between px-2 py-2 text-[11px] uppercase tracking-[0.14em] text-[var(--text-secondary)]">
-                    <span>Cracker</span>
+                <div className="flex items-center justify-between px-2 py-2">
+                    {/* Logo/Brand */}
+                    <div className="flex items-center gap-2">
+                        <div className="w-6 h-6 flex items-center justify-center border border-[var(--text-accent)]/30 bg-[var(--text-accent)]/10">
+                            <Sparkles size={12} className="text-[var(--text-accent)]" />
+                        </div>
+                        <div className="flex flex-col">
+                            <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--text-primary)]">
+                                Cracker
+                            </span>
+                            <span className="text-[8px] uppercase tracking-wider text-[var(--text-accent)] opacity-70">
+                                AI Assistant
+                            </span>
+                        </div>
+                    </div>
+                    
+                    {/* Version Badge */}
                     <button 
                         onClick={() => setShowDeleteAllDialog(true)}
-                        className="text-[var(--text-accent)] hover:text-red-400 transition-colors cursor-pointer"
+                        className="px-1.5 py-0.5 text-[8px] uppercase tracking-wider border border-[var(--border-color)] text-[var(--text-secondary)] hover:border-red-400/50 hover:text-red-400 transition-all duration-150 cursor-pointer"
                         title="Delete all chats"
                     >
-                        {process.env.NODE_ENV === 'development' ? 'DEV' : 'PRODUCTION'}
+                        {process.env.NODE_ENV === 'development' ? 'DEV' : 'v1.0'}
                     </button>
                 </div>
             </div>

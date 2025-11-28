@@ -19,7 +19,7 @@ interface ChatInterfaceProps {
 type EditAttachment = { id: string; url: string; name: string; mediaType: string };
 
 export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
-  const { refreshChats, toggleSidebar } = useChatContext();
+  const { refreshChats, toggleSidebar, chats } = useChatContext();
 
   // Settings
   const [currentModelId, setCurrentModelId, isModelIdHydrated] = usePersistedSetting('CHATGPT_MODEL_ID', "x-ai/grok-4.1-fast");
@@ -52,6 +52,17 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
 
   useEffect(() => { currentModelIdRef.current = currentModelId; }, [currentModelId]);
   useEffect(() => { reasoningEffortRef.current = reasoningEffort; }, [reasoningEffort]);
+
+  // Update document title based on current chat
+  useEffect(() => {
+    if (currentChatId) {
+      const currentChat = chats.find(c => c.id === currentChatId);
+      const chatTitle = currentChat?.title || 'Chat';
+      document.title = `${chatTitle} | Cracker`;
+    } else {
+      document.title = 'Cracker';
+    }
+  }, [currentChatId, chats]);
 
   // Loading states
   const [isMessagesLoading, setIsMessagesLoading] = useState(false);
@@ -617,6 +628,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
           onRetry={handleRetry}
           onDismissError={() => setDismissedError(true)}
           dismissedError={dismissedError}
+          onSuggestionClick={setInput}
         />
 
         {/* Input */}
