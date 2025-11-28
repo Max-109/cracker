@@ -74,7 +74,7 @@ export function ChatInput({
   const canSend = (input.trim() || attachments.length > 0) && !hasPendingAttachments;
 
   return (
-    <div className="flex-shrink-0 w-full bg-[var(--bg-main)] border-t border-[var(--border-color)] pt-6 pb-5 pb-[max(1.25rem,env(safe-area-inset-bottom))]">
+    <div className="flex-shrink-0 w-full bg-[var(--bg-main)] border-t border-[var(--border-color)] pt-6 pb-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] relative z-40">
       <div className="max-w-[900px] mx-auto px-4 space-y-3">
         <input
           type="file"
@@ -146,8 +146,8 @@ export function ChatInput({
 
               {isEffortMenuOpen && (
                 <>
-                  <div className="fixed inset-0 z-10" onClick={() => setIsEffortMenuOpen(false)} />
-                  <div className="absolute bottom-full right-0 mb-2 w-[180px] bg-[var(--bg-sidebar)] border border-[var(--border-color)] overflow-hidden z-20 p-1 animate-in fade-in slide-in-from-bottom-2 duration-100 origin-bottom-right">
+                  <div className="fixed inset-0 z-40" onClick={() => setIsEffortMenuOpen(false)} />
+                  <div className="absolute bottom-full right-0 mb-2 w-[180px] bg-[var(--bg-sidebar)] border border-[var(--border-color)] overflow-hidden z-50 p-1 animate-in fade-in slide-in-from-bottom-2 duration-100 origin-bottom-right">
                     <div className="px-2 py-1.5 text-[10px] uppercase tracking-[0.16em] font-semibold text-[var(--text-secondary)]">Reasoning Effort</div>
 
                     {(['low', 'medium', 'high'] as const).map((effort) => (

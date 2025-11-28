@@ -9,11 +9,16 @@ import { randomUUID } from "crypto";
 
 export const maxDuration = 300;
 
+// Track fetch timing for TPS calculation
+let lastVertexFetchStartTime: number | null = null;
+let lastVertexResponseTime: number | null = null;
+
 // Debug fetch wrapper for Vertex AI API calls
 function createDebugVertexFetch(): typeof fetch {
   return async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = typeof input === 'string' ? input : input instanceof URL ? input.href : (input as Request).url;
     const startTime = Date.now();
+    lastVertexFetchStartTime = startTime;  // Track when fetch actually starts
     console.log(`[VERTEX_FETCH] === STARTING REQUEST ===`);
     console.log(`[VERTEX_FETCH] URL: ${url}`);
     console.log(`[VERTEX_FETCH] Method: ${init?.method || 'GET'}`);
@@ -23,6 +28,7 @@ function createDebugVertexFetch(): typeof fetch {
       console.log(`[VERTEX_FETCH] Calling fetch()...`);
       const response = await fetch(input, init);
       const elapsed = ((Date.now() - startTime) / 1000).toFixed(3);
+      lastVertexResponseTime = Date.now();  // Track when we get 200 OK
       console.log(`[VERTEX_FETCH] === RESPONSE RECEIVED === (+${elapsed}s)`);
       console.log(`[VERTEX_FETCH] Status: ${response.status} ${response.statusText}`);
       console.log(`[VERTEX_FETCH] Content-Type: ${response.headers.get('content-type')}`);
@@ -513,14 +519,20 @@ export async function POST(req: Request) {
         let tps = 0;
         const endTime = Date.now();
         
-        // Calculate generation time from first chunk to finish (includes thinking + text generation)
-        // This gives accurate TPS including reasoning tokens
-        const generationTimeMs = firstChunkTime 
-          ? endTime - firstChunkTime 
-          : endTime - requestStartTime;
+        // For Vertex AI: thinking happens server-side BEFORE first chunk arrives
+        // So we must measure from requestStartTime to endTime for accurate TPS
+        // For OpenRouter: first chunk arrives quickly, so firstChunk->end is accurate
+        const totalGenerationTimeMs = endTime - requestStartTime;
+        const streamingTimeMs = firstChunkTime ? endTime - firstChunkTime : totalGenerationTimeMs;
         
-        // Handle Google/Gemini models
+        // Handle Google/Gemini models (Vertex AI)
         if (isGoogle) {
+          // === DEBUG: Log all available metadata ===
+          debugLog('=== VERTEX AI TPS DEBUG ===');
+          debugLog(`providerMetadata keys: ${providerMetadata ? Object.keys(providerMetadata).join(', ') : 'null'}`);
+          debugLog(`usage object: ${JSON.stringify(usage)}`);
+          debugLog(`response object keys: ${response ? Object.keys(response).join(', ') : 'null'}`);
+          
           // Access Google metadata - usageMetadata contains token counts
           // Structure: providerMetadata.google.usageMetadata.thoughtsTokenCount
           const googleMeta = providerMetadata?.google as (GoogleGenerativeAIProviderMetadata & {
@@ -533,24 +545,53 @@ export async function POST(req: Request) {
             };
           }) | undefined;
           
+          debugLog(`googleMeta keys: ${googleMeta ? Object.keys(googleMeta).join(', ') : 'null'}`);
+          debugLog(`googleMeta.usageMetadata: ${JSON.stringify(googleMeta?.usageMetadata)}`);
+          
           // Get token counts from providerMetadata.google.usageMetadata (correct path per AI SDK docs)
           const usageMeta = googleMeta?.usageMetadata;
-          const completionTokens = usageMeta?.candidatesTokenCount || usage?.outputTokens || 0;
-          const thoughtsTokens = usageMeta?.thoughtsTokenCount || 0;
+          let completionTokens = usageMeta?.candidatesTokenCount || usage?.outputTokens || 0;
+          let thoughtsTokens = usageMeta?.thoughtsTokenCount || 0;
+          
+          // If API didn't return token counts, estimate from partial content (approx 4.5 chars per token)
+          if (completionTokens === 0 && partialText.length > 0) {
+            completionTokens = Math.round(partialText.length / 4.5);
+            debugLog(`Estimated completionTokens from partialText (${partialText.length} chars): ${completionTokens}`);
+          }
+          if (thoughtsTokens === 0 && partialReasoning.length > 0) {
+            thoughtsTokens = Math.round(partialReasoning.length / 4.5);
+            debugLog(`Estimated thoughtsTokens from partialReasoning (${partialReasoning.length} chars): ${thoughtsTokens}`);
+          }
+          
           const totalOutputTokens = completionTokens + thoughtsTokens;
           
-          // Use actual generation time (first chunk to finish)
+          debugLog(`Token counts: completionTokens=${completionTokens}, thoughtsTokens=${thoughtsTokens}, total=${totalOutputTokens}`);
+          debugLog(`Timing: totalGenerationTimeMs=${totalGenerationTimeMs}, streamingTimeMs=${streamingTimeMs}`);
+          debugLog(`Fetch timing: fetchStartTime=${lastVertexFetchStartTime}, responseTime=${lastVertexResponseTime}, endTime=${endTime}`);
+          
+          // Calculate time from when we received 200 OK (model started responding) to finish
+          // This is the actual "generation time" - excludes network latency to reach Google
+          const fetchToEndMs = lastVertexResponseTime ? endTime - lastVertexResponseTime : null;
+          const fetchStartToEndMs = lastVertexFetchStartTime ? endTime - lastVertexFetchStartTime : null;
+          
+          debugLog(`fetchToEndMs (200 OK to finish): ${fetchToEndMs}ms`);
+          debugLog(`fetchStartToEndMs (fetch call to finish): ${fetchStartToEndMs}ms`);
+          
+          // Use time from 200 OK response to finish - this is when the model is actually generating
+          const generationTimeMs = fetchToEndMs || fetchStartToEndMs || totalGenerationTimeMs;
+          
           if (totalOutputTokens > 0 && generationTimeMs > 0) {
             tps = totalOutputTokens / (generationTimeMs / 1000);
             const modelShort = modelId.split('/').pop() || modelId;
+            debugLog(`TPS calculation: ${totalOutputTokens} / (${generationTimeMs} / 1000) = ${tps.toFixed(1)}`);
             console.log(`[${modelShort}] ${totalOutputTokens} tokens (${completionTokens} output + ${thoughtsTokens} thoughts) / ${(generationTimeMs / 1000).toFixed(2)}s = ${tps.toFixed(1)} t/s`);
-          } else if (totalOutputTokens > 0) {
-            // Fallback: estimate from tracked chunks
-            const estimatedTime = generationTimeMs > 0 ? generationTimeMs : 1000;
-            tps = totalOutputTokens / (estimatedTime / 1000);
-            const modelShort = modelId.split('/').pop() || modelId;
-            console.log(`[${modelShort}] ${totalOutputTokens} tokens (estimated) = ${tps.toFixed(1)} t/s`);
+          } else {
+            debugLog(`TPS not calculated: totalOutputTokens=${totalOutputTokens}, generationTimeMs=${generationTimeMs}`);
           }
+          
+          // Reset fetch timing for next request
+          lastVertexFetchStartTime = null;
+          lastVertexResponseTime = null;
             
           // Log grounding metadata if present
           if (googleMeta?.groundingMetadata) {

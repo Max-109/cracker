@@ -32,7 +32,7 @@ function Dropdown({
 
   // Position classes based on align and position props
   const positionClasses = cn(
-    "absolute mt-1 z-20",
+    "absolute mt-1",
     position === 'top' ? "bottom-full mb-1" : "top-full",
     align === 'right' ? "right-0" : "left-0",
     position === 'top' 
@@ -50,7 +50,7 @@ function Dropdown({
         <>
           {/* Backdrop */}
           <div 
-            className="fixed inset-0 z-10" 
+            className="fixed inset-0 z-40" 
             onClick={close}
             aria-hidden="true"
           />
@@ -59,7 +59,7 @@ function Dropdown({
             role="menu"
             className={cn(
               positionClasses,
-              "bg-[var(--bg-sidebar)] border border-[var(--border-color)] overflow-hidden p-1 shadow-xl",
+              "bg-[var(--bg-sidebar)] border border-[var(--border-color)] overflow-hidden p-1 shadow-xl z-50",
               contentClassName
             )}
           >

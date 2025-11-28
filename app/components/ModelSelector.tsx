@@ -104,8 +104,8 @@ export function ModelSelector({
 
           {isModelMenuOpen && (
             <>
-              <div className="fixed inset-0 z-10" onClick={() => setIsModelMenuOpen(false)} />
-              <div className="absolute top-full right-0 md:left-0 md:right-auto mt-1 w-[240px] bg-[var(--bg-sidebar)] border border-[var(--border-color)] overflow-hidden z-20 p-2 animate-in fade-in zoom-in-95 duration-100 origin-top-right md:origin-top-left">
+              <div className="fixed inset-0 z-40" onClick={() => setIsModelMenuOpen(false)} />
+              <div className="absolute top-full right-0 md:left-0 md:right-auto mt-1 w-[240px] bg-[var(--bg-sidebar)] border border-[var(--border-color)] overflow-hidden z-50 p-2 animate-in fade-in zoom-in-95 duration-100 origin-top-right md:origin-top-left">
                 <div className="px-2 py-2 text-[11px] uppercase tracking-[0.16em] font-semibold text-[var(--text-secondary)]">Select Model</div>
 
                 {MODEL_OPTIONS.map((model) => (
@@ -163,8 +163,8 @@ export function ModelSelector({
 
           {isColorMenuOpen && (
             <>
-              <div className="fixed inset-0 z-10" onClick={() => setIsColorMenuOpen(false)} />
-              <div className="absolute top-full right-0 md:right-[-80px] mt-1 p-3 bg-[var(--bg-sidebar)] border border-[var(--border-color)] shadow-xl z-20 animate-in fade-in zoom-in-95 duration-100 origin-top-right">
+              <div className="fixed inset-0 z-40" onClick={() => setIsColorMenuOpen(false)} />
+              <div className="absolute top-full right-0 md:right-[-80px] mt-1 p-3 bg-[var(--bg-sidebar)] border border-[var(--border-color)] shadow-xl z-50 animate-in fade-in zoom-in-95 duration-100 origin-top-right">
                 <HexColorPicker color={accentColor} onChange={onAccentColorChange} />
                 <div className="mt-3 flex items-center gap-2">
                   <span className="text-[10px] uppercase text-[var(--text-secondary)] font-mono">HEX</span>
