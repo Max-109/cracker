@@ -64,7 +64,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             toggleSidebar,
             closeSidebar
         }}>
-            <div className="flex h-[100dvh] w-full bg-[var(--bg-main)] text-[var(--text-primary)] overflow-hidden">
+            <div className="flex h-[100dvh] w-full bg-[var(--bg-main)] text-[var(--text-primary)]">
                 {/* Sidebar */}
                 {/* Desktop: always visible, w-[260px] */}
                 {/* Mobile: fixed, z-40, transform based on state */}

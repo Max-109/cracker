@@ -85,7 +85,6 @@ body {
   padding: 0;
   height: 100vh;
   height: 100dvh; /* Dynamic viewport height for mobile */
-  overflow: hidden;
   -webkit-text-size-adjust: 100%; /* Prevent iOS text size adjustment */
 }
 
@@ -243,6 +242,12 @@ select {
   [class*="max-w-"] {
     max-width: 100vw !important;
     overflow-x: hidden;
+  }
+  
+  /* CRITICAL: Allow dropdowns to overflow on mobile */
+  .dropdown-container,
+  .dropdown-container * {
+    overflow: visible !important;
   }
   
   /* Code blocks on mobile should scroll */

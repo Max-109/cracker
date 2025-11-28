@@ -50,7 +50,7 @@ function Dropdown({
         <>
           {/* Backdrop */}
           <div 
-            className="fixed inset-0 z-40" 
+            className="fixed inset-0 z-[9998]" 
             onClick={close}
             aria-hidden="true"
           />
@@ -59,7 +59,7 @@ function Dropdown({
             role="menu"
             className={cn(
               positionClasses,
-              "bg-[var(--bg-sidebar)] border border-[var(--border-color)] overflow-hidden p-1 shadow-xl z-50",
+              "bg-[var(--bg-sidebar)] border border-[var(--border-color)] overflow-hidden p-1 shadow-xl z-[9999]",
               contentClassName
             )}
           >

@@ -578,7 +578,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
     <div className="flex h-full w-full bg-[var(--bg-main)] text-[var(--text-primary)]">
       <main className="flex-1 flex flex-col h-full min-h-0">
         {/* Top Bar - outside overflow to allow dropdowns */}
-        <div className="flex-shrink-0 w-full h-14 flex items-center justify-between px-4 bg-[var(--bg-main)] border-b border-[var(--border-color)] relative z-50">
+        <div className="flex-shrink-0 w-full h-14 flex items-center justify-between px-4 bg-[var(--bg-main)] border-b border-[var(--border-color)] relative z-50 dropdown-container">
           <div className="flex items-center gap-2 md:hidden">
             <button
               onClick={toggleSidebar}
