@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useRef, useEffect, useState } from 'react';
-import { ArrowUp, Paperclip, Square, Sparkles, X, File as FileIcon, Zap, Brain, Flame } from 'lucide-react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
+import { ArrowUp, Paperclip, Square, Sparkles, X, File as FileIcon, Zap, Brain, Flame, Mic, AudioLines } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { AttachmentItem } from '@/app/hooks/useAttachments';
 import type { ReasoningEffortLevel } from '@/app/hooks/usePersistedSettings';
+import { useVoiceRecording } from '@/app/hooks/useVoiceRecording';
 import {
   Textarea,
   CircularProgress,
@@ -47,6 +48,64 @@ export function ChatInput({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isEffortMenuOpen, setIsEffortMenuOpen] = useState(false);
+  const [voiceError, setVoiceError] = useState<string | null>(null);
+
+  // Voice recording
+  const handleTranscription = useCallback((text: string) => {
+    onInputChange(input ? `${input} ${text}` : text);
+    textareaRef.current?.focus();
+  }, [input, onInputChange]);
+
+  const handleVoiceError = useCallback((error: string) => {
+    setVoiceError(error);
+    setTimeout(() => setVoiceError(null), 3000);
+  }, []);
+
+  const {
+    state: voiceState,
+    permissionDenied,
+    startRecording,
+    stopRecording,
+    isRecording,
+    isTranscribing,
+    estimatedDuration,
+    transcribeStartTime,
+  } = useVoiceRecording({
+    onTranscription: handleTranscription,
+    onError: handleVoiceError,
+  });
+
+  // Track transcription progress
+  const [transcribeProgress, setTranscribeProgress] = useState(0);
+  
+  useEffect(() => {
+    if (!isTranscribing || !transcribeStartTime || !estimatedDuration) {
+      setTranscribeProgress(0);
+      return;
+    }
+
+    const updateProgress = () => {
+      const elapsed = Date.now() - transcribeStartTime;
+      // Use easing function for smoother progress that slows near the end
+      // Progress goes to ~95% then waits for actual completion
+      const linearProgress = Math.min(elapsed / estimatedDuration, 1);
+      const easedProgress = 1 - Math.pow(1 - linearProgress, 2); // Ease out quad
+      const cappedProgress = Math.min(easedProgress * 0.95, 0.95); // Cap at 95%
+      setTranscribeProgress(cappedProgress);
+    };
+
+    updateProgress();
+    const interval = setInterval(updateProgress, 50);
+    return () => clearInterval(interval);
+  }, [isTranscribing, transcribeStartTime, estimatedDuration]);
+
+  const handleMicClick = useCallback(() => {
+    if (isRecording) {
+      stopRecording();
+    } else {
+      startRecording();
+    }
+  }, [isRecording, startRecording, stopRecording]);
 
   // Auto-focus textarea when chat changes or on mount
   useEffect(() => {
@@ -155,6 +214,67 @@ export function ChatInput({
                 className="pb-1 no-outline bg-transparent"
                 autoFocus
               />
+              
+              {/* Mic Button - Inside Prompt Box */}
+              <button
+                onClick={handleMicClick}
+                disabled={isLoading || isTranscribing}
+                className={cn(
+                  "flex-shrink-0 w-8 h-8 flex items-center justify-center transition-all duration-150 relative mb-0.5",
+                  isRecording
+                    ? "text-[var(--text-accent)]"
+                    : isTranscribing
+                    ? "text-[var(--text-accent)]"
+                    : "text-[var(--text-accent)] hover:scale-110",
+                  (isLoading || isTranscribing) && !isRecording && "cursor-not-allowed"
+                )}
+                title={isRecording ? "Stop recording" : isTranscribing ? "Transcribing..." : permissionDenied ? "Microphone access denied" : "Voice input"}
+              >
+                {isTranscribing ? (
+                  /* Circular Progress Indicator */
+                  <div className="relative w-7 h-7">
+                    {/* Background circle */}
+                    <svg className="w-full h-full -rotate-90" viewBox="0 0 28 28">
+                      <circle
+                        cx="14"
+                        cy="14"
+                        r="12"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        className="opacity-20"
+                      />
+                      {/* Progress circle */}
+                      <circle
+                        cx="14"
+                        cy="14"
+                        r="12"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeDasharray={2 * Math.PI * 12}
+                        strokeDashoffset={2 * Math.PI * 12 * (1 - transcribeProgress)}
+                        className="transition-all duration-100"
+                      />
+                    </svg>
+                    {/* Center icon */}
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <Mic size={12} strokeWidth={2.5} className="opacity-70" />
+                    </div>
+                    {/* Pulsing glow */}
+                    <div className="absolute inset-0 rounded-full bg-[var(--text-accent)] opacity-10 animate-pulse" />
+                  </div>
+                ) : isRecording ? (
+                  <AudioLines size={20} strokeWidth={2} className="animate-pulse" />
+                ) : (
+                  <Mic size={20} strokeWidth={2} />
+                )}
+                {/* Recording indicator ring */}
+                {isRecording && (
+                  <span className="absolute inset-0 border-2 border-[var(--text-accent)] animate-ping opacity-30" />
+                )}
+              </button>
             </div>
           </div>
 
