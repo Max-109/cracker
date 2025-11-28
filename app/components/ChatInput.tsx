@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useRef, useEffect, useState } from 'react';
-import { ArrowUp, Paperclip, Square, Sparkles, X, File as FileIcon, Check, Zap, Brain, Flame } from 'lucide-react';
+import { ArrowUp, Paperclip, Square, Sparkles, X, File as FileIcon, Zap, Brain, Flame } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { AttachmentItem } from '@/app/hooks/useAttachments';
 import type { ReasoningEffortLevel } from '@/app/hooks/usePersistedSettings';
