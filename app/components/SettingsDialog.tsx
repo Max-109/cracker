@@ -283,11 +283,11 @@ function ResponseLengthSection({ value, onChange, currentLevel }: ResponseLength
       <div className="flex flex-col items-center">
         <div 
           ref={dialRef}
-          className="relative w-[180px] h-[140px] cursor-pointer select-none"
+          className="relative w-[180px] h-[160px] cursor-pointer select-none"
           onMouseDown={handleMouseDown}
         >
           {/* Background Arc */}
-          <svg className="absolute inset-0 w-full h-full" viewBox="-90 -90 180 140">
+          <svg className="absolute inset-0 w-full h-full" viewBox="-90 -90 180 160">
             {/* Track - arc from bottom-left to bottom-right going through top */}
             <path
               d="M -60 35 A 70 70 0 1 1 60 35"
