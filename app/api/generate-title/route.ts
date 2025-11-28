@@ -1,12 +1,13 @@
-import { createOpenRouter } from "@openrouter/ai-sdk-provider";
+import { createVertex } from "@ai-sdk/google-vertex";
 import { generateText } from "ai";
 import { db } from '@/db';
 import { chats } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
-const openrouter = createOpenRouter({
-  apiKey: "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",
+const vertex = createVertex({
+  project: process.env.GOOGLE_VERTEX_PROJECT,
+  location: process.env.GOOGLE_VERTEX_LOCATION || 'global',
 });
 
 export async function POST(req: Request) {
@@ -18,8 +19,19 @@ export async function POST(req: Request) {
     }
 
     const { text } = await generateText({
-      model: openrouter("openai/gpt-oss-120b:exacto"),
+      model: vertex("gemini-2.5-flash-lite"),
       prompt: `Summarize this conversation start in 3-5 words for a title. No quotes. Text: "${prompt.substring(0, 300)}..."`,
+      providerOptions: {
+        vertex: {
+          thinkingConfig: {
+            thinkingBudget: 0, // Disable thinking for fast title generation
+          },
+          generationConfig: {
+            maxOutputTokens: 20,
+            temperature: 0.3,
+          },
+        },
+      },
     });
 
     const title = text.trim().replace(/^["']|["']$/g, ''); // Remove quotes if any
