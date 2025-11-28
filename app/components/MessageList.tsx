@@ -228,7 +228,7 @@ export function MessageList({
 
   return (
     <div
-      className="flex-1 overflow-y-auto scroll-smooth"
+      className="flex-1 overflow-y-auto scroll-smooth scrollbar-custom"
       ref={scrollContainerRef}
       onScroll={handleScroll}
     >

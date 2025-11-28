@@ -28,7 +28,7 @@ const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
         ref={internalRef}
         value={value}
         className={cn(
-          "w-full bg-transparent text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] placeholder:italic leading-relaxed resize-none focus:outline-none min-h-[24px] scrollbar-hide",
+          "w-full bg-transparent text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] placeholder:italic leading-relaxed resize-none focus:outline-none min-h-[24px] scrollbar-custom",
           className
         )}
         {...props}
