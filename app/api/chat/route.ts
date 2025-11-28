@@ -577,8 +577,8 @@ export async function POST(req: Request) {
           debugLog(`fetchToEndMs (200 OK to finish): ${fetchToEndMs}ms`);
           debugLog(`fetchStartToEndMs (fetch call to finish): ${fetchStartToEndMs}ms`);
           
-          // Use time from 200 OK response to finish - this is when the model is actually generating
-          const generationTimeMs = fetchToEndMs || fetchStartToEndMs || totalGenerationTimeMs;
+          // Use full request time (fetch start to finish) for accurate user-perceived TPS
+          const generationTimeMs = fetchStartToEndMs || fetchToEndMs || totalGenerationTimeMs;
           
           if (totalOutputTokens > 0 && generationTimeMs > 0) {
             tps = totalOutputTokens / (generationTimeMs / 1000);
