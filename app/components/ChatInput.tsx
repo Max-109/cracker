@@ -77,21 +77,98 @@ export function ChatInput({
 
   // Track transcription progress
   const [transcribeProgress, setTranscribeProgress] = useState(0);
+  const [showProgress, setShowProgress] = useState(false);
+  const progressRef = useRef(0); // Store current progress in ref to survive state changes
+  const animationFrameRef = useRef<number | null>(null);
+  const wasTranscribingRef = useRef(false);
   
+  // Sync progress to ref
+  useEffect(() => {
+    progressRef.current = transcribeProgress;
+  }, [transcribeProgress]);
+  
+  // Handle transcription state changes - detect start and completion
+  useEffect(() => {
+    const wasTranscribing = wasTranscribingRef.current;
+    wasTranscribingRef.current = isTranscribing;
+    
+    if (isTranscribing && !wasTranscribing) {
+      // Just started transcribing
+      setShowProgress(true);
+      setTranscribeProgress(0);
+      progressRef.current = 0;
+    } else if (!isTranscribing && wasTranscribing) {
+      // Just finished transcribing - animate to 100%
+      const startProgress = progressRef.current;
+      
+      // Only animate if we have some progress
+      if (startProgress > 0) {
+        const startTime = Date.now();
+        const animationDuration = 300;
+        
+        const animateToComplete = () => {
+          const elapsed = Date.now() - startTime;
+          const t = Math.min(elapsed / animationDuration, 1);
+          // Ease out cubic for smooth deceleration
+          const eased = 1 - Math.pow(1 - t, 3);
+          const newProgress = startProgress + (1 - startProgress) * eased;
+          
+          setTranscribeProgress(newProgress);
+          progressRef.current = newProgress;
+          
+          if (t < 1) {
+            animationFrameRef.current = requestAnimationFrame(animateToComplete);
+          } else {
+            // Animation complete, wait a moment at 100% then hide
+            setTimeout(() => {
+              setShowProgress(false);
+              setTranscribeProgress(0);
+              progressRef.current = 0;
+            }, 200);
+          }
+        };
+        
+        animationFrameRef.current = requestAnimationFrame(animateToComplete);
+      } else {
+        // No progress yet, just hide immediately
+        setShowProgress(false);
+      }
+    }
+    
+    return () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current);
+      }
+    };
+  }, [isTranscribing]);
+  
+  // Update progress during transcription
   useEffect(() => {
     if (!isTranscribing || !transcribeStartTime || !estimatedDuration) {
-      setTranscribeProgress(0);
       return;
     }
 
     const updateProgress = () => {
       const elapsed = Date.now() - transcribeStartTime;
-      // Use easing function for smoother progress that slows near the end
-      // Progress goes to ~95% then waits for actual completion
-      const linearProgress = Math.min(elapsed / estimatedDuration, 1);
-      const easedProgress = 1 - Math.pow(1 - linearProgress, 2); // Ease out quad
-      const cappedProgress = Math.min(easedProgress * 0.95, 0.95); // Cap at 95%
-      setTranscribeProgress(cappedProgress);
+      const ratio = elapsed / estimatedDuration;
+      
+      // Adaptive estimation: slow down more aggressively as we exceed estimate
+      let progress: number;
+      if (ratio <= 1) {
+        // Before estimated time: ease-out quad, cap at 85%
+        const easedProgress = 1 - Math.pow(1 - ratio, 2);
+        progress = easedProgress * 0.85;
+      } else {
+        // After estimated time: logarithmic slowdown from 85% to 95%
+        // Progress slows down significantly, asymptotically approaching 95%
+        const overTime = ratio - 1;
+        const additionalProgress = 0.10 * (1 - Math.exp(-overTime * 0.5));
+        progress = 0.85 + additionalProgress;
+      }
+      
+      const finalProgress = Math.min(progress, 0.95);
+      setTranscribeProgress(finalProgress);
+      progressRef.current = finalProgress;
     };
 
     updateProgress();
@@ -218,19 +295,19 @@ export function ChatInput({
               {/* Mic Button - Inside Prompt Box */}
               <button
                 onClick={handleMicClick}
-                disabled={isLoading || isTranscribing}
+                disabled={isLoading || showProgress}
                 className={cn(
                   "flex-shrink-0 w-8 h-8 flex items-center justify-center transition-all duration-150 relative mb-0.5",
                   isRecording
                     ? "text-[var(--text-accent)]"
-                    : isTranscribing
+                    : showProgress
                     ? "text-[var(--text-accent)]"
                     : "text-[var(--text-accent)] hover:scale-110",
-                  (isLoading || isTranscribing) && !isRecording && "cursor-not-allowed"
+                  (isLoading || showProgress) && !isRecording && "cursor-not-allowed"
                 )}
-                title={isRecording ? "Stop recording" : isTranscribing ? "Transcribing..." : permissionDenied ? "Microphone access denied" : "Voice input"}
+                title={isRecording ? "Stop recording" : showProgress ? "Transcribing..." : permissionDenied ? "Microphone access denied" : "Voice input"}
               >
-                {isTranscribing ? (
+                {showProgress ? (
                   /* Circular Progress Indicator */
                   <div className="relative w-7 h-7">
                     {/* Background circle */}
