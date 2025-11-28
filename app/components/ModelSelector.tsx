@@ -253,23 +253,83 @@ export function ModelSelector({
           {isColorMenuOpen && (
             <>
               <div className="fixed inset-0 z-[9998]" onClick={() => setIsColorMenuOpen(false)} />
-              <div className="absolute top-full right-0 md:right-[-80px] mt-1 p-3 bg-[var(--bg-sidebar)] border border-[var(--border-color)] shadow-xl z-[9999] animate-in fade-in zoom-in-95 duration-100 origin-top-right">
-                <HexColorPicker color={accentColor} onChange={onAccentColorChange} />
-                <div className="mt-3 flex items-center gap-2">
-                  <span className="text-[10px] uppercase text-[var(--text-secondary)] font-mono">HEX</span>
-                  <input
-                    type="text"
-                    value={accentColor}
-                    onChange={(e) => onAccentColorChange(e.target.value)}
-                    className="flex-1 bg-[var(--bg-input)] border border-[var(--border-color)] text-[11px] px-2 py-1 text-[var(--text-primary)] font-mono uppercase focus:border-[var(--border-active)] outline-none"
-                  />
+              <div className="absolute top-full right-0 md:right-[-80px] mt-1 w-[232px] bg-[var(--bg-sidebar)] border border-[var(--border-color)] shadow-xl z-[9999] animate-in fade-in zoom-in-95 duration-150 origin-top-right overflow-hidden">
+                {/* Header */}
+                <div className="px-3 py-2.5 border-b border-[var(--border-color)] bg-[#0f0f0f]">
+                  <div className="flex items-center gap-2">
+                    <div 
+                      className="w-3 h-3 border border-white/20" 
+                      style={{ backgroundColor: accentColor }}
+                    />
+                    <span className="text-[10px] uppercase tracking-[0.16em] font-semibold text-[var(--text-secondary)]">
+                      Accent Color
+                    </span>
+                  </div>
                 </div>
-                <button
-                  onClick={() => onAccentColorChange('#af8787')}
-                  className="mt-2 w-full px-2 py-1 text-[10px] uppercase tracking-[0.12em] font-semibold text-[var(--text-secondary)] border border-[var(--border-color)] hover:text-[var(--text-primary)] hover:border-[var(--border-active)] transition-colors"
-                >
-                  Reset to Default
-                </button>
+
+                {/* Color Picker */}
+                <div className="p-3">
+                  <HexColorPicker color={accentColor} onChange={onAccentColorChange} />
+                </div>
+
+                {/* Preset Colors */}
+                <div className="px-3 pb-3">
+                  <div className="text-[9px] uppercase tracking-wider text-[var(--text-secondary)] mb-2">Presets</div>
+                  <div className="flex gap-1.5 flex-wrap">
+                    {[
+                      '#af8787', // Default rose
+                      '#87af87', // Sage green
+                      '#8787af', // Lavender
+                      '#afaf87', // Wheat
+                      '#87afaf', // Teal
+                      '#af87af', // Mauve
+                      '#ff6b6b', // Coral
+                      '#4ecdc4', // Turquoise
+                    ].map((color) => (
+                      <button
+                        key={color}
+                        onClick={() => onAccentColorChange(color)}
+                        className={cn(
+                          "w-6 h-6 border transition-all duration-150 hover:scale-110",
+                          accentColor.toLowerCase() === color.toLowerCase()
+                            ? "border-white scale-110 ring-1 ring-white/50"
+                            : "border-[var(--border-color)] hover:border-white/50"
+                        )}
+                        style={{ backgroundColor: color }}
+                        title={color}
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                {/* Hex Input */}
+                <div className="px-3 pb-3 border-t border-[var(--border-color)] pt-3">
+                  <div className="flex items-center gap-2">
+                    <div 
+                      className="w-8 h-8 border border-[var(--border-color)] flex-shrink-0"
+                      style={{ backgroundColor: accentColor }}
+                    />
+                    <div className="flex-1">
+                      <div className="text-[9px] uppercase tracking-wider text-[var(--text-secondary)] mb-1">Hex Code</div>
+                      <input
+                        type="text"
+                        value={accentColor}
+                        onChange={(e) => onAccentColorChange(e.target.value)}
+                        className="w-full bg-[var(--bg-input)] border border-[var(--border-color)] text-[11px] px-2 py-1.5 text-[var(--text-primary)] font-mono uppercase focus:border-[var(--border-active)] outline-none"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Footer */}
+                <div className="px-3 py-2 border-t border-[var(--border-color)] bg-[#0f0f0f]">
+                  <button
+                    onClick={() => onAccentColorChange('#af8787')}
+                    className="w-full flex items-center justify-center gap-2 py-1.5 text-[10px] uppercase tracking-[0.12em] font-semibold text-[var(--text-secondary)] border border-[var(--border-color)] hover:text-[var(--text-accent)] hover:border-[var(--text-accent)] transition-all duration-150"
+                  >
+                    Reset to Default
+                  </button>
+                </div>
               </div>
             </>
           )}

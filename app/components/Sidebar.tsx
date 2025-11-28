@@ -1,4 +1,4 @@
-import { SquarePen, X, Pencil, Trash2, Check } from 'lucide-react';
+import { SquarePen, X, Pencil, Trash2, Check, MessageSquare, Clock, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Skeleton } from './Skeleton';
 import { useState, useEffect, useRef } from 'react';
@@ -239,17 +239,12 @@ export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose
                         const x = e.clientX - rect.left;
                         const y = e.clientY - rect.top;
                         
-                        // Disable transition, reset to new position, then animate
                         if (overlay) {
                             overlay.style.transition = 'none';
                             btn.style.setProperty('--x', `${x}px`);
                             btn.style.setProperty('--y', `${y}px`);
                             overlay.style.clipPath = `circle(0% at ${x}px ${y}px)`;
-                            
-                            // Force reflow
                             void overlay.offsetHeight;
-                            
-                            // Re-enable transition and expand
                             overlay.style.transition = '';
                             overlay.style.clipPath = '';
                             btn.classList.add('is-hovered');
@@ -265,29 +260,31 @@ export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose
                         btn.classList.remove('is-hovered');
                     }}
                     style={{ '--x': '50%', '--y': '50%' } as React.CSSProperties}
-                    className="group new-chat-btn relative flex-1 flex items-center gap-2 px-3 py-2 border border-[var(--border-color)] bg-[#141414] overflow-hidden transition-all duration-300 text-sm font-semibold text-[var(--text-primary)] uppercase tracking-[0.12em] text-left"
+                    className="group new-chat-btn relative flex-1 flex items-center gap-3 px-3 py-2.5 border border-[var(--border-color)] bg-[#141414] overflow-hidden transition-all duration-300 text-sm font-semibold text-[var(--text-primary)] uppercase tracking-[0.12em] text-left"
                 >
-                    {/* Base Layer (White Text, Dark BG) */}
-                    <span className="relative z-10 flex items-center gap-2 text-[var(--text-primary)]">
-                        <SquarePen size={18} strokeWidth={2} />
+                    {/* Base Layer */}
+                    <span className="relative z-10 flex items-center gap-3 text-[var(--text-primary)]">
+                        <span className="w-7 h-7 flex items-center justify-center border border-[var(--border-color)] bg-[#1a1a1a] group-[.is-hovered]:bg-black group-[.is-hovered]:border-black transition-colors">
+                            <Sparkles size={14} className="text-[var(--text-accent)] group-[.is-hovered]:text-[var(--text-accent)]" />
+                        </span>
                         <span>New Chat</span>
                     </span>
 
-                    {/* Overlay Layer (Contrast Text, Accent BG) - Revealed by Clip Path */}
-                    <div
-                        className="absolute inset-0 flex items-center gap-2 px-3 py-2 bg-[var(--text-accent)] text-[var(--accent-contrast)] z-20 pointer-events-none cursor-aware-button"
-                    >
-                        <SquarePen size={18} strokeWidth={2} />
+                    {/* Overlay Layer */}
+                    <div className="absolute inset-0 flex items-center gap-3 px-3 py-2.5 bg-[var(--text-accent)] text-[var(--accent-contrast)] z-20 pointer-events-none cursor-aware-button">
+                        <span className="w-7 h-7 flex items-center justify-center border border-black/20 bg-black/20">
+                            <Sparkles size={14} />
+                        </span>
                         <span>New Chat</span>
                     </div>
                 </button>
                 {/* Mobile Close Button */}
                 <button
                     onClick={onClose}
-                    className="md:hidden px-2 py-1 border border-[var(--border-color)] text-[var(--text-secondary)] hover:border-[var(--border-active)] transition-colors"
+                    className="md:hidden w-10 h-10 flex items-center justify-center border border-[var(--border-color)] text-[var(--text-secondary)] hover:border-[var(--border-active)] hover:text-[var(--text-accent)] transition-colors"
                     aria-label="Close sidebar"
                 >
-                    <X size={20} />
+                    <X size={18} />
                 </button>
             </div>
 
@@ -316,67 +313,93 @@ export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose
                         <div className="pb-4">
                             {groupedChats.map(({ label, chats }) => (
                                 chats.length > 0 && (
-                                    <div key={label} className="mb-4">
-                                        <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--text-accent)] px-2 py-2">{label}</div>
-                                        {chats.map((chat) => (
-                                            <div
-                                                key={chat.id}
-                                                onClick={() => !animatingDeleteId && onSelectChat(chat.id)}
-                                                className={cn(
-                                                    "group relative px-3 py-2 text-sm cursor-pointer transition-colors mb-1 flex items-center justify-between border-l-2",
-                                                    currentChatId === chat.id
-                                                        ? "border-l-[var(--text-accent)] bg-gradient-to-r from-[var(--text-accent)]/10 to-transparent text-[var(--text-primary)]"
-                                                        : "border-l-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)]",
-                                                    animatingDeleteId === chat.id && "chat-item-deleting",
-                                                    animatingRenameId === chat.id && "chat-item-renamed"
-                                                )}
-                                            >
-                                                {/* Render Title or Input */}
-                                                {editingId === chat.id ? (
-                                                    <div className="flex-1 flex items-center gap-1 mr-1" onClick={(e) => e.stopPropagation()}>
-                                                        <Input
-                                                            ref={inputRef}
-                                                            value={renameValue}
-                                                            onChange={(e) => setRenameValue(e.target.value)}
-                                                            onKeyDown={(e) => {
-                                                                if (e.key === 'Enter') handleRename();
-                                                                if (e.key === 'Escape') setEditingId(null);
-                                                            }}
-                                                            onBlur={handleRename}
-                                                            className="h-8 text-sm px-2 py-0 bg-[#141414] border border-[var(--border-active)] text-[var(--text-primary)] focus-visible:ring-0"
-                                                        />
-                                                        <button onClick={handleRename} className="p-1 hover:text-[var(--text-accent)] text-[var(--text-secondary)] border border-[var(--border-color)]">
-                                                            <Check size={14} />
-                                                        </button>
-                                                    </div>
-                                                ) : (
-                                                    <>
-                                                        <span className="truncate flex-1 pr-2">{chat.title || 'New Chat'}</span>
+                                    <div key={label} className="mb-3">
+                                        {/* Group Header */}
+                                        <div className="flex items-center gap-2 px-2 py-2">
+                                            <Clock size={10} className="text-[var(--text-accent)] opacity-60" />
+                                            <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--text-secondary)]">{label}</span>
+                                            <span className="text-[9px] text-[var(--text-secondary)] opacity-50">({chats.length})</span>
+                                        </div>
+                                        
+                                        {/* Chat Items */}
+                                        <div className="space-y-0.5">
+                                            {chats.map((chat) => {
+                                                const isSelected = currentChatId === chat.id;
+                                                return (
+                                                    <div
+                                                        key={chat.id}
+                                                        onClick={() => !animatingDeleteId && onSelectChat(chat.id)}
+                                                        className={cn(
+                                                            "group relative px-2 py-2 text-sm cursor-pointer transition-all duration-150 flex items-center gap-2.5 border-l-2",
+                                                            isSelected
+                                                                ? "border-l-[var(--text-accent)] bg-[var(--text-accent)]/10 text-[var(--text-primary)]"
+                                                                : "border-l-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:bg-[#1e1e1e]",
+                                                            animatingDeleteId === chat.id && "chat-item-deleting",
+                                                            animatingRenameId === chat.id && "chat-item-renamed"
+                                                        )}
+                                                    >
+                                                        {/* Chat Icon */}
+                                                        <div className={cn(
+                                                            "w-6 h-6 flex items-center justify-center border flex-shrink-0 transition-all duration-150",
+                                                            isSelected
+                                                                ? "bg-[var(--text-accent)] border-[var(--text-accent)] text-black"
+                                                                : "bg-[#1a1a1a] border-[var(--border-color)] text-[var(--text-secondary)] group-hover:border-[var(--text-accent)]/50 group-hover:text-[var(--text-accent)]"
+                                                        )}>
+                                                            <MessageSquare size={12} />
+                                                        </div>
 
-                                                        {/* Hover Actions (Pencil, Trash) */}
-                                                        {/* Only show if not editing */}
-                                                        {!editingId && (
-                                                            <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                                <button
-                                                                    onClick={(e) => startRenaming(chat, e)}
-                                                                    className="p-1.5 text-[var(--text-secondary)] hover:text-[var(--text-accent)] bg-[var(--bg-sidebar)] border border-[var(--border-color)]"
-                                                                    title="Rename"
-                                                                >
-                                                                    <Pencil size={12} />
-                                                                </button>
-                                                                <button
-                                                                    onClick={(e) => confirmDelete(chat.id, e)}
-                                                                    className="p-1.5 text-[var(--text-secondary)] hover:text-red-400 bg-[var(--bg-sidebar)] border border-[var(--border-color)]"
-                                                                    title="Delete"
-                                                                >
-                                                                    <Trash2 size={12} />
+                                                        {/* Render Title or Input */}
+                                                        {editingId === chat.id ? (
+                                                            <div className="flex-1 flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                                                                <Input
+                                                                    ref={inputRef}
+                                                                    value={renameValue}
+                                                                    onChange={(e) => setRenameValue(e.target.value)}
+                                                                    onKeyDown={(e) => {
+                                                                        if (e.key === 'Enter') handleRename();
+                                                                        if (e.key === 'Escape') setEditingId(null);
+                                                                    }}
+                                                                    onBlur={handleRename}
+                                                                    className="h-7 text-xs px-2 py-0 bg-[#141414] border border-[var(--border-active)] text-[var(--text-primary)] focus-visible:ring-0"
+                                                                />
+                                                                <button onClick={handleRename} className="p-1 hover:text-[var(--text-accent)] text-[var(--text-secondary)] border border-[var(--border-color)]">
+                                                                    <Check size={12} />
                                                                 </button>
                                                             </div>
+                                                        ) : (
+                                                            <>
+                                                                <span className={cn(
+                                                                    "truncate flex-1 text-xs",
+                                                                    isSelected && "font-medium text-[var(--text-accent)]"
+                                                                )}>
+                                                                    {chat.title || 'New Chat'}
+                                                                </span>
+
+                                                                {/* Hover Actions */}
+                                                                {!editingId && (
+                                                                    <div className="absolute right-1 top-1/2 -translate-y-1/2 flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                                        <button
+                                                                            onClick={(e) => startRenaming(chat, e)}
+                                                                            className="p-1.5 text-[var(--text-secondary)] hover:text-[var(--text-accent)] bg-[var(--bg-sidebar)] border border-[var(--border-color)] transition-colors"
+                                                                            title="Rename"
+                                                                        >
+                                                                            <Pencil size={10} />
+                                                                        </button>
+                                                                        <button
+                                                                            onClick={(e) => confirmDelete(chat.id, e)}
+                                                                            className="p-1.5 text-[var(--text-secondary)] hover:text-red-400 bg-[var(--bg-sidebar)] border border-[var(--border-color)] transition-colors"
+                                                                            title="Delete"
+                                                                        >
+                                                                            <Trash2 size={10} />
+                                                                        </button>
+                                                                    </div>
+                                                                )}
+                                                            </>
                                                         )}
-                                                    </>
-                                                )}
-                                            </div>
-                                        ))}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
                                     </div>
                                 )
                             ))}
