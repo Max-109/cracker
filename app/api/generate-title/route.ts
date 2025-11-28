@@ -24,7 +24,7 @@ export async function POST(req: Request) {
       providerOptions: {
         vertex: {
           thinkingConfig: {
-            thinkingBudget: 0, // Disable thinking for fast title generation
+            thinkingBudget: 150,
           },
           generationConfig: {
             maxOutputTokens: 20,
