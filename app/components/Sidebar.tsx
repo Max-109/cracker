@@ -411,10 +411,6 @@ export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose
                                                             ) : (
                                                                 <MessageSquare size={12} />
                                                             )}
-                                                            {/* Pulsing indicator for special modes */}
-                                                            {(chat.mode === 'deep-search' || chat.mode === 'learning') && !isSelected && (
-                                                                <div className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-[var(--text-accent)] animate-pulse" />
-                                                            )}
                                                         </div>
 
                                                         {/* Render Title or Input */}
