@@ -5,7 +5,8 @@ import { chats } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 
-// Initialize Vertex AI with explicit credentials (same as chat route)
+// Initialize Vertex AI with explicit credentials
+// Requires Node.js 20.x locally (use: nvm use 20)
 const vertex = createVertex({
   project: process.env.GOOGLE_VERTEX_PROJECT,
   location: process.env.GOOGLE_VERTEX_LOCATION || 'global',

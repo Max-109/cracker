@@ -43,6 +43,7 @@ function createDebugVertexFetch(): typeof fetch {
 }
 
 // Initialize Vertex AI provider with debug fetch and explicit credentials
+// Requires Node.js 20.x locally (use: nvm use 20)
 const vertex = createVertex({
   project: process.env.GOOGLE_VERTEX_PROJECT,
   location: process.env.GOOGLE_VERTEX_LOCATION || 'global',
