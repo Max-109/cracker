@@ -1,61 +1,44 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useCallback } from 'react';
+import { useSettings } from '@/app/components/SettingsContext';
 
-const isBrowser = typeof window !== 'undefined';
+export type ReasoningEffortLevel = 'low' | 'medium' | 'high';
 
+// Model settings hook - now uses SettingsContext
 export function usePersistedSetting(key: string, fallback: string) {
-  const [value, setValue] = useState(fallback);
-  const [isHydrated, setIsHydrated] = useState(false);
-
-  useEffect(() => {
-    const stored = window.localStorage.getItem(key);
-    if (stored !== null) {
-      setValue(stored);
-    }
-    setIsHydrated(true);
-  }, [key]);
-
+  const { settings, updateSettings, isHydrated } = useSettings();
+  
+  // Map old localStorage keys to settings fields
+  const keyMap: Record<string, keyof typeof settings> = {
+    'CHATGPT_MODEL_ID': 'currentModelId',
+    'CHATGPT_MODEL_NAME': 'currentModelName',
+    'CHATGPT_REASONING_EFFORT': 'reasoningEffort',
+    'CHATGPT_ACCENT_COLOR': 'accentColor',
+  };
+  
+  const settingsKey = keyMap[key];
+  const value = settingsKey ? (settings[settingsKey] as string) ?? fallback : fallback;
+  
   const updateValue = useCallback((nextValue: React.SetStateAction<string>) => {
-    setValue(prev => {
-      const resolved = typeof nextValue === 'function'
-        ? (nextValue as (val: string) => string)(prev)
-        : nextValue;
-      if (isBrowser) {
-        window.localStorage.setItem(key, resolved);
-      }
-      return resolved;
-    });
-  }, [key]);
+    if (!settingsKey) return;
+    const resolved = typeof nextValue === 'function'
+      ? (nextValue as (val: string) => string)(value)
+      : nextValue;
+    updateSettings({ [settingsKey]: resolved });
+  }, [settingsKey, value, updateSettings]);
 
   return [value, updateValue, isHydrated] as const;
 }
 
-export type ReasoningEffortLevel = 'low' | 'medium' | 'high';
-
 // Response length settings hook
 export function useResponseLength() {
-  const [responseLength, setResponseLength, isHydrated] = usePersistedSetting('CHATGPT_RESPONSE_LENGTH', '50');
-  
-  const parsed = parseInt(responseLength);
-  const parsedValue = isNaN(parsed) ? 50 : parsed;
-  
-  // Debug logging
-  if (typeof window !== 'undefined') {
-    const storedValue = window.localStorage.getItem('CHATGPT_RESPONSE_LENGTH');
-    console.log('[useResponseLength] State:', responseLength, '| localStorage:', storedValue, '| parsed:', parsedValue, '| hydrated:', isHydrated);
-  }
+  const { settings, updateSettings, isHydrated } = useSettings();
   
   return {
-    responseLength: parsedValue,
+    responseLength: settings.responseLength,
     setResponseLength: (value: number) => {
-      console.log('[useResponseLength] Setting to:', value);
-      setResponseLength(String(value));
-      // Verify it was saved
-      setTimeout(() => {
-        const saved = window.localStorage.getItem('CHATGPT_RESPONSE_LENGTH');
-        console.log('[useResponseLength] After save, localStorage has:', saved);
-      }, 100);
+      updateSettings({ responseLength: value });
     },
     isHydrated,
   };
@@ -63,25 +46,24 @@ export function useResponseLength() {
 
 // User profile settings
 export function useUserProfile() {
-  const [userName, setUserName, isNameHydrated] = usePersistedSetting('CHATGPT_USER_NAME', '');
-  const [userGender, setUserGender, isGenderHydrated] = usePersistedSetting('CHATGPT_USER_GENDER', 'not-specified');
+  const { settings, updateSettings, isHydrated } = useSettings();
   
   return {
-    userName,
-    setUserName,
-    userGender,
-    setUserGender,
-    isHydrated: isNameHydrated && isGenderHydrated,
+    userName: settings.userName || '',
+    setUserName: (value: string) => updateSettings({ userName: value }),
+    userGender: settings.userGender,
+    setUserGender: (value: string) => updateSettings({ userGender: value }),
+    isHydrated,
   };
 }
 
 // Learning mode setting
 export function useLearningMode() {
-  const [learningMode, setLearningMode, isHydrated] = usePersistedSetting('CHATGPT_LEARNING_MODE', 'false');
+  const { settings, updateSettings, isHydrated } = useSettings();
   
   return {
-    learningMode: learningMode === 'true',
-    setLearningMode: (value: boolean) => setLearningMode(value ? 'true' : 'false'),
+    learningMode: settings.learningMode,
+    setLearningMode: (value: boolean) => updateSettings({ learningMode: value }),
     isHydrated,
   };
 }
@@ -126,58 +108,13 @@ export function hexToHSL(hex: string): { h: number; s: number; l: number } | nul
   return { h, s, l };
 }
 
+// Accent color hook - uses SettingsContext (CSS vars applied in SettingsContext)
 export function useAccentColor() {
-  const [accentColor, setAccentColor, isHydrated] = usePersistedSetting('CHATGPT_ACCENT_COLOR', '#af8787');
+  const { settings, updateSettings, isHydrated } = useSettings();
+  
+  const setAccentColor = useCallback((color: string) => {
+    updateSettings({ accentColor: color });
+  }, [updateSettings]);
 
-  useEffect(() => {
-    const root = document.documentElement;
-    root.style.setProperty('--text-accent', accentColor);
-    root.style.setProperty('--border-active', accentColor);
-    root.style.setProperty('--primary', accentColor);
-    root.style.setProperty('--accent-foreground', accentColor);
-    root.style.setProperty('--ring', accentColor);
-    root.style.setProperty('--chart-1', accentColor);
-    
-    const hsl = hexToHSL(accentColor);
-    if (hsl) {
-      root.style.setProperty('--accent-h', hsl.h.toString());
-      root.style.setProperty('--accent-s', `${hsl.s}%`);
-      root.style.setProperty('--accent-l', `${hsl.l}%`);
-      
-      const contrastText = hsl.l < 50 ? '#ffffff' : '#000000';
-      root.style.setProperty('--accent-contrast', contrastText);
-      
-      const h = hsl.h;
-      const s = Math.min(hsl.s, 70);
-      const l = hsl.l;
-      
-      root.style.setProperty('--syntax-primary', `hsl(${h}, ${s}%, ${Math.min(l + 10, 70)}%)`);
-      root.style.setProperty('--syntax-function', `hsl(${(h + 270) % 360}, ${s}%, ${Math.min(l + 15, 75)}%)`);
-      root.style.setProperty('--syntax-keyword', `hsl(${(h + 340) % 360}, ${Math.min(s + 10, 70)}%, ${Math.min(l + 5, 65)}%)`);
-      root.style.setProperty('--syntax-string', `hsl(${(h + 180) % 360}, ${s * 0.7}%, ${Math.min(l + 20, 75)}%)`);
-      root.style.setProperty('--syntax-number', `hsl(${(h + 200) % 360}, ${s}%, ${Math.min(l + 15, 70)}%)`);
-      root.style.setProperty('--syntax-class', `hsl(${(h + 30) % 360}, ${s}%, ${Math.min(l + 10, 70)}%)`);
-      root.style.setProperty('--syntax-comment', `hsl(${h}, ${s * 0.3}%, 35%)`);
-      root.style.setProperty('--syntax-operator', `hsl(${(h + 340) % 360}, ${s * 0.8}%, ${Math.min(l + 5, 60)}%)`);
-    }
-
-    // Update favicon
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 291 291">
-      <rect x="3.252" y="3.252" width="283.465" height="283.465" rx="60" ry="60" 
-        style="fill:#262626;stroke:#7c7c7c;stroke-width:6.5px;"/>
-      <circle cx="144.985" cy="144.985" r="70.866" 
-        style="fill:${accentColor};stroke:#7c7c7c;stroke-width:6.5px;"/>
-    </svg>`;
-    const dataUrl = `data:image/svg+xml,${encodeURIComponent(svg)}`;
-    
-    document.querySelectorAll("link[rel*='icon']").forEach(link => link.remove());
-    
-    const link = document.createElement('link');
-    link.rel = 'icon';
-    link.type = 'image/svg+xml';
-    link.href = dataUrl;
-    document.head.appendChild(link);
-  }, [accentColor]);
-
-  return { accentColor, setAccentColor, isHydrated };
+  return { accentColor: settings.accentColor, setAccentColor, isHydrated };
 }

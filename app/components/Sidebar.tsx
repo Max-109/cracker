@@ -1,7 +1,9 @@
-import { SquarePen, X, Pencil, Trash2, Check, MessageSquare, Clock, Sparkles, AlertTriangle } from 'lucide-react';
+import { SquarePen, X, Pencil, Trash2, Check, MessageSquare, Clock, Sparkles, AlertTriangle, LogOut, Shield, User } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Skeleton } from './Skeleton';
 import { useState, useEffect, useRef } from 'react';
+import { useAuth } from './AuthContext';
+import { useRouter } from 'next/navigation';
 import {
     Input,
     FadeWrapper,
@@ -95,6 +97,8 @@ function groupChatsByDate(chats: Chat[]) {
 
 export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose, isLoading, onRefresh, className }: SidebarProps & { className?: string }) {
     const groupedChats = groupChatsByDate(chats);
+    const { profile, signOut } = useAuth();
+    const router = useRouter();
 
     const [editingId, setEditingId] = useState<string | null>(null);
     const [renameValue, setRenameValue] = useState("");
@@ -460,25 +464,68 @@ export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose
                 </div>
             </div>
 
-            {/* Footer Branding */}
+            {/* Footer - User Info */}
             <div className="mt-auto pt-3 border-t border-[var(--border-color)] z-10 relative bg-[var(--bg-sidebar)]">
-                <div className="flex items-center justify-between px-2 py-2">
-                    {/* Logo/Brand */}
-                    <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 flex items-center justify-center border border-[var(--text-accent)]/30 bg-[var(--text-accent)]/10">
-                            <Sparkles size={12} className="text-[var(--text-accent)]" />
+                {/* User Profile Section */}
+                {profile && (
+                    <div className="px-2 py-2 space-y-2">
+                        {/* User Info */}
+                        <div className="flex items-center gap-2">
+                            <div className={cn(
+                                "w-8 h-8 flex items-center justify-center border flex-shrink-0",
+                                profile.isAdmin
+                                    ? "border-[var(--text-accent)] bg-[var(--text-accent)]/10"
+                                    : "border-[var(--border-color)] bg-[#1a1a1a]"
+                            )}>
+                                {profile.isAdmin ? (
+                                    <Shield size={14} className="text-[var(--text-accent)]" />
+                                ) : (
+                                    <User size={14} className="text-[var(--text-secondary)]" />
+                                )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <div className="text-[11px] font-semibold text-[var(--text-primary)] truncate">
+                                    {profile.name || 'User'}
+                                </div>
+                                <div className="text-[9px] text-[var(--text-secondary)] truncate">
+                                    {profile.email}
+                                </div>
+                            </div>
                         </div>
-                        <div className="flex flex-col">
-                            <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--text-primary)]">
-                                Cracker
-                            </span>
-                            <span className="text-[8px] uppercase tracking-wider text-[var(--text-accent)] opacity-70">
-                                AI Assistant
-                            </span>
+                        
+                        {/* Action Buttons */}
+                        <div className="flex gap-1">
+                            {profile.isAdmin && (
+                                <button
+                                    onClick={() => router.push('/admin')}
+                                    className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 text-[9px] uppercase tracking-wider font-semibold border border-[var(--text-accent)]/30 text-[var(--text-accent)] hover:bg-[var(--text-accent)]/10 transition-all"
+                                >
+                                    <Shield size={10} />
+                                    Admin
+                                </button>
+                            )}
+                            <button
+                                onClick={signOut}
+                                className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 text-[9px] uppercase tracking-wider font-semibold border border-[var(--border-color)] text-[var(--text-secondary)] hover:border-red-400/50 hover:text-red-400 transition-all"
+                            >
+                                <LogOut size={10} />
+                                Logout
+                            </button>
                         </div>
                     </div>
+                )}
+                
+                {/* Brand Footer */}
+                <div className="flex items-center justify-between px-2 py-2 border-t border-[var(--border-color)]">
+                    <div className="flex items-center gap-2">
+                        <div className="w-5 h-5 flex items-center justify-center border border-[var(--text-accent)]/30 bg-[var(--text-accent)]/10">
+                            <Sparkles size={10} className="text-[var(--text-accent)]" />
+                        </div>
+                        <span className="text-[9px] font-semibold uppercase tracking-[0.14em] text-[var(--text-secondary)]">
+                            Cracker
+                        </span>
+                    </div>
                     
-                    {/* Version Badge */}
                     <button 
                         onClick={() => setShowDeleteAllDialog(true)}
                         className="px-1.5 py-0.5 text-[8px] uppercase tracking-wider border border-[var(--border-color)] text-[var(--text-secondary)] hover:border-red-400/50 hover:text-red-400 transition-all duration-150 cursor-pointer"
