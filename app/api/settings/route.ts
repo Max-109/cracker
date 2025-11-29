@@ -63,6 +63,7 @@ export async function PUT(request: NextRequest) {
       'responseLength',
       'learningMode',
       'chatMode',
+      'customInstructions',
       'userName',
       'userGender',
     ];

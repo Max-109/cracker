@@ -86,6 +86,17 @@ export function useChatMode() {
   };
 }
 
+// Custom instructions hook
+export function useCustomInstructions() {
+  const { settings, updateSettings, isHydrated } = useSettings();
+  
+  return {
+    customInstructions: settings.customInstructions || '',
+    setCustomInstructions: (value: string) => updateSettings({ customInstructions: value || null }),
+    isHydrated,
+  };
+}
+
 export function hexToHSL(hex: string): { h: number; s: number; l: number } | null {
   let r = 0, g = 0, b = 0;
   if (hex.length === 4) {

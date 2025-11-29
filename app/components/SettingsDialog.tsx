@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { HexColorPicker } from "react-colorful";
-import { Settings2, User, Pencil, Palette, Sparkles, GaugeCircle } from 'lucide-react';
+import { Settings2, User, Pencil, Palette, Sparkles, GaugeCircle, MessageSquareText } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Dialog } from '@/components/ui';
 
@@ -40,6 +40,9 @@ interface SettingsDialogProps {
   // Response length
   responseLength: number;
   onResponseLengthChange: (length: number) => void;
+  // Custom instructions
+  customInstructions: string;
+  onCustomInstructionsChange: (instructions: string) => void;
   // User info
   userName: string;
   onUserNameChange: (name: string) => void;
@@ -55,6 +58,8 @@ export function SettingsDialog({
   onOpenChange,
   responseLength,
   onResponseLengthChange,
+  customInstructions,
+  onCustomInstructionsChange,
   userName,
   onUserNameChange,
   userGender,
@@ -65,6 +70,7 @@ export function SettingsDialog({
   const [activeSection, setActiveSection] = useState<'response' | 'profile' | 'appearance'>('response');
   // Initialize local state from props
   const [localResponseLength, setLocalResponseLength] = useState(responseLength);
+  const [localCustomInstructions, setLocalCustomInstructions] = useState(customInstructions);
   const [localUserName, setLocalUserName] = useState(userName);
   const [localUserGender, setLocalUserGender] = useState(userGender);
   const [localAccentColor, setLocalAccentColor] = useState(accentColor);
@@ -76,20 +82,23 @@ export function SettingsDialog({
       // Dialog just opened - sync from props
       requestAnimationFrame(() => {
         setLocalResponseLength(responseLength);
+        setLocalCustomInstructions(customInstructions);
         setLocalUserName(userName);
         setLocalUserGender(userGender);
         setLocalAccentColor(accentColor);
       });
     }
     prevOpenRef.current = open;
-  }, [open, responseLength, userName, userGender, accentColor]);
+  }, [open, responseLength, customInstructions, userName, userGender, accentColor]);
 
   const handleSave = () => {
     console.log('[Settings] ===== SAVING =====');
     console.log('[Settings] responseLength:', localResponseLength);
+    console.log('[Settings] customInstructions:', localCustomInstructions?.length || 0, 'chars');
     console.log('[Settings] userName:', localUserName);
     
     onResponseLengthChange(localResponseLength);
+    onCustomInstructionsChange(localCustomInstructions);
     onUserNameChange(localUserName);
     onUserGenderChange(localUserGender);
     onAccentColorChange(localAccentColor);
@@ -147,6 +156,8 @@ export function SettingsDialog({
               value={localResponseLength} 
               onChange={setLocalResponseLength}
               currentLevel={currentLevel}
+              customInstructions={localCustomInstructions}
+              onCustomInstructionsChange={setLocalCustomInstructions}
             />
           )}
           {activeSection === 'profile' && (
@@ -190,9 +201,11 @@ interface ResponseLengthSectionProps {
   value: number;
   onChange: (value: number) => void;
   currentLevel: typeof RESPONSE_LEVELS[0];
+  customInstructions: string;
+  onCustomInstructionsChange: (instructions: string) => void;
 }
 
-function ResponseLengthSection({ value, onChange, currentLevel }: ResponseLengthSectionProps) {
+function ResponseLengthSection({ value, onChange, currentLevel, customInstructions, onCustomInstructionsChange }: ResponseLengthSectionProps) {
   const dialRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
 
@@ -394,6 +407,30 @@ function ResponseLengthSection({ value, onChange, currentLevel }: ResponseLength
             </button>
           ))}
         </div>
+      </div>
+
+      {/* Custom Instructions */}
+      <div className="space-y-2 pt-4 border-t border-[var(--border-color)]">
+        <div className="flex items-center gap-2">
+          <MessageSquareText size={12} className="text-[var(--text-accent)]" />
+          <span className="text-[10px] uppercase tracking-[0.16em] font-semibold text-[var(--text-secondary)]">
+            Custom Instructions
+          </span>
+        </div>
+        <p className="text-[9px] text-[var(--text-secondary)] leading-relaxed">
+          These instructions have the <span className="text-[var(--text-accent)] font-semibold">highest priority</span>. 
+          The AI will follow them above all other guidelines.
+        </p>
+        <textarea
+          value={customInstructions || ''}
+          onChange={(e) => onCustomInstructionsChange(e.target.value)}
+          placeholder="e.g., Always respond in bullet points, use formal language, focus on practical examples..."
+          rows={4}
+          className="w-full bg-[#1a1a1a] border border-[var(--border-color)] px-3 py-2.5 text-sm text-[var(--text-primary)] focus:outline-none focus:border-[var(--text-accent)] transition-colors placeholder:text-[var(--text-secondary)]/40 resize-none"
+        />
+        <p className="text-[9px] text-[var(--text-secondary)]/60">
+          Leave empty to use default behavior. Works in Chat mode only (not Learning or Deep Research).
+        </p>
       </div>
 
     </div>

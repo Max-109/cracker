@@ -8,7 +8,7 @@ import type { ChatMessage, MessagePart } from '@/lib/chat-types';
 import { useChatContext } from './ChatContext';
 import { updateFavicon, getAccentColorFromStorage } from './SettingsContext';
 import { useAttachments } from '@/app/hooks/useAttachments';
-import { usePersistedSetting, useAccentColor, useResponseLength, useUserProfile, useLearningMode, useChatMode, ReasoningEffortLevel, ChatMode } from '@/app/hooks/usePersistedSettings';
+import { usePersistedSetting, useAccentColor, useResponseLength, useUserProfile, useLearningMode, useChatMode, useCustomInstructions, ReasoningEffortLevel, ChatMode } from '@/app/hooks/usePersistedSettings';
 import { ModelSelector } from './ModelSelector';
 import { ChatInput } from './ChatInput';
 import { MessageList } from './MessageList';
@@ -32,8 +32,9 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
   const { userName, setUserName, userGender, setUserGender, isHydrated: isProfileHydrated } = useUserProfile();
   const { learningMode, setLearningMode, isHydrated: isLearningModeHydrated } = useLearningMode();
   const { chatMode, setChatMode, isHydrated: isChatModeHydrated } = useChatMode();
+  const { customInstructions, setCustomInstructions, isHydrated: isCustomInstructionsHydrated } = useCustomInstructions();
   
-  const isSettingsHydrated = isModelIdHydrated && isModelNameHydrated && isColorHydrated && isResponseLengthHydrated && isProfileHydrated && isLearningModeHydrated && isChatModeHydrated;
+  const isSettingsHydrated = isModelIdHydrated && isModelNameHydrated && isColorHydrated && isResponseLengthHydrated && isProfileHydrated && isLearningModeHydrated && isChatModeHydrated && isCustomInstructionsHydrated;
   
   // Settings dialog state
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -64,6 +65,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
   const userGenderRef = useRef(userGender);
   const learningModeRef = useRef(learningMode);
   const chatModeRef = useRef(chatMode);
+  const customInstructionsRef = useRef(customInstructions);
   
   useEffect(() => { currentModelIdRef.current = currentModelId; }, [currentModelId]);
   useEffect(() => { reasoningEffortRef.current = reasoningEffort; }, [reasoningEffort]);
@@ -72,6 +74,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
   useEffect(() => { userGenderRef.current = userGender; }, [userGender]);
   useEffect(() => { learningModeRef.current = learningMode; }, [learningMode]);
   useEffect(() => { chatModeRef.current = chatMode; }, [chatMode]);
+  useEffect(() => { customInstructionsRef.current = customInstructions; }, [customInstructions]);
 
   // Re-apply favicon on mount to handle client-side navigation between chats
   useEffect(() => {
@@ -148,6 +151,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
       userName: userNameRef.current,
       userGender: userGenderRef.current,
       learningMode: learningModeRef.current,
+      customInstructions: customInstructionsRef.current,
     }),
   }), []);
 
@@ -978,6 +982,8 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
           onOpenChange={setIsSettingsOpen}
           responseLength={responseLength}
           onResponseLengthChange={setResponseLength}
+          customInstructions={customInstructions}
+          onCustomInstructionsChange={setCustomInstructions}
           userName={userName}
           onUserNameChange={setUserName}
           userGender={userGender}

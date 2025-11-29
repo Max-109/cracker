@@ -14,6 +14,7 @@ interface AccountSettings {
   responseLength: number;
   learningMode: boolean;
   chatMode: ChatMode;
+  customInstructions: string | null;
   userName: string | null;
   userGender: string;
 }
@@ -30,6 +31,7 @@ const DEFAULT_ACCOUNT_SETTINGS: AccountSettings = {
   responseLength: 50,
   learningMode: false,
   chatMode: 'chat',
+  customInstructions: null,
   userName: null,
   userGender: 'not-specified',
 };
@@ -169,6 +171,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
           responseLength: data.responseLength ?? DEFAULT_ACCOUNT_SETTINGS.responseLength,
           learningMode: chatMode === 'learning', // Sync with chatMode
           chatMode,
+          customInstructions: data.customInstructions || null,
           userName: data.userName,
           userGender: data.userGender || DEFAULT_ACCOUNT_SETTINGS.userGender,
           accentColor: getAccentColorFromStorage(), // Always use fresh localStorage value

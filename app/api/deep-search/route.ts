@@ -4,7 +4,7 @@ import { db } from "@/db";
 import { messages as messagesTable, chats as chatsTable } from "@/db/schema";
 import { eq } from "drizzle-orm";
 
-export const maxDuration = 2000;
+export const maxDuration = 300; // 5 minutes max for deep research
 
 const vertex = createVertex({
   project: process.env.GOOGLE_VERTEX_PROJECT,
