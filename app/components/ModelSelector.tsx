@@ -269,7 +269,7 @@ export function ModelSelector({
 
                 {/* Color Picker */}
                 <div className="p-3">
-                  <HexColorPicker color={accentColor} onChange={onAccentColorChange} />
+                  <HexColorPicker color={accentColor || '#af8787'} onChange={onAccentColorChange} />
                 </div>
 
                 {/* Preset Colors */}
@@ -290,7 +290,7 @@ export function ModelSelector({
                         onClick={() => onAccentColorChange(color)}
                         className={cn(
                           "w-6 h-6 border transition-all duration-150 hover:scale-110",
-                          accentColor.toLowerCase() === color.toLowerCase()
+                          (accentColor || '').toLowerCase() === color.toLowerCase()
                             ? "border-white scale-110 ring-1 ring-white/50"
                             : "border-[var(--border-color)] hover:border-white/50"
                         )}
@@ -312,7 +312,7 @@ export function ModelSelector({
                       <div className="text-[9px] uppercase tracking-wider text-[var(--text-secondary)] mb-1">Hex Code</div>
                       <input
                         type="text"
-                        value={accentColor}
+                        value={accentColor || '#af8787'}
                         onChange={(e) => onAccentColorChange(e.target.value)}
                         className="w-full bg-[var(--bg-input)] border border-[var(--border-color)] text-[11px] px-2 py-1.5 text-[var(--text-primary)] font-mono uppercase focus:border-[var(--border-active)] outline-none"
                       />

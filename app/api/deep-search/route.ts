@@ -19,7 +19,7 @@ const vertex = createVertex({
 });
 
 // Tavily search function
-async function tavilySearch(query: string, maxResults: number = 3): Promise<{ title: string; url: string; content: string }[]> {
+async function tavilySearch(query: string, maxResults: number = 10): Promise<{ title: string; url: string; content: string }[]> {
   const apiKey = process.env.TAVILY_API_KEY;
   if (!apiKey) {
     console.error('[DeepSearch] TAVILY_API_KEY not set');
@@ -73,10 +73,11 @@ Use the available tools to gather comprehensive information about the user's que
 3. Conduct focused follow-up searches to fill gaps
 4. Stop when you have enough information to provide a comprehensive answer
 
-## Hard Limits
-- Maximum 5 search calls for complex queries
-- Maximum 3 search calls for simple queries
-- Stop immediately when you have 3+ quality sources
+## Search Strategy
+- Perform as many searches as needed to fully research the topic
+- Start with broad searches, then do focused follow-up searches on specific aspects
+- Each search returns multiple sources - keep searching until you have comprehensive coverage
+- No limit on searches - prioritize thoroughness and quality over speed
 
 ## Response Guidelines
 When you have gathered enough information, provide your findings with:
@@ -158,7 +159,7 @@ export async function POST(req: Request) {
       }),
       execute: async ({ query, maxResults }) => {
         console.log(`[DeepSearch] Executing web search: "${query}"`);
-        const results = await tavilySearch(query, maxResults ?? 3);
+        const results = await tavilySearch(query, maxResults ?? 10);
         
         // Store results
         results.forEach(r => {

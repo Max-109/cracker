@@ -588,6 +588,14 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
         console.log(`[CLIENT DEBUG] ${new Date().toISOString()} === CALLING DEEP SEARCH ===`);
         console.log(`[CLIENT DEBUG] ChatId: ${activeChatId}`);
         
+        // Add a placeholder assistant message for streaming
+        const placeholderId = `deep-search-${Date.now()}`;
+        setMessages(prev => [...prev, {
+          id: placeholderId,
+          role: 'assistant' as const,
+          parts: [{ type: 'text', text: '' }],
+        }]);
+        
         // Call deep search API and handle streaming response
         const response = await fetch('/api/deep-search', {
           method: 'POST',
@@ -597,15 +605,54 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
 
         if (!response.ok) {
           console.error('Deep search failed:', response.status);
+          setMessages(prev => prev.filter(m => m.id !== placeholderId));
           setIsSending(false);
           return;
         }
 
-        // Handle streaming response using the same pattern as regular chat
-        // The useChat hook will handle this via the response
-        console.log(`[CLIENT DEBUG] ${new Date().toISOString()} Deep search response received`);
+        // Stream the response
+        const reader = response.body?.getReader();
+        const decoder = new TextDecoder();
+        let streamedText = '';
         
-        // After deep search completes, reload messages from DB
+        if (reader) {
+          try {
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              
+              const chunk = decoder.decode(value, { stream: true });
+              // Parse SSE format - lines starting with "0:" contain text
+              const lines = chunk.split('\n');
+              for (const line of lines) {
+                if (line.startsWith('0:')) {
+                  try {
+                    // Remove "0:" prefix and parse the JSON string
+                    const jsonStr = line.slice(2);
+                    const text = JSON.parse(jsonStr);
+                    if (typeof text === 'string') {
+                      streamedText += text;
+                      // Update the placeholder message with streamed content
+                      setMessages(prev => prev.map(m => 
+                        m.id === placeholderId 
+                          ? { ...m, parts: [{ type: 'text', text: streamedText }] }
+                          : m
+                      ));
+                    }
+                  } catch {
+                    // Ignore parse errors for non-text chunks
+                  }
+                }
+              }
+            }
+          } catch (streamError) {
+            console.error('Stream reading error:', streamError);
+          }
+        }
+        
+        console.log(`[CLIENT DEBUG] ${new Date().toISOString()} Deep search streaming complete`);
+        
+        // After streaming completes, reload from DB to get the saved version with sources
         setTimeout(async () => {
           try {
             const msgRes = await fetch(`/api/chats/${activeChatId}`);

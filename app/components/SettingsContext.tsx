@@ -58,11 +58,35 @@ function saveAccentColor(color: string) {
   applyAccentColorCSS(color);
 }
 
+// Update favicon with accent color
+function updateFavicon(color: string) {
+  const svg = `<svg width="32" height="32" viewBox="0 0 291 291" xmlns="http://www.w3.org/2000/svg">
+    <rect x="3.252" y="3.252" width="283.465" height="283.465" rx="60" ry="60" fill="#262626" stroke="#7c7c7c" stroke-width="6.5"/>
+    <circle cx="144.985" cy="144.985" r="70.866" fill="${color}" stroke="#7c7c7c" stroke-width="6.5"/>
+  </svg>`;
+  
+  const blob = new Blob([svg], { type: 'image/svg+xml' });
+  const url = URL.createObjectURL(blob);
+  
+  // Find or create favicon link
+  let link = document.querySelector("link[rel*='icon']") as HTMLLinkElement;
+  if (!link) {
+    link = document.createElement('link');
+    link.rel = 'icon';
+    document.head.appendChild(link);
+  }
+  link.type = 'image/svg+xml';
+  link.href = url;
+}
+
 // Apply accent color CSS variables
 function applyAccentColorCSS(color: string) {
   const root = document.documentElement;
   root.style.setProperty('--text-accent', color);
   root.style.setProperty('--border-active', color);
+  
+  // Update favicon with new accent color
+  updateFavicon(color);
   
   // Parse hex to RGB then to HSL for derived colors
   const hex = color.replace('#', '');
