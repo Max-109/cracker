@@ -55,6 +55,7 @@ export async function PUT(request: NextRequest) {
       updatedAt: new Date(),
     };
 
+    // Note: accentColor is stored in browser localStorage only, not in the database
     const allowedFields = [
       'currentModelId',
       'currentModelName', 
@@ -63,7 +64,6 @@ export async function PUT(request: NextRequest) {
       'learningMode',
       'userName',
       'userGender',
-      'accentColor',
     ];
 
     for (const field of allowedFields) {

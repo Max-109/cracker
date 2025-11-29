@@ -3,7 +3,8 @@
 import { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { useAuth } from './AuthContext';
 
-interface Settings {
+// Account settings (saved to database)
+interface AccountSettings {
   currentModelId: string;
   currentModelName: string;
   reasoningEffort: string;
@@ -11,10 +12,14 @@ interface Settings {
   learningMode: boolean;
   userName: string | null;
   userGender: string;
-  accentColor: string;
 }
 
-const DEFAULT_SETTINGS: Settings = {
+// Combined settings (account + browser-only)
+interface Settings extends AccountSettings {
+  accentColor: string; // Browser-only, stored in localStorage
+}
+
+const DEFAULT_ACCOUNT_SETTINGS: AccountSettings = {
   currentModelId: 'google/gemini-3-pro-preview',
   currentModelName: 'Expert',
   reasoningEffort: 'medium',
@@ -22,8 +27,10 @@ const DEFAULT_SETTINGS: Settings = {
   learningMode: false,
   userName: null,
   userGender: 'not-specified',
-  accentColor: '#af8787',
 };
+
+const DEFAULT_ACCENT_COLOR = '#af8787';
+const ACCENT_COLOR_KEY = 'CRACKER_ACCENT_COLOR'; // Must match the inline script in layout.tsx
 
 interface SettingsContextType {
   settings: Settings;
@@ -32,6 +39,50 @@ interface SettingsContextType {
   updateSettings: (updates: Partial<Settings>) => Promise<void>;
   refreshSettings: () => Promise<void>;
 }
+
+// Get accent color from localStorage (browser-only)
+function getAccentColorFromStorage(): string {
+  if (typeof window === 'undefined') return DEFAULT_ACCENT_COLOR;
+  return localStorage.getItem(ACCENT_COLOR_KEY) || DEFAULT_ACCENT_COLOR;
+}
+
+// Save accent color to localStorage and apply CSS vars
+function saveAccentColor(color: string) {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(ACCENT_COLOR_KEY, color);
+  applyAccentColorCSS(color);
+}
+
+// Apply accent color CSS variables
+function applyAccentColorCSS(color: string) {
+  const root = document.documentElement;
+  root.style.setProperty('--text-accent', color);
+  root.style.setProperty('--border-active', color);
+  
+  // Parse hex to RGB then to HSL for derived colors
+  const hex = color.replace('#', '');
+  const r = parseInt(hex.substr(0, 2), 16) / 255;
+  const g = parseInt(hex.substr(2, 2), 16) / 255;
+  const b = parseInt(hex.substr(4, 2), 16) / 255;
+  const hsl = rgbToHsl(Math.round(r * 255), Math.round(g * 255), Math.round(b * 255));
+  
+  root.style.setProperty('--accent-h', String(hsl.h));
+  root.style.setProperty('--accent-s', `${hsl.s}%`);
+  root.style.setProperty('--accent-l', `${hsl.l}%`);
+  
+  // Syntax highlighting derived colors
+  root.style.setProperty('--syntax-primary', color);
+  root.style.setProperty('--syntax-function', adjustColor(color, 30, 1.2));
+  root.style.setProperty('--syntax-keyword', adjustColor(color, -30, 1.1));
+  root.style.setProperty('--syntax-string', adjustColor(color, 180, 0.9));
+  root.style.setProperty('--syntax-number', adjustColor(color, 200, 1.0));
+  root.style.setProperty('--syntax-class', adjustColor(color, 40, 1.15));
+}
+
+const DEFAULT_SETTINGS: Settings = {
+  ...DEFAULT_ACCOUNT_SETTINGS,
+  accentColor: DEFAULT_ACCENT_COLOR,
+};
 
 const SettingsContext = createContext<SettingsContextType>({
   settings: DEFAULT_SETTINGS,
@@ -43,13 +94,28 @@ const SettingsContext = createContext<SettingsContextType>({
 
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const { user, isLoading: authLoading } = useAuth();
-  const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
+  const [settings, setSettings] = useState<Settings>(() => ({
+    ...DEFAULT_ACCOUNT_SETTINGS,
+    accentColor: typeof window !== 'undefined' ? getAccentColorFromStorage() : DEFAULT_ACCENT_COLOR,
+  }));
   const [isLoading, setIsLoading] = useState(true);
   const [isHydrated, setIsHydrated] = useState(false);
 
+  // Load accent color from localStorage on mount (browser-only)
+  useEffect(() => {
+    const storedColor = getAccentColorFromStorage();
+    setSettings(prev => ({ ...prev, accentColor: storedColor }));
+  }, []);
+
   const fetchSettings = useCallback(async () => {
+    // Always keep the current accent color from localStorage
+    const currentAccentColor = getAccentColorFromStorage();
+    
     if (!user) {
-      setSettings(DEFAULT_SETTINGS);
+      setSettings({
+        ...DEFAULT_ACCOUNT_SETTINGS,
+        accentColor: currentAccentColor,
+      });
       setIsLoading(false);
       setIsHydrated(true);
       return;
@@ -60,14 +126,14 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       if (res.ok) {
         const data = await res.json();
         setSettings({
-          currentModelId: data.currentModelId || DEFAULT_SETTINGS.currentModelId,
-          currentModelName: data.currentModelName || DEFAULT_SETTINGS.currentModelName,
-          reasoningEffort: data.reasoningEffort || DEFAULT_SETTINGS.reasoningEffort,
-          responseLength: data.responseLength ?? DEFAULT_SETTINGS.responseLength,
-          learningMode: data.learningMode ?? DEFAULT_SETTINGS.learningMode,
+          currentModelId: data.currentModelId || DEFAULT_ACCOUNT_SETTINGS.currentModelId,
+          currentModelName: data.currentModelName || DEFAULT_ACCOUNT_SETTINGS.currentModelName,
+          reasoningEffort: data.reasoningEffort || DEFAULT_ACCOUNT_SETTINGS.reasoningEffort,
+          responseLength: data.responseLength ?? DEFAULT_ACCOUNT_SETTINGS.responseLength,
+          learningMode: data.learningMode ?? DEFAULT_ACCOUNT_SETTINGS.learningMode,
           userName: data.userName,
-          userGender: data.userGender || DEFAULT_SETTINGS.userGender,
-          accentColor: data.accentColor || DEFAULT_SETTINGS.accentColor,
+          userGender: data.userGender || DEFAULT_ACCOUNT_SETTINGS.userGender,
+          accentColor: currentAccentColor, // Always use localStorage value
         });
       }
     } catch (error) {
@@ -83,6 +149,20 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   }, [fetchSettings]);
 
   const updateSettings = useCallback(async (updates: Partial<Settings>) => {
+    // Handle accent color separately (localStorage only)
+    if (updates.accentColor !== undefined) {
+      saveAccentColor(updates.accentColor);
+      setSettings(prev => ({ ...prev, accentColor: updates.accentColor! }));
+      // Don't send accentColor to the API
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { accentColor: _accentColor, ...accountUpdates } = updates;
+      updates = accountUpdates;
+    }
+    
+    // If there are no account settings to update, we're done
+    if (Object.keys(updates).length === 0) return;
+    
+    // For account settings, require authentication
     if (!user) return;
 
     // Optimistically update local state
@@ -112,30 +192,10 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     }
   }, [authLoading, fetchSettings]);
 
-  // Apply accent color to CSS variables
+  // Apply accent color to CSS variables when it changes
   useEffect(() => {
     if (isHydrated && settings.accentColor) {
-      document.documentElement.style.setProperty('--text-accent', settings.accentColor);
-      document.documentElement.style.setProperty('--border-active', settings.accentColor);
-      
-      // Update syntax highlighting colors based on accent
-      const hex = settings.accentColor.replace('#', '');
-      const r = parseInt(hex.substr(0, 2), 16);
-      const g = parseInt(hex.substr(2, 2), 16);
-      const b = parseInt(hex.substr(4, 2), 16);
-      const hsl = rgbToHsl(r, g, b);
-      
-      document.documentElement.style.setProperty('--accent-h', String(hsl.h));
-      document.documentElement.style.setProperty('--accent-s', `${hsl.s}%`);
-      document.documentElement.style.setProperty('--accent-l', `${hsl.l}%`);
-      
-      // Syntax highlighting derived colors
-      document.documentElement.style.setProperty('--syntax-primary', settings.accentColor);
-      document.documentElement.style.setProperty('--syntax-function', adjustColor(settings.accentColor, 30, 1.2));
-      document.documentElement.style.setProperty('--syntax-keyword', adjustColor(settings.accentColor, -30, 1.1));
-      document.documentElement.style.setProperty('--syntax-string', adjustColor(settings.accentColor, 180, 0.9));
-      document.documentElement.style.setProperty('--syntax-number', adjustColor(settings.accentColor, 200, 1.0));
-      document.documentElement.style.setProperty('--syntax-class', adjustColor(settings.accentColor, 40, 1.15));
+      applyAccentColorCSS(settings.accentColor);
     }
   }, [isHydrated, settings.accentColor]);
 
