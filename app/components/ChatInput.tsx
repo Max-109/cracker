@@ -542,10 +542,10 @@ function AttachmentCard({ attachment, onRemove }: AttachmentCardProps) {
         </div>
       )}
 
-      {/* Remove button - always visible on mobile (touch), hover on desktop */}
+      {/* Remove button - always visible */}
       <button
         onClick={onRemove}
-        className="absolute top-0.5 right-0.5 sm:top-1 sm:right-1 w-5 h-5 sm:w-5 sm:h-5 bg-[#0f0f0f]/90 text-[var(--text-secondary)] border border-[var(--border-color)] flex items-center justify-center opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all duration-150 hover:bg-[var(--text-accent)] hover:text-black hover:border-[var(--text-accent)]"
+        className="absolute top-0.5 right-0.5 sm:top-1 sm:right-1 w-5 h-5 bg-[#0f0f0f]/90 text-[var(--text-secondary)] border border-[var(--border-color)] flex items-center justify-center transition-all duration-150 hover:bg-[var(--text-accent)] hover:text-black hover:border-[var(--text-accent)]"
       >
         <X size={10} />
       </button>
