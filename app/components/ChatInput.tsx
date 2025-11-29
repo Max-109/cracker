@@ -500,62 +500,64 @@ function AttachmentCard({ attachment, onRemove }: AttachmentCardProps) {
   const fileExt = attachment.mediaType.split('/')[1]?.toUpperCase() || 'FILE';
 
   return (
-    <div className="relative group flex-shrink-0 bg-[#141414] border border-[var(--border-color)] rounded-md overflow-hidden hover:border-[var(--text-accent)]/50 transition-all duration-150">
-      {isImage ? (
-        <div className="relative !w-[40px] !h-[40px] md:!w-[64px] md:!h-[64px]">
-          {attachment.previewUrl ? (
-            /* eslint-disable-next-line @next/next/no-img-element */
-            <img
-              src={attachment.previewUrl}
-              alt={attachment.name}
-              className="w-full h-full object-cover"
-            />
-          ) : (
-            <div className="w-full h-full bg-[#0f0f0f] flex items-center justify-center">
-              <FileIcon className="text-[var(--text-secondary)]" size={20} />
+    <div className="relative group flex-shrink-0">
+      <div className="bg-[#141414] border border-[var(--border-color)] rounded-md overflow-hidden hover:border-[var(--text-accent)]/50 transition-all duration-150">
+        {isImage ? (
+          <div className="relative !w-[40px] !h-[40px] md:!w-[64px] md:!h-[64px]">
+            {attachment.previewUrl ? (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img
+                src={attachment.previewUrl}
+                alt={attachment.name}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <div className="w-full h-full bg-[#0f0f0f] flex items-center justify-center">
+                <FileIcon className="text-[var(--text-secondary)]" size={20} />
+              </div>
+            )}
+            {/* Image type badge - Hidden on mobile */}
+            <div className="hidden md:flex absolute bottom-0.5 left-0.5 px-1 py-0.5 bg-black/80 border border-[var(--border-color)] rounded-[2px]">
+              <span className="text-[7px] uppercase tracking-wider text-[var(--text-accent)] font-semibold">{fileExt}</span>
             </div>
-          )}
-          {/* Image type badge */}
-          <div className="absolute bottom-0.5 left-0.5 px-1 py-0.5 bg-black/80 border border-[var(--border-color)] rounded-[2px]">
-            <span className="text-[7px] uppercase tracking-wider text-[var(--text-accent)] font-semibold">{fileExt}</span>
           </div>
-        </div>
-      ) : (
-        <div className="flex items-center gap-2 p-1.5 !h-[40px] !min-w-[100px] md:!h-[64px] md:!min-w-[120px]">
-          {/* File Icon Box */}
-          <div className="w-6 h-6 md:w-8 md:h-8 bg-[#0f0f0f] border border-[var(--border-color)] flex items-center justify-center flex-shrink-0 group-hover:border-[var(--text-accent)]/50 group-hover:text-[var(--text-accent)] transition-all duration-150 rounded-sm">
-            <FileIcon className="text-[var(--text-secondary)] group-hover:text-[var(--text-accent)]" size={12} />
-          </div>
+        ) : (
+          <div className="flex items-center gap-2 p-1.5 !h-[40px] !min-w-[100px] md:!h-[64px] md:!min-w-[120px]">
+            {/* File Icon Box */}
+            <div className="w-6 h-6 md:w-8 md:h-8 bg-[#0f0f0f] border border-[var(--border-color)] flex items-center justify-center flex-shrink-0 group-hover:border-[var(--text-accent)]/50 group-hover:text-[var(--text-accent)] transition-all duration-150 rounded-sm">
+              <FileIcon className="text-[var(--text-secondary)] group-hover:text-[var(--text-accent)]" size={12} />
+            </div>
 
-          {/* File Info */}
-          <div className="flex flex-col overflow-hidden min-w-0 flex-1 justify-center">
-            <span className="text-[10px] font-medium text-[var(--text-primary)] truncate">
-              {attachment.name}
-            </span>
-            {/* File Type Badge */}
-            <span className="inline-flex mt-0.5">
-              <span className="text-[7px] uppercase tracking-wider px-1 py-px bg-[var(--text-accent)]/10 border border-[var(--text-accent)]/30 text-[var(--text-accent)] font-semibold rounded-[2px]">
-                {fileExt}
+            {/* File Info */}
+            <div className="flex flex-col overflow-hidden min-w-0 flex-1 justify-center">
+              <span className="text-[10px] font-medium text-[var(--text-primary)] truncate">
+                {attachment.name}
               </span>
-            </span>
+              {/* File Type Badge - Hidden on mobile */}
+              <span className="hidden md:inline-flex mt-0.5">
+                <span className="text-[7px] uppercase tracking-wider px-1 py-px bg-[var(--text-accent)]/10 border border-[var(--text-accent)]/30 text-[var(--text-accent)] font-semibold rounded-[2px]">
+                  {fileExt}
+                </span>
+              </span>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* Remove button - always visible */}
+        {/* Upload Progress Overlay */}
+        {attachment.isUploading && (
+          <div className="absolute inset-0 bg-[#0f0f0f]/90 flex flex-col items-center justify-center gap-2 backdrop-blur-sm z-20">
+            <CircularProgress progress={attachment.progress} size={24} />
+          </div>
+        )}
+      </div>
+
+      {/* Remove button - Floating outside top-right */}
       <button
         onClick={onRemove}
-        className="absolute top-0.5 right-0.5 w-4 h-4 bg-[#0f0f0f] text-[var(--text-secondary)] border border-[var(--border-color)] flex items-center justify-center transition-all duration-150 hover:bg-[var(--text-accent)] hover:text-black hover:border-[var(--text-accent)] rounded-sm z-10"
+        className="absolute -top-2 -right-2 w-5 h-5 bg-[#0f0f0f] text-[var(--text-secondary)] border border-[var(--border-color)] flex items-center justify-center transition-all duration-150 hover:bg-[var(--text-accent)] hover:text-black hover:border-[var(--text-accent)] rounded-full z-30 shadow-sm"
       >
         <X size={10} />
       </button>
-
-      {/* Upload Progress Overlay */}
-      {attachment.isUploading && (
-        <div className="absolute inset-0 bg-[#0f0f0f]/90 flex flex-col items-center justify-center gap-2 backdrop-blur-sm z-20">
-          <CircularProgress progress={attachment.progress} size={24} />
-        </div>
-      )}
     </div>
   );
 }
