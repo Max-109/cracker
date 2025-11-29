@@ -533,7 +533,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
         const res = await fetch('/api/chats', { 
           method: 'POST', 
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ title: null }) 
+          body: JSON.stringify({ title: null, mode: chatModeRef.current }) 
         });
         const newChat = await res.json();
         if (newChat?.id) {
@@ -588,12 +588,12 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
         console.log(`[CLIENT DEBUG] ${new Date().toISOString()} === CALLING DEEP SEARCH ===`);
         console.log(`[CLIENT DEBUG] ChatId: ${activeChatId}`);
         
-        // Add a placeholder assistant message for streaming
+        // Add a placeholder assistant message with research indicator
         const placeholderId = `deep-search-${Date.now()}`;
         setMessages(prev => [...prev, {
           id: placeholderId,
           role: 'assistant' as const,
-          parts: [{ type: 'text', text: '' }],
+          parts: [{ type: 'text', text: '[[DEEP_RESEARCH_INDICATOR]]' }],
         }]);
         
         // Call deep search API and handle streaming response

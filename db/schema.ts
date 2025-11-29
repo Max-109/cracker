@@ -29,6 +29,7 @@ export const chats = pgTable('chats', {
   id: uuid('id').primaryKey().defaultRandom(),
   userId: uuid('user_id').notNull(), // Owner of the chat
   title: text('title'),
+  mode: text('mode').default('chat'), // 'chat' | 'learning' | 'deep-search'
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (table) => [
   index('created_at_idx').on(table.createdAt),

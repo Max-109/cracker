@@ -1,4 +1,4 @@
-import { X, Pencil, Trash2, Check, MessageSquare, Clock, Sparkles, AlertTriangle, LogOut, Shield, User } from 'lucide-react';
+import { X, Pencil, Trash2, Check, MessageSquare, Clock, Sparkles, AlertTriangle, LogOut, Shield, User, GraduationCap, Microscope } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Skeleton } from './Skeleton';
 import { useState, useEffect, useRef } from 'react';
@@ -21,6 +21,7 @@ interface Chat {
     id: string;
     title: string | null;
     createdAt: string;
+    mode?: 'chat' | 'learning' | 'deep-search';
 }
 
 interface SidebarProps {
@@ -394,14 +395,26 @@ export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose
                                                             animatingRenameId === chat.id && "chat-item-renamed"
                                                         )}
                                                     >
-                                                        {/* Chat Icon */}
+                                                        {/* Chat Icon - different based on mode */}
                                                         <div className={cn(
-                                                            "w-6 h-6 flex items-center justify-center border flex-shrink-0 transition-all duration-150",
+                                                            "w-6 h-6 flex items-center justify-center border flex-shrink-0 transition-all duration-150 relative",
                                                             isSelected
                                                                 ? "bg-[var(--text-accent)] border-[var(--text-accent)] text-black"
-                                                                : "bg-[#1a1a1a] border-[var(--border-color)] text-[var(--text-secondary)] group-hover:border-[var(--text-accent)]/50 group-hover:text-[var(--text-accent)]"
+                                                                : chat.mode === 'deep-search' || chat.mode === 'learning'
+                                                                    ? "bg-[#1a1a1a] border-[var(--text-accent)]/50 text-[var(--text-accent)]"
+                                                                    : "bg-[#1a1a1a] border-[var(--border-color)] text-[var(--text-secondary)] group-hover:border-[var(--text-accent)]/50 group-hover:text-[var(--text-accent)]"
                                                         )}>
-                                                            <MessageSquare size={12} />
+                                                            {chat.mode === 'deep-search' ? (
+                                                                <Microscope size={12} />
+                                                            ) : chat.mode === 'learning' ? (
+                                                                <GraduationCap size={12} />
+                                                            ) : (
+                                                                <MessageSquare size={12} />
+                                                            )}
+                                                            {/* Pulsing indicator for special modes */}
+                                                            {(chat.mode === 'deep-search' || chat.mode === 'learning') && !isSelected && (
+                                                                <div className="absolute -top-0.5 -right-0.5 w-1.5 h-1.5 bg-[var(--text-accent)] animate-pulse" />
+                                                            )}
                                                         </div>
 
                                                         {/* Render Title or Input */}

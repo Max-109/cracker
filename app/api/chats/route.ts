@@ -34,12 +34,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { title } = await req.json();
+    const { title, mode } = await req.json();
     const [newChat] = await db
       .insert(chats)
       .values({ 
         title: title || 'New Chat',
         userId: user.id,
+        mode: mode || 'chat',
       })
       .returning();
     return NextResponse.json(newChat);

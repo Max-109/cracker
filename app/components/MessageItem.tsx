@@ -2,7 +2,7 @@
 
 import React, { memo } from 'react'; // Added memo
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react'; // Added useMemo, useRef
-import { Copy, RefreshCw, Check, Plus, Minus, Pencil, File as FileIcon, Paperclip, X, Globe, ExternalLink } from 'lucide-react';
+import { Copy, RefreshCw, Check, Plus, Minus, Pencil, File as FileIcon, Paperclip, X, Globe, ExternalLink, Microscope } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import remarkGfm from 'remark-gfm';
@@ -653,6 +653,7 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
   const sources: { url: string; title?: string }[] = [];
   let hasGoogleSearch = false;
   let isSearching = false;
+  let isDeepResearching = false;
   let stopType: 'connection' | 'thinking' | null = null; // null means not stopped, or stopped during streaming (no indicator)
 
   if (typeof safeContent !== 'string' && Array.isArray(safeContent)) {
@@ -660,7 +661,12 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
       if (part.type === 'reasoning') {
         thinkContent += (part.reasoning || part.text || '');
       } else if (part.type === 'text') {
-        finalContent += (part.text || '');
+        const text = part.text || '';
+        if (text === '[[DEEP_RESEARCH_INDICATOR]]') {
+          isDeepResearching = true;
+        } else {
+          finalContent += text;
+        }
       } else if ((part as { type: string; stopType?: string }).type === 'stopped') {
         const stoppedPart = part as { type: string; stopType?: string };
         if (stoppedPart.stopType === 'connection' || stoppedPart.stopType === 'thinking') {
@@ -814,6 +820,37 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
                   )}
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Deep Research Indicator */}
+          {isDeepResearching && !finalContent && (
+            <div className="border border-[var(--text-accent)]/30 bg-[#141414] p-4">
+              <div className="flex items-center gap-3">
+                <div className="relative">
+                  <Microscope size={20} className="text-[var(--text-accent)] animate-pulse" />
+                  <div className="absolute inset-0 animate-ping opacity-30">
+                    <Microscope size={20} className="text-[var(--text-accent)]" />
+                  </div>
+                </div>
+                <div className="flex-1">
+                  <div className="text-xs uppercase tracking-[0.12em] font-semibold text-[var(--text-accent)] animate-pulse">
+                    Deep Researching...
+                  </div>
+                  <div className="text-[10px] text-[var(--text-secondary)] mt-1">
+                    Searching multiple sources, analyzing findings, and compiling report
+                  </div>
+                </div>
+                <div className="flex gap-1">
+                  {[0, 1, 2].map(i => (
+                    <div 
+                      key={i}
+                      className="w-1.5 h-1.5 bg-[var(--text-accent)] animate-bounce"
+                      style={{ animationDelay: `${i * 0.15}s` }}
+                    />
+                  ))}
+                </div>
+              </div>
             </div>
           )}
 

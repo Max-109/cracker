@@ -1,10 +1,9 @@
 import { createVertex } from "@ai-sdk/google-vertex";
-import { streamText, generateText, CoreMessage, tool } from "ai";
-import { z } from "zod";
+import { streamText, generateText } from "ai";
 import { db } from "@/db";
 import { messages as messagesTable } from "@/db/schema";
 
-export const maxDuration = 300;
+export const maxDuration = 2000; // Extended for exhaustive research
 
 // Initialize Vertex AI provider
 const vertex = createVertex({
@@ -59,75 +58,83 @@ async function tavilySearch(query: string, maxResults: number = 10): Promise<{ t
   }
 }
 
-// System prompts for deep research
-const RESEARCH_SYSTEM_PROMPT = `You are a research assistant conducting deep research on topics. Today's date is ${new Date().toISOString().split('T')[0]}.
+// Generate search queries for exhaustive research
+async function generateSearchQueries(query: string, model: ReturnType<typeof vertex>): Promise<string[]> {
+  const result = await generateText({
+    model,
+    system: `You are conducting exhaustive solo research. Your job is to leave NO stone unturned.
 
-## Your Task
-Use the available tools to gather comprehensive information about the user's query. You have access to:
-1. **web_search**: Search the web for information
-2. **think**: Reflect on your findings and plan next steps
+Given a query, generate 15-20 search queries covering EVERY possible angle:
+- Main topic direct searches (multiple variations)
+- Head-to-head comparisons
+- Technical specifications and benchmarks
+- Expert reviews and professional opinions
+- User reviews and real-world experiences
+- Latest news and recent developments (2024-2025)
+- Price analysis and value propositions
+- Alternatives and competitors
+- Common problems and issues
+- Best use cases and recommendations
+- Historical context and evolution
+- Future outlook and upcoming releases
 
-## Research Process
-1. Start with broad searches to understand the topic
-2. After each search, use the think tool to analyze findings and identify gaps
-3. Conduct focused follow-up searches to fill gaps
-4. Stop when you have enough information to provide a comprehensive answer
+Be EXHAUSTIVE. Cover ALL angles. This is serious research work.
 
-## Search Strategy
-- Perform as many searches as needed to fully research the topic
-- Start with broad searches, then do focused follow-up searches on specific aspects
-- Each search returns multiple sources - keep searching until you have comprehensive coverage
-- No limit on searches - prioritize thoroughness and quality over speed
+Return ONLY search queries, one per line. No numbering, no explanations. Generate at least 15 queries.`,
+    messages: [{ role: 'user', content: query }],
+  });
+  
+  return result.text.split('\n').filter(q => q.trim().length > 0).slice(0, 20);
+}
 
-## Response Guidelines
-When you have gathered enough information, provide your findings with:
-1. Clear, organized sections
-2. Inline citations using [1], [2], [3] format
-3. A Sources section at the end listing all URLs
+const FINAL_REPORT_SYSTEM_PROMPT = `You are producing the DEFINITIVE research report on this topic. Today's date is ${new Date().toISOString().split('T')[0]}.
 
-## Formatting Rules
-- Use **backticks** for technical terms, names, numbers
-- Use ### headers wrapped in backticks: ### \`Section Title\`
-- Use LaTeX for mathematical formulas: $formula$
-- Write comprehensive paragraphs, not just bullet points`;
+This is solo work. You have gathered exhaustive research from dozens of sources. Now synthesize it into the most comprehensive, authoritative report possible.
 
-const FINAL_REPORT_SYSTEM_PROMPT = `You are writing a comprehensive research report based on gathered findings. Today's date is ${new Date().toISOString().split('T')[0]}.
+## Your Mission
+- Leave NOTHING out. Cover EVERY angle discovered in research.
+- This report should be the ONLY resource someone needs on this topic.
+- Be thorough, detailed, and exhaustive. Length is not a concern - completeness is.
 
-## Report Structure Guidelines
+## Report Structure
+Structure based on topic type:
 
-**For comparisons:**
-1. Introduction
-2. Overview of each element
-3. Detailed comparison
-4. Conclusion
+**For product comparisons/recommendations:**
+1. Executive Summary with clear winner(s)
+2. Detailed breakdown of EACH option
+3. Head-to-head comparisons with specs/benchmarks
+4. Price-to-performance analysis
+5. Use case recommendations (who should buy what)
+6. Potential issues/drawbacks for each
+7. Final verdict with reasoning
 
-**For lists/rankings:**
-Simply list items with detailed explanations.
+**For informational topics:**
+1. Comprehensive overview
+2. Deep dive into each major aspect
+3. Expert opinions and consensus
+4. Common misconceptions
+5. Practical applications
+6. Future outlook
 
-**For summaries/overviews:**
-1. Overview
-2. Key concepts (detailed sections for each)
-3. Conclusion
+## Formatting (STRICT)
+- Use \`backticks\` for: technical terms, product names, specs, numbers
+- Headers: ### \`Section Title\`
+- LaTeX for formulas: $E = mc^2$
+- **Bold** for key points
+- Write DETAILED paragraphs - this is a research report, not a summary
+- NO phrases like "I found", "Based on my research" - just state facts
 
-## Formatting Requirements
-- Use **backticks** for: technical terms (\`API\`), names (\`OpenAI\`), values (\`x = 5\`)
-- Wrap headers in backticks: ### \`Solution\`, ### \`Key Findings\`
-- Use LaTeX for formulas: $E = mc^2$
-- Use bold for emphasis: **important point**
-- Write in comprehensive paragraphs (text-heavy, not bullet-heavy)
-- NO self-referential language ("I found...", "I researched...")
+## Citations (MANDATORY)
+- EVERY factual claim needs a citation: [1], [2], [3]
+- Use MULTIPLE citations when multiple sources confirm something
+- End with ### \`Sources\` listing ALL cited URLs exactly as provided
 
-## Citation Format
-- Cite sources inline: [1], [2], [3]
-- End with ### \`Sources\` section:
-  [1] Title: URL
-  [2] Title: URL
-
-## Quality Standards
-- Every claim must be cited
-- All links must be from the provided research
-- Be comprehensive but concise
-- Ensure all URLs are correct (copy exactly from sources)`;
+## Quality Bar
+- This must be EXHAUSTIVE - use ALL relevant sources
+- Include specific numbers, benchmarks, prices
+- Address pros AND cons for everything
+- Provide actionable recommendations
+- No fluff, no filler - pure valuable information`;
 
 export async function POST(req: Request) {
   const requestStartTime = Date.now();
@@ -143,96 +150,134 @@ export async function POST(req: Request) {
     console.log(`[DeepSearch] Query: ${query}`);
     console.log(`[DeepSearch] ChatId: ${chatId}`);
 
-    // Track all sources for the final report
-    const allSources: Map<string, { title: string; url: string; content: string }> = new Map();
-    const researchNotes: string[] = [];
-    
-    // Research phase - gather information
     const model = vertex('gemini-2.0-flash');
     
-    // Define tools for research (AI SDK v5 uses inputSchema)
-    const webSearchTool = tool({
-      description: 'Search the web for information on a topic. Returns titles, URLs, and content.',
-      inputSchema: z.object({
-        query: z.string().describe('The search query'),
-        maxResults: z.number().optional().describe('Maximum number of results (default: 3)'),
-      }),
-      execute: async ({ query, maxResults }) => {
-        console.log(`[DeepSearch] Executing web search: "${query}"`);
-        const results = await tavilySearch(query, maxResults ?? 10);
-        
-        // Store results
-        results.forEach(r => {
-          if (!allSources.has(r.url)) {
-            allSources.set(r.url, r);
-          }
-        });
-        
-        console.log(`[DeepSearch] Found ${results.length} results`);
-        return results.map(r => ({
-          title: r.title,
-          url: r.url,
-          snippet: r.content.slice(0, 1000) + (r.content.length > 1000 ? '...' : ''),
-        }));
-      },
-    });
-
-    const thinkTool = tool({
-      description: 'Reflect on research progress and plan next steps. Use after each search.',
-      inputSchema: z.object({
-        reflection: z.string().describe('Your analysis of current findings, gaps, and next steps'),
-      }),
-      execute: async ({ reflection }) => {
-        console.log(`[DeepSearch] Think: ${reflection.slice(0, 200)}...`);
-        researchNotes.push(reflection);
-        return { recorded: true, reflection };
-      },
-    });
+    // Track all sources
+    const allSources: Map<string, { title: string; url: string; content: string }> = new Map();
     
-    const tools = { web_search: webSearchTool, think: thinkTool };
-
-    // Phase 1: Research with tools
-    console.log('[DeepSearch] === PHASE 1: RESEARCH ===');
+    // ============================================
+    // PHASE 1: Generate diverse search queries
+    // ============================================
+    console.log('[DeepSearch] === PHASE 1: GENERATING SEARCH QUERIES ===');
+    const searchQueries = await generateSearchQueries(query, model);
+    console.log(`[DeepSearch] Generated ${searchQueries.length} search queries`);
     
-    const researchMessages: CoreMessage[] = [
-      { role: 'user', content: `Research the following topic thoroughly: ${query}` }
-    ];
-
-    const researchResult = await generateText({
+    // ============================================
+    // PHASE 2-N: Execute all searches in parallel batches
+    // ============================================
+    console.log('[DeepSearch] === PHASE 2: EXECUTING SEARCHES ===');
+    
+    // Execute searches in batches of 3 to avoid rate limits
+    const batchSize = 3;
+    let searchPhase = 1;
+    
+    for (let i = 0; i < searchQueries.length; i += batchSize) {
+      const batch = searchQueries.slice(i, i + batchSize);
+      console.log(`[DeepSearch] --- Search Phase ${searchPhase} (${batch.length} queries) ---`);
+      
+      const batchResults = await Promise.all(
+        batch.map(async (searchQuery) => {
+          console.log(`[DeepSearch] Searching: "${searchQuery}"`);
+          return tavilySearch(searchQuery, 10);
+        })
+      );
+      
+      // Collect all results
+      batchResults.flat().forEach(r => {
+        if (!allSources.has(r.url)) {
+          allSources.set(r.url, r);
+        }
+      });
+      
+      console.log(`[DeepSearch] Phase ${searchPhase} complete. Total sources: ${allSources.size}`);
+      searchPhase++;
+    }
+    
+    // ============================================
+    // PHASE N+1: Deep dive on key topics
+    // ============================================
+    console.log('[DeepSearch] === PHASE 3: DEEP DIVE SEARCHES ===');
+    
+    // Generate follow-up queries based on initial findings - GO DEEPER
+    const topSourceTitles = Array.from(allSources.values()).slice(0, 15).map(s => s.title).join('\n');
+    const deepDiveResult = await generateText({
       model,
-      system: RESEARCH_SYSTEM_PROMPT,
-      messages: researchMessages,
-      tools,
+      system: `You've done initial research. Now go DEEPER. Generate 10-15 follow-up searches to fill gaps and get MORE detail:
+
+- Specific product/item comparisons found in initial research
+- Technical benchmarks and specifications
+- Real user experiences and long-term reviews
+- Known issues, problems, complaints
+- Price history and deals
+- Expert deep-dives and technical analysis
+- Competitor analysis
+- Recent news (last 3 months)
+- Video review summaries
+- Reddit/forum discussions
+
+Leave NO gaps. This is the deep dive phase. Be thorough.
+
+Return ONLY search queries, one per line. Generate at least 10.`,
+      messages: [{ role: 'user', content: `Original query: ${query}\n\nInitial findings titles:\n${topSourceTitles}` }],
     });
+    
+    const deepDiveQueries = deepDiveResult.text.split('\n').filter(q => q.trim().length > 0).slice(0, 15);
+    console.log(`[DeepSearch] Generated ${deepDiveQueries.length} deep dive queries`);
+    
+    // Execute deep dive searches
+    for (let i = 0; i < deepDiveQueries.length; i += batchSize) {
+      const batch = deepDiveQueries.slice(i, i + batchSize);
+      console.log(`[DeepSearch] --- Deep Dive Phase ${Math.floor(i/batchSize) + 1} ---`);
+      
+      const batchResults = await Promise.all(
+        batch.map(async (searchQuery) => {
+          console.log(`[DeepSearch] Deep dive: "${searchQuery}"`);
+          return tavilySearch(searchQuery, 10);
+        })
+      );
+      
+      batchResults.flat().forEach(r => {
+        if (!allSources.has(r.url)) {
+          allSources.set(r.url, r);
+        }
+      });
+      
+      console.log(`[DeepSearch] Total sources: ${allSources.size}`);
+    }
+    
+    console.log(`[DeepSearch] === RESEARCH COMPLETE: ${allSources.size} TOTAL SOURCES ===`);
 
-    console.log(`[DeepSearch] Research complete. Sources: ${allSources.size}`);
-    console.log(`[DeepSearch] Research notes: ${researchNotes.length}`);
-
-    // Prepare sources list for final report
+    // Prepare sources for final report
     const sourcesList = Array.from(allSources.values());
     const sourcesContext = sourcesList.map((s, i) => 
-      `[${i + 1}] ${s.title}\nURL: ${s.url}\nContent: ${s.content.slice(0, 2000)}\n`
+      `[${i + 1}] ${s.title}\nURL: ${s.url}\nContent: ${s.content.slice(0, 1500)}\n`
     ).join('\n---\n');
 
-    // Phase 2: Generate final report with streaming
-    console.log('[DeepSearch] === PHASE 2: FINAL REPORT ===');
+    // ============================================
+    // FINAL PHASE: Generate comprehensive report
+    // ============================================
+    console.log('[DeepSearch] === FINAL PHASE: GENERATING REPORT ===');
 
-    const finalReportPrompt = `Based on the following research findings, write a comprehensive report answering the query: "${query}"
+    const finalReportPrompt = `You have completed EXHAUSTIVE research with ${sourcesList.length} sources. Now produce the DEFINITIVE report answering: "${query}"
 
-## Research Findings
-${researchResult.text}
-
-## Available Sources (use these URLs exactly when citing)
+## Research Data (${sourcesList.length} sources gathered)
 ${sourcesContext}
 
-## Research Notes
-${researchNotes.join('\n---\n')}
+THIS IS YOUR MASTERPIECE. Requirements:
+- This report must be EXHAUSTIVE - leave NOTHING out
+- Use EVERY relevant source - cite extensively [1], [2], [3], [4]...
+- Include ALL specific numbers, specs, benchmarks, prices found
+- Cover EVERY angle: comparisons, pros, cons, use cases, issues, alternatives
+- Provide CLEAR, ACTIONABLE recommendations
+- EVERY factual claim needs citations - multiple citations when sources agree
+- Be THOROUGH - length doesn't matter, completeness does
+- End with ### \`Sources\` section with ALL cited URLs
 
-Write a detailed, well-structured report with proper citations. Every factual claim must have a citation. Use the exact URLs from the sources above.`;
+This should be the ONLY resource anyone needs on this topic. Make it count.`;
 
-    // Track partial content for DB save
+    // Track content for DB save
     let partialText = '';
-    const partialSources: Array<{ url: string; title: string }> = sourcesList.map(s => ({ url: s.url, title: s.title }));
+    const partialSources = sourcesList.map(s => ({ url: s.url, title: s.title }));
 
     const result = streamText({
       model: vertex('gemini-2.0-flash'),
@@ -247,15 +292,12 @@ Write a detailed, well-structured report with proper citations. Every factual cl
         const elapsed = ((Date.now() - requestStartTime) / 1000).toFixed(2);
         console.log(`[DeepSearch] === COMPLETE === (${elapsed}s)`);
 
-        // Save to database if chatId provided
         if (chatId && partialText) {
           try {
-            // Build content with sources
             const contentParts: Array<{ type: string; text?: string; url?: string; title?: string }> = [
               { type: 'text', text: partialText }
             ];
             
-            // Add source references
             partialSources.forEach(s => {
               contentParts.push({ type: 'source', url: s.url, title: s.title });
             });
@@ -274,7 +316,6 @@ Write a detailed, well-structured report with proper citations. Every factual cl
       },
     });
 
-    // Return streaming response with sources metadata
     return result.toUIMessageStreamResponse({
       sendReasoning: true,
       sendSources: true,
