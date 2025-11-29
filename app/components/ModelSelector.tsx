@@ -86,14 +86,14 @@ export function ModelSelector({
           />
         </DialogContent>
         <DialogFooter>
-          <button 
-            onClick={() => setIsCustomDialogOpen(false)} 
+          <button
+            onClick={() => setIsCustomDialogOpen(false)}
             className="px-4 py-2 text-[var(--text-primary)] border border-[var(--border-color)] hover-glow transition-colors uppercase tracking-[0.12em] text-xs"
           >
             Cancel
           </button>
-          <button 
-            onClick={handleCustomModelSubmit} 
+          <button
+            onClick={handleCustomModelSubmit}
             className="px-4 py-2 bg-[var(--text-accent)] text-black border border-[var(--text-accent)] hover:bg-black hover:text-[var(--text-accent)] hover-glow font-semibold transition-colors uppercase tracking-[0.12em] text-xs"
           >
             Save
@@ -131,7 +131,7 @@ export function ModelSelector({
                     const Icon = model.icon;
                     // Opacity based on level (4=100%, 3=75%, 2=50%, 1=30%)
                     const opacityClass = tierConfig.level === 4 ? 'opacity-100' : tierConfig.level === 3 ? 'opacity-75' : tierConfig.level === 2 ? 'opacity-50' : 'opacity-30';
-                    
+
                     return (
                       <button
                         key={model.id}
@@ -141,8 +141,8 @@ export function ModelSelector({
                         }}
                         className={cn(
                           "flex items-center gap-3 w-full text-left px-3 py-2.5 text-sm transition-all duration-150 group relative",
-                          isSelected 
-                            ? "bg-[var(--text-accent)]/10 border-l-2 border-l-[var(--text-accent)]" 
+                          isSelected
+                            ? "bg-[var(--text-accent)]/10 border-l-2 border-l-[var(--text-accent)]"
                             : "hover:bg-[#1e1e1e] border-l-2 border-l-transparent"
                         )}
                       >
@@ -150,8 +150,8 @@ export function ModelSelector({
                         <div className="relative">
                           <div className={cn(
                             "w-8 h-8 flex items-center justify-center border transition-all duration-150",
-                            isSelected 
-                              ? "bg-[var(--text-accent)] border-[var(--text-accent)] text-black" 
+                            isSelected
+                              ? "bg-[var(--text-accent)] border-[var(--text-accent)] text-black"
                               : "bg-[#1a1a1a] border-[var(--border-color)] text-[var(--text-accent)] group-hover:border-[var(--text-accent)]/50",
                             !isSelected && opacityClass
                           )}>
@@ -162,7 +162,7 @@ export function ModelSelector({
                             <div className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-[var(--text-accent)] animate-pulse" />
                           )}
                         </div>
-                        
+
                         {/* Text */}
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
@@ -173,7 +173,7 @@ export function ModelSelector({
                               {model.name}
                             </span>
                             {/* Tier Badge - accent color with varying intensity */}
-                            <span 
+                            <span
                               className={cn(
                                 "text-[9px] px-1.5 py-0.5 font-bold tracking-wider text-[var(--text-accent)] border border-[var(--text-accent)]",
                                 tierConfig.level === 4 && "bg-[var(--text-accent)]/20",
@@ -196,7 +196,7 @@ export function ModelSelector({
                               className={cn(
                                 "w-1 transition-all duration-150 bg-[var(--text-accent)]",
                                 bar === 1 ? "h-1" : bar === 2 ? "h-2" : bar === 3 ? "h-3" : "h-4",
-                                bar <= tierConfig.level 
+                                bar <= tierConfig.level
                                   ? isSelected ? "opacity-100" : "opacity-60 group-hover:opacity-80"
                                   : "opacity-10"
                               )}
@@ -240,12 +240,12 @@ export function ModelSelector({
             onClick={() => setIsColorMenuOpen(!isColorMenuOpen)}
             className="color-picker-btn w-9 h-9 border border-[var(--border-color)] bg-[#141414] hover-glow flex items-center justify-center"
             title="Accent Color"
-            style={{ color: accentColor }}
+            style={{ color: isHydrated ? accentColor : undefined }}
           >
             <div className={cn("ender-eye-container", !isHydrated && "opacity-0")}>
               <div
                 className={cn("ender-eye", isColorMenuOpen && "closed")}
-                style={{ backgroundColor: accentColor }}
+                style={{ backgroundColor: isHydrated ? accentColor : undefined }}
               />
             </div>
           </button>
@@ -257,9 +257,9 @@ export function ModelSelector({
                 {/* Header */}
                 <div className="px-3 py-2.5 border-b border-[var(--border-color)] bg-[#0f0f0f]">
                   <div className="flex items-center gap-2">
-                    <div 
-                      className="w-3 h-3 border border-white/20" 
-                      style={{ backgroundColor: accentColor }}
+                    <div
+                      className="w-3 h-3 border border-white/20"
+                      style={{ backgroundColor: isHydrated ? accentColor : undefined }}
                     />
                     <span className="text-[10px] uppercase tracking-[0.16em] font-semibold text-[var(--text-secondary)]">
                       Accent Color
@@ -304,9 +304,9 @@ export function ModelSelector({
                 {/* Hex Input */}
                 <div className="px-3 pb-3 border-t border-[var(--border-color)] pt-3">
                   <div className="flex items-center gap-2">
-                    <div 
+                    <div
                       className="w-8 h-8 border border-[var(--border-color)] flex-shrink-0"
-                      style={{ backgroundColor: accentColor }}
+                      style={{ backgroundColor: isHydrated ? accentColor : undefined }}
                     />
                     <div className="flex-1">
                       <div className="text-[9px] uppercase tracking-wider text-[var(--text-secondary)] mb-1">Hex Code</div>

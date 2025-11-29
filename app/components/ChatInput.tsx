@@ -80,17 +80,17 @@ export function ChatInput({
   const progressRef = useRef(0); // Store current progress in ref to survive state changes
   const animationFrameRef = useRef<number | null>(null);
   const wasTranscribingRef = useRef(false);
-  
+
   // Sync progress to ref
   useEffect(() => {
     progressRef.current = transcribeProgress;
   }, [transcribeProgress]);
-  
+
   // Handle transcription state changes - detect start and completion
   useEffect(() => {
     const wasTranscribing = wasTranscribingRef.current;
     wasTranscribingRef.current = isTranscribing;
-    
+
     if (isTranscribing && !wasTranscribing) {
       // Just started transcribing - use requestAnimationFrame to avoid synchronous setState
       requestAnimationFrame(() => {
@@ -101,22 +101,22 @@ export function ChatInput({
     } else if (!isTranscribing && wasTranscribing) {
       // Just finished transcribing - animate to 100%
       const startProgress = progressRef.current;
-      
+
       // Only animate if we have some progress
       if (startProgress > 0) {
         const startTime = Date.now();
         const animationDuration = 300;
-        
+
         const animateToComplete = () => {
           const elapsed = Date.now() - startTime;
           const t = Math.min(elapsed / animationDuration, 1);
           // Ease out cubic for smooth deceleration
           const eased = 1 - Math.pow(1 - t, 3);
           const newProgress = startProgress + (1 - startProgress) * eased;
-          
+
           setTranscribeProgress(newProgress);
           progressRef.current = newProgress;
-          
+
           if (t < 1) {
             animationFrameRef.current = requestAnimationFrame(animateToComplete);
           } else {
@@ -128,21 +128,21 @@ export function ChatInput({
             }, 200);
           }
         };
-        
+
         animationFrameRef.current = requestAnimationFrame(animateToComplete);
       } else {
         // No progress yet, just hide immediately
         requestAnimationFrame(() => setShowProgress(false));
       }
     }
-    
+
     return () => {
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
       }
     };
   }, [isTranscribing]);
-  
+
   // Update progress during transcription
   useEffect(() => {
     if (!isTranscribing || !transcribeStartTime || !estimatedDuration) {
@@ -152,7 +152,7 @@ export function ChatInput({
     const updateProgress = () => {
       const elapsed = Date.now() - transcribeStartTime;
       const ratio = elapsed / estimatedDuration;
-      
+
       // Adaptive estimation: slow down more aggressively as we exceed estimate
       let progress: number;
       if (ratio <= 1) {
@@ -166,7 +166,7 @@ export function ChatInput({
         const additionalProgress = 0.10 * (1 - Math.exp(-overTime * 0.5));
         progress = 0.85 + additionalProgress;
       }
-      
+
       const finalProgress = Math.min(progress, 0.95);
       setTranscribeProgress(finalProgress);
       progressRef.current = finalProgress;
@@ -200,13 +200,13 @@ export function ChatInput({
 
   useEffect(() => {
     if (typeof window === 'undefined' || !window.visualViewport) return;
-    
+
     const handleResize = () => {
       if (document.activeElement === textareaRef.current) {
         textareaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
     };
-    
+
     window.visualViewport.addEventListener('resize', handleResize);
     return () => window.visualViewport?.removeEventListener('resize', handleResize);
   }, []);
@@ -233,18 +233,18 @@ export function ChatInput({
 
         {/* Attachments Preview */}
         {attachments.length > 0 && (
-          <div className="border border-[var(--border-color)] bg-[#1a1a1a] p-3 mb-2">
+          <div className="border border-[var(--border-color)] bg-[#1a1a1a] p-3 mb-2 flex flex-col w-full">
             {/* Header */}
-            <div className="flex items-center gap-2 mb-3">
+            <div className="flex items-center gap-2 mb-3 flex-shrink-0">
               <Paperclip size={12} className="text-[var(--text-accent)]" />
               <span className="text-[10px] uppercase tracking-[0.14em] font-semibold text-[var(--text-primary)]">
                 Attachments
               </span>
               <span className="text-[9px] text-[var(--text-accent)] opacity-70">({attachments.length})</span>
             </div>
-            
+
             {/* Attachment Grid */}
-            <div className="flex gap-2 overflow-x-auto">
+            <div className="flex flex-wrap gap-2 w-full">
               {attachments.map((attachment) => (
                 <AttachmentCard
                   key={attachment.id}
@@ -256,7 +256,7 @@ export function ChatInput({
 
             {/* Pending Status */}
             {hasPendingAttachments && (
-              <div className="mt-3 pt-3 border-t border-[var(--border-color)] flex items-center gap-2">
+              <div className="mt-3 pt-3 border-t border-[var(--border-color)] flex items-center gap-2 flex-shrink-0">
                 <Spinner size="xs" variant="accent" />
                 <span className="text-[10px] uppercase tracking-wider text-[var(--text-accent)]">
                   Preparing {attachments.filter(a => a.isUploading).length} file(s)...
@@ -292,7 +292,7 @@ export function ChatInput({
                 className="pb-1 no-outline bg-transparent"
                 autoFocus
               />
-              
+
               {/* Mic Button - Inside Prompt Box */}
               <button
                 onClick={handleMicClick}
@@ -302,8 +302,8 @@ export function ChatInput({
                   isRecording
                     ? "text-[var(--text-accent)]"
                     : showProgress
-                    ? "text-[var(--text-accent)]"
-                    : "text-[var(--text-accent)] hover:scale-110",
+                      ? "text-[var(--text-accent)]"
+                      : "text-[var(--text-accent)] hover:scale-110",
                   (isLoading || showProgress) && !isRecording && "cursor-not-allowed"
                 )}
                 title={isRecording ? "Stop recording" : showProgress ? "Transcribing..." : permissionDenied ? "Microphone access denied" : "Voice input"}
@@ -363,7 +363,7 @@ export function ChatInput({
                 onClick={() => setIsEffortMenuOpen(!isEffortMenuOpen)}
                 className={cn(
                   "w-10 h-10 border bg-[#1a1a1a] flex items-center justify-center group transition-all duration-150",
-                  isEffortMenuOpen 
+                  isEffortMenuOpen
                     ? "border-[var(--text-accent)] text-[var(--text-accent)]"
                     : "border-[var(--border-color)] text-[var(--text-secondary)] hover:border-[var(--text-accent)]/50 hover:text-[var(--text-accent)]"
                 )}
@@ -400,21 +400,21 @@ export function ChatInput({
                             }}
                             className={cn(
                               "flex items-center gap-3 w-full text-left px-3 py-2.5 text-sm transition-all duration-150 group relative",
-                              isSelected 
-                                ? "bg-[var(--text-accent)]/10 border-l-2 border-l-[var(--text-accent)]" 
+                              isSelected
+                                ? "bg-[var(--text-accent)]/10 border-l-2 border-l-[var(--text-accent)]"
                                 : "hover:bg-[#1e1e1e] border-l-2 border-l-transparent"
                             )}
                           >
                             {/* Icon */}
                             <div className={cn(
                               "w-7 h-7 flex items-center justify-center border transition-all duration-150",
-                              isSelected 
-                                ? "bg-[var(--text-accent)] border-[var(--text-accent)] text-black" 
+                              isSelected
+                                ? "bg-[var(--text-accent)] border-[var(--text-accent)] text-black"
                                 : "bg-[#1a1a1a] border-[var(--border-color)] text-[var(--text-secondary)] group-hover:border-[var(--text-accent)]/50 group-hover:text-[var(--text-accent)]"
                             )}>
                               <Icon size={14} />
                             </div>
-                            
+
                             {/* Text */}
                             <div className="flex-1 min-w-0">
                               <div className={cn(
@@ -434,9 +434,9 @@ export function ChatInput({
                                   className={cn(
                                     "w-1 transition-all duration-150",
                                     bar === 1 ? "h-2" : bar === 2 ? "h-3" : "h-4",
-                                    bar <= bars 
-                                      ? isSelected 
-                                        ? "bg-[var(--text-accent)]" 
+                                    bar <= bars
+                                      ? isSelected
+                                        ? "bg-[var(--text-accent)]"
                                         : "bg-[var(--text-secondary)] group-hover:bg-[var(--text-accent)]/70"
                                       : "bg-[#2a2a2a]"
                                   )}
@@ -498,11 +498,11 @@ interface AttachmentCardProps {
 function AttachmentCard({ attachment, onRemove }: AttachmentCardProps) {
   const isImage = attachment.mediaType.startsWith('image/');
   const fileExt = attachment.mediaType.split('/')[1]?.toUpperCase() || 'FILE';
-  
+
   return (
-    <div className="relative group flex-shrink-0 bg-[#141414] border border-[var(--border-color)] overflow-hidden hover:border-[var(--text-accent)]/50 transition-all duration-150">
+    <div className="relative group flex-shrink-0 bg-[#141414] border border-[var(--border-color)] rounded-md overflow-hidden hover:border-[var(--text-accent)]/50 transition-all duration-150">
       {isImage ? (
-        <div className="w-16 h-16 sm:w-20 sm:h-20 relative">
+        <div className="relative !w-[40px] !h-[40px] md:!w-[64px] md:!h-[64px]">
           {attachment.previewUrl ? (
             /* eslint-disable-next-line @next/next/no-img-element */
             <img
@@ -516,25 +516,25 @@ function AttachmentCard({ attachment, onRemove }: AttachmentCardProps) {
             </div>
           )}
           {/* Image type badge */}
-          <div className="absolute bottom-0.5 left-0.5 sm:bottom-1 sm:left-1 px-1 sm:px-1.5 py-0.5 bg-black/80 border border-[var(--border-color)]">
-            <span className="text-[7px] sm:text-[8px] uppercase tracking-wider text-[var(--text-accent)] font-semibold">{fileExt}</span>
+          <div className="absolute bottom-0.5 left-0.5 px-1 py-0.5 bg-black/80 border border-[var(--border-color)] rounded-[2px]">
+            <span className="text-[7px] uppercase tracking-wider text-[var(--text-accent)] font-semibold">{fileExt}</span>
           </div>
         </div>
       ) : (
-        <div className="flex items-center gap-2 sm:gap-2.5 p-2 sm:p-2.5 min-w-[140px] sm:min-w-[160px]">
+        <div className="flex items-center gap-2 p-1.5 !h-[40px] !min-w-[100px] md:!h-[64px] md:!min-w-[120px]">
           {/* File Icon Box */}
-          <div className="w-8 h-8 sm:w-10 sm:h-10 bg-[#0f0f0f] border border-[var(--border-color)] flex items-center justify-center flex-shrink-0 group-hover:border-[var(--text-accent)]/50 group-hover:text-[var(--text-accent)] transition-all duration-150">
-            <FileIcon className="text-[var(--text-secondary)] group-hover:text-[var(--text-accent)]" size={14} />
+          <div className="w-6 h-6 md:w-8 md:h-8 bg-[#0f0f0f] border border-[var(--border-color)] flex items-center justify-center flex-shrink-0 group-hover:border-[var(--text-accent)]/50 group-hover:text-[var(--text-accent)] transition-all duration-150 rounded-sm">
+            <FileIcon className="text-[var(--text-secondary)] group-hover:text-[var(--text-accent)]" size={12} />
           </div>
-          
+
           {/* File Info */}
-          <div className="flex flex-col overflow-hidden min-w-0 flex-1">
-            <span className="text-[10px] sm:text-[11px] font-medium text-[var(--text-primary)] truncate">
+          <div className="flex flex-col overflow-hidden min-w-0 flex-1 justify-center">
+            <span className="text-[10px] font-medium text-[var(--text-primary)] truncate">
               {attachment.name}
             </span>
             {/* File Type Badge */}
-            <span className="inline-flex mt-0.5 sm:mt-1">
-              <span className="text-[7px] sm:text-[8px] uppercase tracking-wider px-1 sm:px-1.5 py-0.5 bg-[var(--text-accent)]/10 border border-[var(--text-accent)]/30 text-[var(--text-accent)] font-semibold">
+            <span className="inline-flex mt-0.5">
+              <span className="text-[7px] uppercase tracking-wider px-1 py-px bg-[var(--text-accent)]/10 border border-[var(--text-accent)]/30 text-[var(--text-accent)] font-semibold rounded-[2px]">
                 {fileExt}
               </span>
             </span>
@@ -545,18 +545,15 @@ function AttachmentCard({ attachment, onRemove }: AttachmentCardProps) {
       {/* Remove button - always visible */}
       <button
         onClick={onRemove}
-        className="absolute top-0.5 right-0.5 sm:top-1 sm:right-1 w-5 h-5 bg-[#0f0f0f]/90 text-[var(--text-secondary)] border border-[var(--border-color)] flex items-center justify-center transition-all duration-150 hover:bg-[var(--text-accent)] hover:text-black hover:border-[var(--text-accent)]"
+        className="absolute top-0.5 right-0.5 w-4 h-4 bg-[#0f0f0f] text-[var(--text-secondary)] border border-[var(--border-color)] flex items-center justify-center transition-all duration-150 hover:bg-[var(--text-accent)] hover:text-black hover:border-[var(--text-accent)] rounded-sm z-10"
       >
         <X size={10} />
       </button>
 
       {/* Upload Progress Overlay */}
       {attachment.isUploading && (
-        <div className="absolute inset-0 bg-[#0f0f0f]/90 flex flex-col items-center justify-center gap-2 backdrop-blur-sm">
-          <CircularProgress progress={attachment.progress} size={40} />
-          <span className="text-[9px] uppercase tracking-wider text-[var(--text-accent)]">
-            {attachment.progress < 100 ? 'Uploading...' : 'Processing...'}
-          </span>
+        <div className="absolute inset-0 bg-[#0f0f0f]/90 flex flex-col items-center justify-center gap-2 backdrop-blur-sm z-20">
+          <CircularProgress progress={attachment.progress} size={24} />
         </div>
       )}
     </div>
