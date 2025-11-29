@@ -20,6 +20,24 @@ const vertex = createVertex({
 // Use Gemini 3 Pro Preview (same as Expert model)
 const RESEARCH_MODEL = 'gemini-3-pro-preview';
 
+// Get current date context for prompts
+function getDateContext(): string {
+  const now = new Date();
+  const options: Intl.DateTimeFormatOptions = { 
+    weekday: 'long', 
+    year: 'numeric', 
+    month: 'long', 
+    day: 'numeric',
+  };
+  const formattedDate = now.toLocaleDateString('en-US', options);
+  const year = now.getFullYear();
+  const month = now.toLocaleDateString('en-US', { month: 'long' });
+  const quarter = Math.ceil((now.getMonth() + 1) / 3);
+  
+  return `CURRENT DATE: ${formattedDate}
+TEMPORAL CONTEXT: We are in Q${quarter} ${year}. When researching, prioritize recent information from ${year} and late ${year - 1}. Consider seasonal relevance, recent product releases, and current market conditions.`;
+}
+
 // Progress event types for SSE
 type ProgressEvent = 
   | { type: 'phase'; phase: string; description: string }
@@ -104,29 +122,35 @@ async function tavilySearch(query: string, maxResults: number = 10): Promise<{ t
   }
 }
 
-// Clarifying questions system prompt
-const CLARIFY_SYSTEM_PROMPT = `You are a research assistant preparing to conduct deep research. Your goal is to understand the user's needs better before starting.
+// Clarifying questions system prompt (generated dynamically with date)
+function getClarifySystemPrompt(): string {
+  return `You are a research assistant preparing to conduct deep, comprehensive research.
 
-Analyze the user's query and generate 2-3 clarifying questions that will help you:
-1. Understand the specific SCOPE (broad overview vs. deep dive on specific aspect)
-2. Identify their USE CASE (personal decision, academic, professional, curiosity)
-3. Clarify any PREFERENCES or CONSTRAINTS (budget, timeline, specific features)
+${getDateContext()}
+
+Your goal is to understand the user's needs better before starting research. Analyze the query and generate 2-3 clarifying questions that will help you:
+
+1. **SCOPE**: Broad overview vs. deep dive on specific aspects?
+2. **USE CASE**: Personal decision, academic research, professional use, or general curiosity?
+3. **CONSTRAINTS**: Budget limits, geographic region, timeline, specific features/requirements?
 
 Rules:
 - Only ask questions that will genuinely improve the research output
 - Questions should be specific and actionable
-- If the query is already crystal clear, you can return fewer questions
+- If the query is already crystal clear, return fewer questions
 - Keep questions concise but meaningful
+- Consider time-sensitive aspects (current products, future releases, historical analysis)
 
 Return ONLY a JSON array of question strings, like:
 ["Question 1?", "Question 2?", "Question 3?"]`;
+}
 
 // Generate clarifying questions
 async function generateClarifyingQuestions(query: string): Promise<string[]> {
   try {
     const result = await generateText({
       model: vertex(RESEARCH_MODEL),
-      system: CLARIFY_SYSTEM_PROMPT,
+      system: getClarifySystemPrompt(),
       messages: [{ role: 'user', content: query }],
     });
     
@@ -148,18 +172,22 @@ async function generateClarifyingQuestions(query: string): Promise<string[]> {
 
 async function generateSearchQueries(query: string, context?: string): Promise<string[]> {
   const contextPrompt = context ? `\n\nAdditional context from user:\n${context}` : '';
+  const now = new Date();
+  const year = now.getFullYear();
   
   const result = await generateText({
     model: vertex(RESEARCH_MODEL),
-    system: `You are conducting exhaustive research. Generate 15-20 diverse search queries covering ALL angles:
+    system: `${getDateContext()}
+
+You are conducting exhaustive research. Generate 15-20 diverse search queries covering ALL angles:
 - Main topic variations
-- Comparisons and alternatives
+- Comparisons and alternatives  
 - Technical specs and benchmarks
 - Expert and user reviews
-- Recent news (2024-2025)
-- Pricing and value analysis
+- Recent news (${year} and late ${year - 1})
+- Pricing and value analysis (current market)
 - Common issues and problems
-- Best use cases
+- Best use cases and recommendations
 
 Return ONLY search queries, one per line. No numbering.`,
     messages: [{ role: 'user', content: query + contextPrompt }],
@@ -168,41 +196,79 @@ Return ONLY search queries, one per line. No numbering.`,
   return result.text.split('\n').filter(q => q.trim().length > 0).slice(0, 20);
 }
 
-const FINAL_REPORT_SYSTEM_PROMPT = `You are producing the DEFINITIVE research report. Today: ${new Date().toISOString().split('T')[0]}.
+// Generate final report system prompt dynamically
+function getFinalReportSystemPrompt(): string {
+  const dateContext = getDateContext();
+  
+  return `You are producing a comprehensive research report. ${dateContext}
 
-## Mission
-Create the most comprehensive, authoritative report possible. Leave NOTHING out.
+## CRITICAL FORMATTING RULES
 
-## Structure (adapt based on topic type)
+### Report Structure
+Start IMMEDIATELY with your findings. Do NOT include:
+- Date headers or memo formatting
+- "TO:", "FROM:", "SUBJECT:" lines
+- Any bureaucratic preamble
 
-**For product comparisons:**
-1. Executive Summary with clear recommendations
-2. Detailed breakdown of each option
-3. Head-to-head comparisons
-4. Price-to-performance analysis
-5. Use case recommendations
-6. Potential issues for each
-7. Final verdict
+Begin directly with: "## Executive Summary" or "## Key Findings"
+
+### Structure (adapt to topic)
+
+**For product comparisons/recommendations:**
+1. **Executive Summary** - Clear winner(s) and why (2-3 sentences)
+2. **Top Recommendations** - Ranked list with brief justification
+3. **Detailed Analysis** - Each option broken down
+4. **Comparison Table** - Side-by-side specs (use markdown tables)
+5. **Use Case Guide** - Who should buy what
+6. **Potential Issues** - Known problems for each option
+7. **Final Verdict** - Definitive recommendation
 
 **For informational topics:**
-1. Comprehensive overview
-2. Deep dive into each aspect
-3. Expert consensus
-4. Common misconceptions
-5. Practical applications
-6. Future outlook
+1. **Overview** - Core answer to the question
+2. **Deep Dive** - Each major aspect explained
+3. **Expert Consensus** - What authorities say
+4. **Common Misconceptions** - What people get wrong
+5. **Practical Applications** - Real-world use
+6. **Future Outlook** - What's coming
 
-## Formatting
-- Use \`backticks\` for technical terms, products, specs
-- Headers: ### \`Section Title\`
-- **Bold** for key points
-- LaTeX for formulas: $E = mc^2$
-- Write detailed paragraphs
+### Text Formatting
+- Use \`backticks\` for: product names, technical terms, specs, prices
+- Use **bold** for key points and recommendations
+- Use ### headers for major sections
+- Write in clear, direct paragraphs
+- Use bullet points for lists
+- Use markdown tables for comparisons
 
-## Citations (MANDATORY)
-- EVERY claim needs citations: [1], [2], [3]
-- Multiple citations when sources agree
-- End with ### \`Sources\` listing ALL cited URLs`;
+### Citations (MANDATORY)
+- Cite every factual claim: [1], [2], [3]
+- Multiple citations when sources agree: [4], [5], [12]
+- Place citations at the END of sentences, before the period
+
+### Sources Section (CRITICAL - MUST FORMAT CORRECTLY)
+End your report with a properly formatted sources section:
+
+\`\`\`
+---
+
+### Sources
+
+**[1]** Source Title
+https://example.com/url
+
+**[2]** Another Source Title  
+https://example.com/another-url
+
+**[3]** Third Source
+https://example.com/third
+\`\`\`
+
+IMPORTANT: Each source MUST be on its own line with a blank line between entries. Format as:
+- **[NUMBER]** followed by source title
+- URL on the NEXT line
+- Blank line before next source
+
+DO NOT bunch all URLs together. DO NOT put multiple sources on one line.`;
+}
 
 export async function POST(req: Request) {
   const requestStartTime = Date.now();
@@ -341,27 +407,36 @@ Return ONLY search queries, one per line.`,
           `[${i + 1}] ${s.title}\nURL: ${s.url}\nContent: ${s.content.slice(0, 1500)}\n`
         ).join('\n---\n');
 
-        const finalReportPrompt = `Research completed with ${sourcesList.length} sources. Create the DEFINITIVE report for: "${query}"
+        const finalReportPrompt = `Create a comprehensive research report answering: "${query}"
 
-${clarifyContext}
-
-## Research Data
+${clarifyContext ? `USER CONTEXT:\n${clarifyContext}\n` : ''}
+AVAILABLE SOURCES (${sourcesList.length} total):
 ${sourcesContext}
 
-Requirements:
-- EXHAUSTIVE coverage using ALL relevant sources
-- Cite extensively: [1], [2], [3]...
-- Include specific numbers, specs, prices
-- Cover ALL angles: comparisons, pros, cons, use cases
-- Provide CLEAR recommendations
-- End with ### \`Sources\` section`;
+REQUIREMENTS:
+1. Start DIRECTLY with "## Executive Summary" - no date headers or memo formatting
+2. Use ALL relevant sources with inline citations [1], [2], etc.
+3. Include specific numbers, specs, prices, and data points
+4. Cover multiple angles: comparisons, pros, cons, use cases
+5. End with a properly formatted Sources section where each source is on its OWN LINE:
+   
+   ---
+   ### Sources
+   
+   **[1]** Title Here
+   https://url-here.com
+   
+   **[2]** Another Title
+   https://another-url.com
+
+CRITICAL: Format sources with line breaks between each entry. Do NOT bunch URLs together.`;
 
         let partialText = '';
         const partialSources = sourcesList.map(s => ({ url: s.url, title: s.title }));
 
         const result = streamText({
           model: vertex(RESEARCH_MODEL),
-          system: FINAL_REPORT_SYSTEM_PROMPT,
+          system: getFinalReportSystemPrompt(),
           messages: [{ role: 'user', content: finalReportPrompt }],
           onChunk: ({ chunk }) => {
             if (chunk.type === 'text-delta' && chunk.text) {
