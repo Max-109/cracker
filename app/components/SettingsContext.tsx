@@ -3,6 +3,9 @@
 import { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { useAuth } from './AuthContext';
 
+// Chat mode type
+export type ChatMode = 'chat' | 'learning' | 'deep-search';
+
 // Account settings (saved to database)
 interface AccountSettings {
   currentModelId: string;
@@ -10,6 +13,7 @@ interface AccountSettings {
   reasoningEffort: string;
   responseLength: number;
   learningMode: boolean;
+  chatMode: ChatMode;
   userName: string | null;
   userGender: string;
 }
@@ -25,6 +29,7 @@ const DEFAULT_ACCOUNT_SETTINGS: AccountSettings = {
   reasoningEffort: 'medium',
   responseLength: 50,
   learningMode: false,
+  chatMode: 'chat',
   userName: null,
   userGender: 'not-specified',
 };
@@ -125,12 +130,18 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       const res = await fetch('/api/settings');
       if (res.ok) {
         const data = await res.json();
+        // Derive chatMode from learningMode if not explicitly set (backward compatibility)
+        let chatMode: ChatMode = data.chatMode || DEFAULT_ACCOUNT_SETTINGS.chatMode;
+        if (!data.chatMode && data.learningMode) {
+          chatMode = 'learning';
+        }
         setSettings({
           currentModelId: data.currentModelId || DEFAULT_ACCOUNT_SETTINGS.currentModelId,
           currentModelName: data.currentModelName || DEFAULT_ACCOUNT_SETTINGS.currentModelName,
           reasoningEffort: data.reasoningEffort || DEFAULT_ACCOUNT_SETTINGS.reasoningEffort,
           responseLength: data.responseLength ?? DEFAULT_ACCOUNT_SETTINGS.responseLength,
-          learningMode: data.learningMode ?? DEFAULT_ACCOUNT_SETTINGS.learningMode,
+          learningMode: chatMode === 'learning', // Sync with chatMode
+          chatMode,
           userName: data.userName,
           userGender: data.userGender || DEFAULT_ACCOUNT_SETTINGS.userGender,
           accentColor: currentAccentColor, // Always use localStorage value

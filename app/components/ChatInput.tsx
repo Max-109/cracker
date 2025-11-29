@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils';
 import type { AttachmentItem } from '@/app/hooks/useAttachments';
 import type { ReasoningEffortLevel } from '@/app/hooks/usePersistedSettings';
 import { useVoiceRecording } from '@/app/hooks/useVoiceRecording';
+import { ModeSelector, ChatMode } from './ModeSelector';
 import {
   Textarea,
   CircularProgress,
@@ -25,6 +26,8 @@ interface ChatInputProps {
   onRemoveAttachment: (id: string) => void;
   reasoningEffort: ReasoningEffortLevel;
   onReasoningEffortChange: (effort: ReasoningEffortLevel) => void;
+  chatMode: ChatMode;
+  onChatModeChange: (mode: ChatMode) => void;
   disabled?: boolean;
   chatId?: string | null;
 }
@@ -42,6 +45,8 @@ export function ChatInput({
   onRemoveAttachment,
   reasoningEffort,
   onReasoningEffortChange,
+  chatMode,
+  onChatModeChange,
   disabled,
   chatId,
 }: ChatInputProps) {
@@ -275,6 +280,15 @@ export function ChatInput({
             <Paperclip size={16} strokeWidth={2} className="group-hover:rotate-12 transition-transform duration-200" />
           </button>
 
+          {/* Mode Selector - Left side near attachments */}
+          <div className="mb-[2px]">
+            <ModeSelector
+              currentMode={chatMode}
+              onModeChange={onChatModeChange}
+              disabled={isLoading}
+            />
+          </div>
+
           <div className="flex-1">
             <div className="border border-[var(--border-color)] bg-[#1a1a1a] flex items-end p-2.5 gap-2 hover:border-[var(--text-accent)]/30 focus-within:border-[var(--text-accent)]/50 transition-all duration-150">
               <Textarea
@@ -357,8 +371,8 @@ export function ChatInput({
           </div>
 
           <div className="flex items-center gap-2 h-[40px] mb-[2px]">
-            {/* Reasoning Effort Selector */}
-            <div className="relative">
+            {/* Reasoning Effort Selector - hide in deep-search mode */}
+            {chatMode !== 'deep-search' && <div className="relative">
               <button
                 onClick={() => setIsEffortMenuOpen(!isEffortMenuOpen)}
                 className={cn(
@@ -459,7 +473,7 @@ export function ChatInput({
                   </div>
                 </>
               )}
-            </div>
+            </div>}
 
             {isLoading ? (
               <button

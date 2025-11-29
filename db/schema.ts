@@ -45,7 +45,8 @@ export const userSettings = pgTable('user_settings', {
   reasoningEffort: text('reasoning_effort').default('medium'),
   // Response settings
   responseLength: integer('response_length').default(50),
-  learningMode: boolean('learning_mode').default(false),
+  learningMode: boolean('learning_mode').default(false), // Deprecated: use chatMode
+  chatMode: text('chat_mode').default('chat'), // 'chat' | 'learning' | 'deep-search'
   // Profile settings
   userName: text('user_name'),
   userGender: text('user_gender').default('not-specified'),

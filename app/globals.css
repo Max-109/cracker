@@ -873,3 +873,17 @@ select {
     opacity: 0;
   }
 }
+
+/* Mode Selector Scanline Animation */
+@keyframes mode-scan {
+  0% {
+    transform: translateY(-100%);
+  }
+  100% {
+    transform: translateY(200%);
+  }
+}
+
+.animate-mode-scan {
+  animation: mode-scan 1.2s ease-in-out infinite;
+}

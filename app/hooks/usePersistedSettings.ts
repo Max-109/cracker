@@ -1,9 +1,10 @@
 'use client';
 
 import { useCallback } from 'react';
-import { useSettings } from '@/app/components/SettingsContext';
+import { useSettings, ChatMode } from '@/app/components/SettingsContext';
 
 export type ReasoningEffortLevel = 'low' | 'medium' | 'high';
+export type { ChatMode } from '@/app/components/SettingsContext';
 
 // Model settings hook - now uses SettingsContext
 export function usePersistedSetting(key: string, fallback: string) {
@@ -57,13 +58,30 @@ export function useUserProfile() {
   };
 }
 
-// Learning mode setting
+// Learning mode setting (deprecated - use useChatMode instead)
 export function useLearningMode() {
   const { settings, updateSettings, isHydrated } = useSettings();
   
   return {
     learningMode: settings.learningMode,
-    setLearningMode: (value: boolean) => updateSettings({ learningMode: value }),
+    setLearningMode: (value: boolean) => updateSettings({ 
+      learningMode: value,
+      chatMode: value ? 'learning' : 'chat',
+    }),
+    isHydrated,
+  };
+}
+
+// Chat mode setting (replaces learningMode)
+export function useChatMode() {
+  const { settings, updateSettings, isHydrated } = useSettings();
+  
+  return {
+    chatMode: settings.chatMode,
+    setChatMode: (mode: ChatMode) => updateSettings({ 
+      chatMode: mode,
+      learningMode: mode === 'learning', // Keep learningMode in sync
+    }),
     isHydrated,
   };
 }

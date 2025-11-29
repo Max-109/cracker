@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { HexColorPicker } from "react-colorful";
-import { Settings2, User, Pencil, Palette, Sparkles, GaugeCircle, GraduationCap } from 'lucide-react';
+import { Settings2, User, Pencil, Palette, Sparkles, GaugeCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Dialog } from '@/components/ui';
 
@@ -40,9 +40,6 @@ interface SettingsDialogProps {
   // Response length
   responseLength: number;
   onResponseLengthChange: (length: number) => void;
-  // Learning mode
-  learningMode: boolean;
-  onLearningModeChange: (enabled: boolean) => void;
   // User info
   userName: string;
   onUserNameChange: (name: string) => void;
@@ -58,8 +55,6 @@ export function SettingsDialog({
   onOpenChange,
   responseLength,
   onResponseLengthChange,
-  learningMode,
-  onLearningModeChange,
   userName,
   onUserNameChange,
   userGender,
@@ -70,51 +65,31 @@ export function SettingsDialog({
   const [activeSection, setActiveSection] = useState<'response' | 'profile' | 'appearance'>('response');
   // Initialize local state from props
   const [localResponseLength, setLocalResponseLength] = useState(responseLength);
-  const [localLearningMode, setLocalLearningMode] = useState(learningMode);
   const [localUserName, setLocalUserName] = useState(userName);
   const [localUserGender, setLocalUserGender] = useState(userGender);
   const [localAccentColor, setLocalAccentColor] = useState(accentColor);
 
-  // Reset local state when dialog opens - read directly from localStorage to avoid stale props
+  // Reset local state when dialog opens - sync from props
   const prevOpenRef = useRef(open);
   useEffect(() => {
     if (open && !prevOpenRef.current) {
-      // Dialog just opened - read fresh values from localStorage
-      const storedResponseLength = window.localStorage.getItem('CHATGPT_RESPONSE_LENGTH');
-      const storedLearningMode = window.localStorage.getItem('CHATGPT_LEARNING_MODE');
-      const storedUserName = window.localStorage.getItem('CHATGPT_USER_NAME');
-      const storedUserGender = window.localStorage.getItem('CHATGPT_USER_GENDER');
-      const storedAccentColor = window.localStorage.getItem('CHATGPT_ACCENT_COLOR');
-      
-      const parsedStored = storedResponseLength ? parseInt(storedResponseLength) : NaN;
-      const freshResponseLength = isNaN(parsedStored) ? responseLength : parsedStored;
-      const freshLearningMode = storedLearningMode === 'true';
-      const freshUserName = storedUserName ?? userName;
-      const freshUserGender = storedUserGender ?? userGender;
-      const freshAccentColor = storedAccentColor ?? accentColor;
-      
-      console.log('[SettingsDialog] Dialog opened - localStorage responseLength:', storedResponseLength, '-> using:', freshResponseLength);
-      
-      // Use requestAnimationFrame to avoid synchronous setState warning
+      // Dialog just opened - sync from props
       requestAnimationFrame(() => {
-        setLocalResponseLength(freshResponseLength);
-        setLocalLearningMode(freshLearningMode);
-        setLocalUserName(freshUserName);
-        setLocalUserGender(freshUserGender);
-        setLocalAccentColor(freshAccentColor);
+        setLocalResponseLength(responseLength);
+        setLocalUserName(userName);
+        setLocalUserGender(userGender);
+        setLocalAccentColor(accentColor);
       });
     }
     prevOpenRef.current = open;
-  }, [open, responseLength, learningMode, userName, userGender, accentColor]);
+  }, [open, responseLength, userName, userGender, accentColor]);
 
   const handleSave = () => {
     console.log('[Settings] ===== SAVING =====');
     console.log('[Settings] responseLength:', localResponseLength);
-    console.log('[Settings] learningMode:', localLearningMode);
     console.log('[Settings] userName:', localUserName);
     
     onResponseLengthChange(localResponseLength);
-    onLearningModeChange(localLearningMode);
     onUserNameChange(localUserName);
     onUserGenderChange(localUserGender);
     onAccentColorChange(localAccentColor);
@@ -172,8 +147,6 @@ export function SettingsDialog({
               value={localResponseLength} 
               onChange={setLocalResponseLength}
               currentLevel={currentLevel}
-              learningMode={localLearningMode}
-              onLearningModeChange={setLocalLearningMode}
             />
           )}
           {activeSection === 'profile' && (
@@ -217,11 +190,9 @@ interface ResponseLengthSectionProps {
   value: number;
   onChange: (value: number) => void;
   currentLevel: typeof RESPONSE_LEVELS[0];
-  learningMode: boolean;
-  onLearningModeChange: (enabled: boolean) => void;
 }
 
-function ResponseLengthSection({ value, onChange, currentLevel, learningMode, onLearningModeChange }: ResponseLengthSectionProps) {
+function ResponseLengthSection({ value, onChange, currentLevel }: ResponseLengthSectionProps) {
   const dialRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
 
@@ -425,53 +396,6 @@ function ResponseLengthSection({ value, onChange, currentLevel, learningMode, on
         </div>
       </div>
 
-      {/* Learning Mode */}
-      <div className="pt-4 border-t border-[var(--border-color)]">
-        <label className="flex items-start gap-3 cursor-pointer group">
-          <div className="relative mt-0.5">
-            <input
-              type="checkbox"
-              checked={learningMode}
-              onChange={(e) => onLearningModeChange(e.target.checked)}
-              className="sr-only peer"
-            />
-            <div className={cn(
-              "w-5 h-5 border-2 transition-all duration-150 flex items-center justify-center",
-              learningMode 
-                ? "bg-[var(--text-accent)] border-[var(--text-accent)]" 
-                : "bg-transparent border-[var(--border-color)] group-hover:border-[var(--text-accent)]/50"
-            )}>
-              {learningMode && (
-                <svg className="w-3 h-3 text-black" viewBox="0 0 12 12" fill="none">
-                  <path d="M2 6L5 9L10 3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              )}
-            </div>
-          </div>
-          <div className="flex-1">
-            <div className="flex items-center gap-2">
-              <GraduationCap size={14} className={cn(
-                "transition-colors",
-                learningMode ? "text-[var(--text-accent)]" : "text-[var(--text-secondary)]"
-              )} />
-              <span className={cn(
-                "text-xs font-semibold uppercase tracking-wider transition-colors",
-                learningMode ? "text-[var(--text-accent)]" : "text-[var(--text-primary)]"
-              )}>
-                Learning Mode
-              </span>
-            </div>
-            <p className="text-[10px] text-[var(--text-secondary)] mt-1 leading-relaxed">
-              Step-by-step explanations for every concept. Shows reasoning, explains why each step matters, and assumes you&apos;re learning from scratch.
-            </p>
-            {learningMode && (
-              <div className="mt-2 px-2 py-1.5 bg-[var(--text-accent)]/10 border border-[var(--text-accent)]/30 text-[9px] text-[var(--text-accent)]">
-                Overrides response length — responses will be detailed and educational
-              </div>
-            )}
-          </div>
-        </label>
-      </div>
     </div>
   );
 }

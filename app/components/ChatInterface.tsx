@@ -7,7 +7,7 @@ import { PanelLeft, Settings2 } from 'lucide-react';
 import type { ChatMessage, MessagePart } from '@/lib/chat-types';
 import { useChatContext } from './ChatContext';
 import { useAttachments } from '@/app/hooks/useAttachments';
-import { usePersistedSetting, useAccentColor, useResponseLength, useUserProfile, useLearningMode, ReasoningEffortLevel } from '@/app/hooks/usePersistedSettings';
+import { usePersistedSetting, useAccentColor, useResponseLength, useUserProfile, useLearningMode, useChatMode, ReasoningEffortLevel, ChatMode } from '@/app/hooks/usePersistedSettings';
 import { ModelSelector } from './ModelSelector';
 import { ChatInput } from './ChatInput';
 import { MessageList } from './MessageList';
@@ -30,8 +30,9 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
   const { responseLength, setResponseLength, isHydrated: isResponseLengthHydrated } = useResponseLength();
   const { userName, setUserName, userGender, setUserGender, isHydrated: isProfileHydrated } = useUserProfile();
   const { learningMode, setLearningMode, isHydrated: isLearningModeHydrated } = useLearningMode();
+  const { chatMode, setChatMode, isHydrated: isChatModeHydrated } = useChatMode();
   
-  const isSettingsHydrated = isModelIdHydrated && isModelNameHydrated && isColorHydrated && isResponseLengthHydrated && isProfileHydrated && isLearningModeHydrated;
+  const isSettingsHydrated = isModelIdHydrated && isModelNameHydrated && isColorHydrated && isResponseLengthHydrated && isProfileHydrated && isLearningModeHydrated && isChatModeHydrated;
   
   // Settings dialog state
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -61,6 +62,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
   const userNameRef = useRef(userName);
   const userGenderRef = useRef(userGender);
   const learningModeRef = useRef(learningMode);
+  const chatModeRef = useRef(chatMode);
   
   useEffect(() => { currentModelIdRef.current = currentModelId; }, [currentModelId]);
   useEffect(() => { reasoningEffortRef.current = reasoningEffort; }, [reasoningEffort]);
@@ -68,6 +70,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
   useEffect(() => { userNameRef.current = userName; }, [userName]);
   useEffect(() => { userGenderRef.current = userGender; }, [userGender]);
   useEffect(() => { learningModeRef.current = learningMode; }, [learningMode]);
+  useEffect(() => { chatModeRef.current = chatMode; }, [chatMode]);
 
   // Update document title based on current chat
   useEffect(() => {
@@ -580,6 +583,64 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
         return;
       }
 
+      // Handle deep search mode differently
+      if (chatModeRef.current === 'deep-search') {
+        console.log(`[CLIENT DEBUG] ${new Date().toISOString()} === CALLING DEEP SEARCH ===`);
+        console.log(`[CLIENT DEBUG] ChatId: ${activeChatId}`);
+        
+        // Call deep search API and handle streaming response
+        const response = await fetch('/api/deep-search', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query: userMessage, chatId: activeChatId })
+        });
+
+        if (!response.ok) {
+          console.error('Deep search failed:', response.status);
+          setIsSending(false);
+          return;
+        }
+
+        // Handle streaming response using the same pattern as regular chat
+        // The useChat hook will handle this via the response
+        console.log(`[CLIENT DEBUG] ${new Date().toISOString()} Deep search response received`);
+        
+        // After deep search completes, reload messages from DB
+        setTimeout(async () => {
+          try {
+            const msgRes = await fetch(`/api/chats/${activeChatId}`);
+            const msgData = await msgRes.json();
+            if (Array.isArray(msgData)) {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const uiMessages = msgData.map((msg: any) => {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                let parts: Array<any>;
+                if (Array.isArray(msg.content)) {
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  parts = msg.content.map((p: any) => {
+                    if (typeof p === 'string') return { type: 'text', text: p };
+                    if (p.type === 'text') return { type: 'text', text: p.text || '' };
+                    if (p.type === 'reasoning') return { type: 'reasoning', text: p.text || p.reasoning || '' };
+                    if (p.type === 'stopped') return { type: 'stopped', stopType: p.stopType };
+                    if (p.type === 'source' || p.type === 'source-url') return { type: 'source', url: p.url, title: p.title, source: p.source };
+                    return p;
+                  });
+                } else {
+                  parts = [{ type: 'text', text: msg.content || '' }];
+                }
+                return { id: msg.id, role: msg.role, parts, model: msg.model, tokensPerSecond: msg.tokensPerSecond };
+              });
+              setMessages(uiMessages as Parameters<typeof setMessages>[0]);
+            }
+          } catch (e) {
+            console.error('Failed to reload messages after deep search:', e);
+          }
+          setIsSending(false);
+        }, 500);
+        
+        return;
+      }
+
       console.log(`[CLIENT DEBUG] ${new Date().toISOString()} === CALLING sendMessage() ===`);
       console.log(`[CLIENT DEBUG] Model: ${currentModelIdRef.current}, ChatId: ${activeChatId}`);
       
@@ -607,6 +668,11 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
     setCurrentModelId(id);
     setCurrentModelName(name);
   }, [setCurrentModelId, setCurrentModelName]);
+
+  const handleChatModeChange = useCallback((mode: ChatMode) => {
+    setChatMode(mode);
+    // Note: setChatMode already syncs learningMode internally
+  }, [setChatMode]);
 
   const handleRetry = useCallback(() => {
     isRegeneratingRef.current = true;
@@ -666,8 +732,6 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
           onOpenChange={setIsSettingsOpen}
           responseLength={responseLength}
           onResponseLengthChange={setResponseLength}
-          learningMode={learningMode}
-          onLearningModeChange={setLearningMode}
           userName={userName}
           onUserNameChange={setUserName}
           userGender={userGender}
@@ -708,6 +772,8 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
           onRemoveAttachment={removeAttachment}
           reasoningEffort={reasoningEffort}
           onReasoningEffortChange={setReasoningEffort}
+          chatMode={chatMode}
+          onChatModeChange={handleChatModeChange}
           chatId={currentChatId}
         />
       </main>
