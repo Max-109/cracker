@@ -82,6 +82,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
 
   // Loading states
   const [isMessagesLoading, setIsMessagesLoading] = useState(false);
+  const [isSending, setIsSending] = useState(false); // Immediate feedback when clicking send
   const [input, setInput] = useState('');
   const [dismissedError, setDismissedError] = useState(false);
 
@@ -499,6 +500,9 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
       return;
     }
 
+    // Show immediate loading feedback
+    setIsSending(true);
+    
     const userMessage = input;
     
     type PreparedAttachment =
@@ -591,8 +595,11 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
         sendMessage({ text: userMessage });
       }
       console.log(`[CLIENT DEBUG] ${new Date().toISOString()} sendMessage() called, waiting for response...`);
+      // Reset sending state after a short delay to allow UI to transition
+      setTimeout(() => setIsSending(false), 100);
     } catch (err) {
       console.error("[CLIENT DEBUG] Failed to send message:", err);
+      setIsSending(false);
     }
   }, [input, attachments, hasPendingAttachments, currentChatId, clearAttachments, refreshChats, sendMessage]);
 
@@ -629,8 +636,8 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
             </button>
           </div>
 
-          {/* Center/Left: Model Selector */}
-          <div className="flex-1 flex justify-center md:justify-start">
+          {/* Right on mobile, Left on desktop: Model Selector */}
+          <div className="flex-1 flex justify-end md:justify-start">
             <ModelSelector
               currentModelId={currentModelId}
               currentModelName={currentModelName}
@@ -673,6 +680,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
         <MessageList
           messages={typedMessages}
           isMessagesLoading={isMessagesLoading}
+          isSending={isSending}
           isStreaming={isStreaming}
           status={status}
           activeGeneration={activeGeneration}

@@ -154,6 +154,7 @@ interface ActiveGeneration {
 interface MessageListProps {
   messages: ChatMessage[];
   isMessagesLoading: boolean;
+  isSending?: boolean; // Immediate feedback when user clicks send
   isStreaming: boolean;
   status: 'submitted' | 'streaming' | 'ready' | 'error';
   activeGeneration: ActiveGeneration | null;
@@ -178,6 +179,7 @@ const SUGGESTIONS = [
 export function MessageList({
   messages,
   isMessagesLoading,
+  isSending = false,
   isStreaming,
   status,
   activeGeneration,
@@ -262,7 +264,22 @@ export function MessageList({
         {/* Actual Content */}
         <FadeWrapper show={!isMessagesLoading} className="relative z-0">
           <>
-            {messages.length === 0 && !currentChatId && (
+            {/* Sending indicator - shows immediately when user clicks send */}
+            {isSending && messages.length === 0 && (
+              <div className="flex flex-col items-center justify-center min-h-[60vh] px-4 py-8">
+                <div className="flex flex-col items-center">
+                  <div className="w-16 h-16 flex items-center justify-center border border-[var(--text-accent)]/30 bg-[var(--text-accent)]/10 mb-6 relative">
+                    <Sparkles size={28} className="text-[var(--text-accent)] animate-pulse" />
+                    <div className="absolute inset-0 border border-[var(--text-accent)] animate-ping opacity-20" />
+                  </div>
+                  <p className="text-sm text-[var(--text-secondary)] uppercase tracking-wider">
+                    Starting conversation...
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {messages.length === 0 && !currentChatId && !isSending && (
               <div className="flex flex-col items-center justify-center min-h-[60vh] px-4 py-8">
                 {/* Welcome Header */}
                 <div className="flex flex-col items-center mb-10">

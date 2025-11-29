@@ -502,7 +502,7 @@ function AttachmentCard({ attachment, onRemove }: AttachmentCardProps) {
   return (
     <div className="relative group flex-shrink-0 bg-[#141414] border border-[var(--border-color)] overflow-hidden hover:border-[var(--text-accent)]/50 transition-all duration-150">
       {isImage ? (
-        <div className="w-20 h-20 relative">
+        <div className="w-16 h-16 sm:w-20 sm:h-20 relative">
           {attachment.previewUrl ? (
             /* eslint-disable-next-line @next/next/no-img-element */
             <img
@@ -516,25 +516,25 @@ function AttachmentCard({ attachment, onRemove }: AttachmentCardProps) {
             </div>
           )}
           {/* Image type badge */}
-          <div className="absolute bottom-1 left-1 px-1.5 py-0.5 bg-black/80 border border-[var(--border-color)]">
-            <span className="text-[8px] uppercase tracking-wider text-[var(--text-accent)] font-semibold">{fileExt}</span>
+          <div className="absolute bottom-0.5 left-0.5 sm:bottom-1 sm:left-1 px-1 sm:px-1.5 py-0.5 bg-black/80 border border-[var(--border-color)]">
+            <span className="text-[7px] sm:text-[8px] uppercase tracking-wider text-[var(--text-accent)] font-semibold">{fileExt}</span>
           </div>
         </div>
       ) : (
-        <div className="flex items-center gap-2.5 p-2.5 min-w-[160px]">
+        <div className="flex items-center gap-2 sm:gap-2.5 p-2 sm:p-2.5 min-w-[140px] sm:min-w-[160px]">
           {/* File Icon Box */}
-          <div className="w-10 h-10 bg-[#0f0f0f] border border-[var(--border-color)] flex items-center justify-center flex-shrink-0 group-hover:border-[var(--text-accent)]/50 group-hover:text-[var(--text-accent)] transition-all duration-150">
-            <FileIcon className="text-[var(--text-secondary)] group-hover:text-[var(--text-accent)]" size={16} />
+          <div className="w-8 h-8 sm:w-10 sm:h-10 bg-[#0f0f0f] border border-[var(--border-color)] flex items-center justify-center flex-shrink-0 group-hover:border-[var(--text-accent)]/50 group-hover:text-[var(--text-accent)] transition-all duration-150">
+            <FileIcon className="text-[var(--text-secondary)] group-hover:text-[var(--text-accent)]" size={14} />
           </div>
           
           {/* File Info */}
           <div className="flex flex-col overflow-hidden min-w-0 flex-1">
-            <span className="text-[11px] font-medium text-[var(--text-primary)] truncate">
+            <span className="text-[10px] sm:text-[11px] font-medium text-[var(--text-primary)] truncate">
               {attachment.name}
             </span>
             {/* File Type Badge */}
-            <span className="inline-flex mt-1">
-              <span className="text-[8px] uppercase tracking-wider px-1.5 py-0.5 bg-[var(--text-accent)]/10 border border-[var(--text-accent)]/30 text-[var(--text-accent)] font-semibold">
+            <span className="inline-flex mt-0.5 sm:mt-1">
+              <span className="text-[7px] sm:text-[8px] uppercase tracking-wider px-1 sm:px-1.5 py-0.5 bg-[var(--text-accent)]/10 border border-[var(--text-accent)]/30 text-[var(--text-accent)] font-semibold">
                 {fileExt}
               </span>
             </span>
@@ -542,10 +542,10 @@ function AttachmentCard({ attachment, onRemove }: AttachmentCardProps) {
         </div>
       )}
 
-      {/* Remove button */}
+      {/* Remove button - always visible on mobile (touch), hover on desktop */}
       <button
         onClick={onRemove}
-        className="absolute top-1 right-1 w-5 h-5 bg-[#0f0f0f] text-[var(--text-secondary)] border border-[var(--border-color)] flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-150 hover:bg-[var(--text-accent)] hover:text-black hover:border-[var(--text-accent)]"
+        className="absolute top-0.5 right-0.5 sm:top-1 sm:right-1 w-5 h-5 sm:w-5 sm:h-5 bg-[#0f0f0f]/90 text-[var(--text-secondary)] border border-[var(--border-color)] flex items-center justify-center opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all duration-150 hover:bg-[var(--text-accent)] hover:text-black hover:border-[var(--text-accent)]"
       >
         <X size={10} />
       </button>
