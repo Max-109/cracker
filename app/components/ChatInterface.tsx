@@ -111,6 +111,21 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
   } | null>(null);
   const generationPollRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Deep research state
+  const [deepResearchState, setDeepResearchState] = useState<{
+    isActive: boolean;
+    placeholderId: string | null;
+    clarifyQuestions: string[] | null;
+    query: string | null;
+    chatId: string | null;
+  }>({
+    isActive: false,
+    placeholderId: null,
+    clarifyQuestions: null,
+    query: null,
+    chatId: null,
+  });
+
   // Refs for state management
   const ignoreNextChatIdChangeRef = useRef(false);
   const isRegeneratingRef = useRef(false);
@@ -174,7 +189,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
   const { messages, status, stop, setMessages, regenerate, sendMessage, error } = chatHelpers;
   const typedMessages = messages as unknown as ChatMessage[];
   const isStreaming = status === 'submitted' || status === 'streaming';
-  const isLoading = isStreaming || activeGeneration?.status === 'streaming';
+  const isLoading = isStreaming || activeGeneration?.status === 'streaming' || deepResearchState.isActive;
 
   // Handle stop with saving partial content
   const handleStop = useCallback(async () => {
@@ -275,6 +290,250 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
       }
     }, 100);
   }, [stop, setMessages]);
+
+  // Deep search function with SSE streaming
+  const startDeepSearch = useCallback(async (
+    query: string, 
+    chatId: string, 
+    placeholderId: string,
+    skipClarify: boolean,
+    clarifyAnswers?: { q: string; a: string }[]
+  ) => {
+    setDeepResearchState({
+      isActive: true,
+      placeholderId,
+      clarifyQuestions: null,
+      query,
+      chatId,
+    });
+
+    try {
+      const response = await fetch('/api/deep-search', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          query, 
+          chatId, 
+          skipClarify,
+          clarifyAnswers 
+        })
+      });
+
+      if (!response.ok) {
+        console.error('Deep search failed:', response.status);
+        setMessages(prev => prev.filter(m => m.id !== placeholderId));
+        setIsSending(false);
+        setDeepResearchState({ isActive: false, placeholderId: null, clarifyQuestions: null, query: null, chatId: null });
+        return;
+      }
+
+      const reader = response.body?.getReader();
+      const decoder = new TextDecoder();
+      
+      let streamedText = '';
+      let sources: { url: string; title: string }[] = [];
+      const searches: { query: string; index: number; total: number }[] = [];
+      let currentProgress = {
+        phase: 'planning' as string,
+        phaseDescription: 'Starting research...',
+        percent: 0,
+        message: 'Initializing',
+        searches: [] as { query: string; index: number; total: number }[],
+        sources: [] as { url: string; title: string }[],
+        isComplete: false,
+      };
+
+      if (reader) {
+        let buffer = '';
+        
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n\n');
+          buffer = lines.pop() || '';
+          
+          for (const line of lines) {
+            if (line.startsWith('data: ')) {
+              try {
+                const data = JSON.parse(line.slice(6));
+                
+                if (data.type === 'clarify') {
+                  // Show clarifying questions
+                  setDeepResearchState(prev => ({
+                    ...prev,
+                    clarifyQuestions: data.questions,
+                  }));
+                  setMessages(prev => prev.map(m => 
+                    m.id === placeholderId 
+                      ? { ...m, parts: [{ type: 'clarify-questions', questions: data.questions }] as unknown as typeof m.parts }
+                      : m
+                  ));
+                  setIsSending(false);
+                  return; // Wait for user input
+                }
+                
+                if (data.type === 'phase') {
+                  currentProgress = { ...currentProgress, phase: data.phase, phaseDescription: data.description };
+                }
+                
+                if (data.type === 'progress') {
+                  currentProgress = { ...currentProgress, percent: data.percent, message: data.message };
+                }
+                
+                if (data.type === 'search') {
+                  searches.push({ query: data.query, index: data.index, total: data.total });
+                  currentProgress = { ...currentProgress, searches: [...searches] };
+                }
+                
+                if (data.type === 'source') {
+                  sources.push({ url: data.url, title: data.title });
+                  currentProgress = { ...currentProgress, sources: [...sources] };
+                }
+                
+                if (data.type === 'report_start') {
+                  // Switch from progress view to text streaming
+                }
+                
+                if (data.type === 'text') {
+                  streamedText += data.text;
+                  // Update with both progress and text
+                  setMessages(prev => prev.map(m => 
+                    m.id === placeholderId 
+                      ? { ...m, parts: [
+                          { type: 'deep-research-progress', progress: currentProgress },
+                          { type: 'text', text: streamedText }
+                        ] as unknown as typeof m.parts}
+                      : m
+                  ));
+                  continue;
+                }
+                
+                if (data.type === 'complete') {
+                  currentProgress = { ...currentProgress, isComplete: true, elapsed: data.elapsed } as typeof currentProgress;
+                  sources = data.sources;
+                }
+                
+                // Update progress in message
+                if (data.type !== 'text') {
+                  setMessages(prev => prev.map(m => 
+                    m.id === placeholderId 
+                      ? { ...m, parts: (streamedText 
+                          ? [{ type: 'deep-research-progress', progress: currentProgress }, { type: 'text', text: streamedText }]
+                          : [{ type: 'deep-research-progress', progress: currentProgress }]
+                        ) as unknown as typeof m.parts}
+                      : m
+                  ));
+                }
+                
+              } catch {
+                // Ignore parse errors
+              }
+            }
+          }
+        }
+      }
+      
+      console.log(`[CLIENT DEBUG] Deep search complete`);
+      
+      // After completion, reload from DB to get properly saved message with sources
+      setTimeout(async () => {
+        try {
+          const msgRes = await fetch(`/api/chats/${chatId}`);
+          const msgData = await msgRes.json();
+          if (Array.isArray(msgData)) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const uiMessages = msgData.map((msg: any) => {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              let parts: Array<any>;
+              if (Array.isArray(msg.content)) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                parts = msg.content.map((p: any) => {
+                  if (typeof p === 'string') return { type: 'text', text: p };
+                  if (p.type === 'text') return { type: 'text', text: p.text || '' };
+                  if (p.type === 'reasoning') return { type: 'reasoning', text: p.text || p.reasoning || '' };
+                  if (p.type === 'stopped') return { type: 'stopped', stopType: p.stopType };
+                  if (p.type === 'source' || p.type === 'source-url') return { type: 'source', url: p.url, title: p.title, source: p.source };
+                  return p;
+                });
+              } else {
+                parts = [{ type: 'text', text: msg.content || '' }];
+              }
+              return { id: msg.id, role: msg.role, parts, model: msg.model, tokensPerSecond: msg.tokensPerSecond };
+            });
+            setMessages(uiMessages as Parameters<typeof setMessages>[0]);
+          }
+        } catch (e) {
+          console.error('Failed to reload messages after deep search:', e);
+        }
+        setIsSending(false);
+        setDeepResearchState({ isActive: false, placeholderId: null, clarifyQuestions: null, query: null, chatId: null });
+      }, 300);
+      
+    } catch (err) {
+      console.error('Deep search error:', err);
+      setMessages(prev => prev.filter(m => m.id !== placeholderId));
+      setIsSending(false);
+      setDeepResearchState({ isActive: false, placeholderId: null, clarifyQuestions: null, query: null, chatId: null });
+    }
+  }, [setMessages]);
+
+  // Handle clarify answers submission
+  const handleClarifySubmit = useCallback((answers: { q: string; a: string }[]) => {
+    if (!deepResearchState.query || !deepResearchState.chatId || !deepResearchState.placeholderId) return;
+    
+    // Update UI to show research starting
+    setMessages(prev => prev.map(m => 
+      m.id === deepResearchState.placeholderId 
+        ? { ...m, parts: [{ type: 'deep-research-progress', progress: { 
+            phase: 'planning', 
+            phaseDescription: 'Starting research with your input...',
+            percent: 0,
+            message: 'Initializing',
+            searches: [],
+            sources: [],
+            isComplete: false
+          }}] as unknown as typeof m.parts}
+        : m
+    ));
+    
+    setIsSending(true);
+    startDeepSearch(
+      deepResearchState.query, 
+      deepResearchState.chatId, 
+      deepResearchState.placeholderId, 
+      true,
+      answers
+    );
+  }, [deepResearchState, setMessages, startDeepSearch]);
+
+  // Handle skip clarify
+  const handleSkipClarify = useCallback(() => {
+    if (!deepResearchState.query || !deepResearchState.chatId || !deepResearchState.placeholderId) return;
+    
+    setMessages(prev => prev.map(m => 
+      m.id === deepResearchState.placeholderId 
+        ? { ...m, parts: [{ type: 'deep-research-progress', progress: { 
+            phase: 'planning', 
+            phaseDescription: 'Starting research...',
+            percent: 0,
+            message: 'Initializing',
+            searches: [],
+            sources: [],
+            isComplete: false
+          }}] as unknown as typeof m.parts}
+        : m
+    ));
+    
+    setIsSending(true);
+    startDeepSearch(
+      deepResearchState.query, 
+      deepResearchState.chatId, 
+      deepResearchState.placeholderId, 
+      true
+    );
+  }, [deepResearchState, setMessages, startDeepSearch]);
 
   // Track streaming start
   useEffect(() => {
@@ -595,103 +854,36 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
         console.log(`[CLIENT DEBUG] ${new Date().toISOString()} === CALLING DEEP SEARCH ===`);
         console.log(`[CLIENT DEBUG] ChatId: ${activeChatId}`);
         
-        // Add a placeholder assistant message with research indicator
-        const placeholderId = `deep-search-${Date.now()}`;
-        setMessages(prev => [...prev, {
-          id: placeholderId,
-          role: 'assistant' as const,
-          parts: [{ type: 'text', text: '[[DEEP_RESEARCH_INDICATOR]]' }],
+        // First, add the user message to UI immediately (fix: query not showing)
+        const userMsgId = `user-${Date.now()}`;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        setMessages((prev: any) => [...prev, {
+          id: userMsgId,
+          role: 'user',
+          parts: Array.isArray(finalContent) 
+            ? finalContent 
+            : [{ type: 'text', text: finalContent as string }],
         }]);
         
-        // Call deep search API and handle streaming response
-        const response = await fetch('/api/deep-search', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ query: userMessage, chatId: activeChatId })
-        });
-
-        if (!response.ok) {
-          console.error('Deep search failed:', response.status);
-          setMessages(prev => prev.filter(m => m.id !== placeholderId));
-          setIsSending(false);
-          return;
-        }
-
-        // Stream the response
-        const reader = response.body?.getReader();
-        const decoder = new TextDecoder();
-        let streamedText = '';
+        // Add a placeholder assistant message with research indicator
+        const placeholderId = `deep-search-${Date.now()}`;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        setMessages((prev: any) => [...prev, {
+          id: placeholderId,
+          role: 'assistant',
+          parts: [{ type: 'deep-research-progress', progress: { 
+            phase: 'planning', 
+            phaseDescription: 'Starting research...',
+            percent: 0,
+            message: 'Initializing',
+            searches: [],
+            sources: [],
+            isComplete: false
+          }}],
+        }]);
         
-        if (reader) {
-          try {
-            while (true) {
-              const { done, value } = await reader.read();
-              if (done) break;
-              
-              const chunk = decoder.decode(value, { stream: true });
-              // Parse SSE format - lines starting with "0:" contain text
-              const lines = chunk.split('\n');
-              for (const line of lines) {
-                if (line.startsWith('0:')) {
-                  try {
-                    // Remove "0:" prefix and parse the JSON string
-                    const jsonStr = line.slice(2);
-                    const text = JSON.parse(jsonStr);
-                    if (typeof text === 'string') {
-                      streamedText += text;
-                      // Update the placeholder message with streamed content
-                      setMessages(prev => prev.map(m => 
-                        m.id === placeholderId 
-                          ? { ...m, parts: [{ type: 'text', text: streamedText }] }
-                          : m
-                      ));
-                    }
-                  } catch {
-                    // Ignore parse errors for non-text chunks
-                  }
-                }
-              }
-            }
-          } catch (streamError) {
-            console.error('Stream reading error:', streamError);
-          }
-        }
-        
-        console.log(`[CLIENT DEBUG] ${new Date().toISOString()} Deep search streaming complete`);
-        
-        // After streaming completes, reload from DB to get the saved version with sources
-        setTimeout(async () => {
-          try {
-            const msgRes = await fetch(`/api/chats/${activeChatId}`);
-            const msgData = await msgRes.json();
-            if (Array.isArray(msgData)) {
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              const uiMessages = msgData.map((msg: any) => {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                let parts: Array<any>;
-                if (Array.isArray(msg.content)) {
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  parts = msg.content.map((p: any) => {
-                    if (typeof p === 'string') return { type: 'text', text: p };
-                    if (p.type === 'text') return { type: 'text', text: p.text || '' };
-                    if (p.type === 'reasoning') return { type: 'reasoning', text: p.text || p.reasoning || '' };
-                    if (p.type === 'stopped') return { type: 'stopped', stopType: p.stopType };
-                    if (p.type === 'source' || p.type === 'source-url') return { type: 'source', url: p.url, title: p.title, source: p.source };
-                    return p;
-                  });
-                } else {
-                  parts = [{ type: 'text', text: msg.content || '' }];
-                }
-                return { id: msg.id, role: msg.role, parts, model: msg.model, tokensPerSecond: msg.tokensPerSecond };
-              });
-              setMessages(uiMessages as Parameters<typeof setMessages>[0]);
-            }
-          } catch (e) {
-            console.error('Failed to reload messages after deep search:', e);
-          }
-          setIsSending(false);
-        }, 500);
-        
+        // Start deep search
+        await startDeepSearch(userMessage, activeChatId, placeholderId, false);
         return;
       }
 
@@ -810,6 +1002,8 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
           onDismissError={() => setDismissedError(true)}
           dismissedError={dismissedError}
           onSuggestionClick={setInput}
+          onClarifySubmit={handleClarifySubmit}
+          onSkipClarify={handleSkipClarify}
         />
 
         {/* Input */}

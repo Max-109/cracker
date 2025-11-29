@@ -46,7 +46,9 @@ const ThrottledMessageItem = memo(function ThrottledMessageItem({
   onRetry, 
   modelName, 
   fullModelName, 
-  tokensPerSecond 
+  tokensPerSecond,
+  onClarifySubmit,
+  onSkipClarify,
 }: { 
   message: ChatMessage; 
   index: number; 
@@ -57,6 +59,8 @@ const ThrottledMessageItem = memo(function ThrottledMessageItem({
   modelName?: string; 
   fullModelName?: string; 
   tokensPerSecond?: number;
+  onClarifySubmit?: (answers: { q: string; a: string }[]) => void;
+  onSkipClarify?: () => void;
 }) {
   const extractContent = (): string | MessagePart[] => {
     const msgParts = (message as { parts?: unknown[] }).parts;
@@ -109,6 +113,12 @@ const ThrottledMessageItem = memo(function ThrottledMessageItem({
           } else if (p.type === 'stopped') {
             // Pass through stopped indicator with stopType
             converted.push({ type: 'stopped', stopType: p.stopType } as unknown as MessagePart);
+          } else if (p.type === 'deep-research-progress') {
+            // Pass through deep research progress
+            converted.push({ type: 'deep-research-progress', progress: p.progress } as unknown as MessagePart);
+          } else if (p.type === 'clarify-questions') {
+            // Pass through clarify questions
+            converted.push({ type: 'clarify-questions', questions: p.questions } as unknown as MessagePart);
           }
         }
       }
@@ -137,7 +147,9 @@ const ThrottledMessageItem = memo(function ThrottledMessageItem({
       onRetry={onRetry} 
       modelName={modelName} 
       fullModelName={fullModelName} 
-      tokensPerSecond={tokensPerSecond} 
+      tokensPerSecond={tokensPerSecond}
+      onClarifySubmit={onClarifySubmit}
+      onSkipClarify={onSkipClarify}
     />
   );
 });
@@ -154,7 +166,7 @@ interface ActiveGeneration {
 interface MessageListProps {
   messages: ChatMessage[];
   isMessagesLoading: boolean;
-  isSending?: boolean; // Immediate feedback when user clicks send
+  isSending?: boolean;
   isStreaming: boolean;
   status: 'submitted' | 'streaming' | 'ready' | 'error';
   activeGeneration: ActiveGeneration | null;
@@ -166,6 +178,8 @@ interface MessageListProps {
   onDismissError: () => void;
   dismissedError: boolean;
   onSuggestionClick?: (suggestion: string) => void;
+  onClarifySubmit?: (answers: { q: string; a: string }[]) => void;
+  onSkipClarify?: () => void;
 }
 
 // Suggestion cards for empty state
@@ -191,6 +205,8 @@ export function MessageList({
   onDismissError,
   dismissedError,
   onSuggestionClick,
+  onClarifySubmit,
+  onSkipClarify,
 }: MessageListProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -363,6 +379,8 @@ export function MessageList({
                   modelName={modelShortName}
                   fullModelName={displayModelId || undefined}
                   tokensPerSecond={displayTps}
+                  onClarifySubmit={onClarifySubmit}
+                  onSkipClarify={onSkipClarify}
                 />
               );
             })}

@@ -1,7 +1,7 @@
 'use client';
 
-import React, { memo } from 'react'; // Added memo
-import { useState, useEffect, useMemo, useRef, useCallback } from 'react'; // Added useMemo, useRef
+import React, { memo } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { Copy, RefreshCw, Check, Plus, Minus, Pencil, File as FileIcon, Paperclip, X, Globe, ExternalLink, Microscope } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
@@ -10,6 +10,7 @@ import rehypeKatex from 'rehype-katex';
 import { CodeBlock } from './CodeBlock';
 import { cn } from '@/lib/utils';
 import type { MessagePart } from '@/lib/chat-types';
+import { DeepResearchProgress, SourcesDisplay, type ResearchProgress } from './DeepResearchProgress';
 import 'katex/dist/katex.min.css';
 const REMARK_PLUGINS = [remarkMath, remarkGfm];
 const REHYPE_PLUGINS = [rehypeKatex];
@@ -36,6 +37,8 @@ interface MessageItemProps {
   modelName?: string;
   fullModelName?: string;
   tokensPerSecond?: number;
+  onClarifySubmit?: (answers: { q: string; a: string }[]) => void;
+  onSkipClarify?: () => void;
 }
 
 const THINKING_LABELS = [
@@ -175,7 +178,7 @@ function ModelBadge({ name, fullName, tokensPerSecond }: { name: string; fullNam
   );
 }
 
-export const MessageItem = memo(function MessageItem({ role, content, isThinking, isStreaming, onEdit, onRetry, modelName, fullModelName, tokensPerSecond }: MessageItemProps) {
+export const MessageItem = memo(function MessageItem({ role, content, isThinking, isStreaming, onEdit, onRetry, modelName, fullModelName, tokensPerSecond, onClarifySubmit, onSkipClarify }: MessageItemProps) {
   const [isThinkingOpen, setIsThinkingOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isSearchExpanded, setIsSearchExpanded] = useState(false);
@@ -654,7 +657,9 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
   let hasGoogleSearch = false;
   let isSearching = false;
   let isDeepResearching = false;
-  let stopType: 'connection' | 'thinking' | null = null; // null means not stopped, or stopped during streaming (no indicator)
+  let deepResearchProgress: ResearchProgress | null = null;
+  let clarifyQuestions: string[] | null = null;
+  let stopType: 'connection' | 'thinking' | null = null;
 
   if (typeof safeContent !== 'string' && Array.isArray(safeContent)) {
     safeContent.forEach((part: MessagePart) => {
@@ -667,6 +672,14 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
         } else {
           finalContent += text;
         }
+      } else if ((part as { type: string }).type === 'deep-research-progress') {
+        const progressPart = part as { type: string; progress: ResearchProgress };
+        deepResearchProgress = progressPart.progress;
+        isDeepResearching = true;
+      } else if ((part as { type: string }).type === 'clarify-questions') {
+        const clarifyPart = part as { type: string; questions: string[] };
+        clarifyQuestions = clarifyPart.questions;
+        isDeepResearching = true;
       } else if ((part as { type: string; stopType?: string }).type === 'stopped') {
         const stoppedPart = part as { type: string; stopType?: string };
         if (stoppedPart.stopType === 'connection' || stoppedPart.stopType === 'thinking') {
@@ -823,8 +836,26 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
             </div>
           )}
 
-          {/* Deep Research Indicator */}
-          {isDeepResearching && !finalContent && (
+          {/* Deep Research Progress/Clarify Questions */}
+          {isDeepResearching && (clarifyQuestions || deepResearchProgress) && (
+            <DeepResearchProgress
+              progress={deepResearchProgress || {
+                phase: 'clarify',
+                phaseDescription: 'Understanding your needs...',
+                percent: 0,
+                message: 'Waiting for input',
+                searches: [],
+                sources: [],
+                isComplete: false,
+              }}
+              clarifyQuestions={clarifyQuestions || undefined}
+              onClarifySubmit={onClarifySubmit}
+              onSkipClarify={onSkipClarify}
+            />
+          )}
+          
+          {/* Legacy Deep Research Indicator (fallback) */}
+          {isDeepResearching && !finalContent && !clarifyQuestions && !deepResearchProgress && (
             <div className="border border-[var(--text-accent)]/30 bg-[#141414] p-4">
               <div className="flex items-center gap-3">
                 <div className="relative">
@@ -852,6 +883,11 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
                 </div>
               </div>
             </div>
+          )}
+          
+          {/* Sources Display for completed deep research */}
+          {sources.length > 0 && !isStreaming && !showSearchIndicator && (
+            <SourcesDisplay sources={sources.map(s => ({ url: s.url, title: s.title || '' }))} maxVisible={6} />
           )}
 
           {/* Final Content */}
