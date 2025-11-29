@@ -45,8 +45,8 @@ interface SettingsContextType {
   refreshSettings: () => Promise<void>;
 }
 
-// Get accent color from localStorage (browser-only)
-function getAccentColorFromStorage(): string {
+// Get accent color from localStorage (browser-only, exported for use in other components)
+export function getAccentColorFromStorage(): string {
   if (typeof window === 'undefined') return DEFAULT_ACCENT_COLOR;
   return localStorage.getItem(ACCENT_COLOR_KEY) || DEFAULT_ACCENT_COLOR;
 }
@@ -58,25 +58,28 @@ function saveAccentColor(color: string) {
   applyAccentColorCSS(color);
 }
 
-// Update favicon with accent color
-function updateFavicon(color: string) {
+// Update favicon with accent color (exported for use in other components)
+export function updateFavicon(color: string) {
+  if (typeof window === 'undefined') return;
+  
   const svg = `<svg width="32" height="32" viewBox="0 0 291 291" xmlns="http://www.w3.org/2000/svg">
     <rect x="3.252" y="3.252" width="283.465" height="283.465" rx="60" ry="60" fill="#262626" stroke="#7c7c7c" stroke-width="6.5"/>
     <circle cx="144.985" cy="144.985" r="70.866" fill="${color}" stroke="#7c7c7c" stroke-width="6.5"/>
   </svg>`;
-  
+
   const blob = new Blob([svg], { type: 'image/svg+xml' });
   const url = URL.createObjectURL(blob);
-  
-  // Find or create favicon link
-  let link = document.querySelector("link[rel*='icon']") as HTMLLinkElement;
-  if (!link) {
-    link = document.createElement('link');
-    link.rel = 'icon';
-    document.head.appendChild(link);
-  }
+
+  // Remove ALL existing favicon links to prevent conflicts
+  const existingLinks = document.querySelectorAll("link[rel='icon'], link[rel='shortcut icon'], link[rel='apple-touch-icon']");
+  existingLinks.forEach(link => link.remove());
+
+  // Create a fresh favicon link
+  const link = document.createElement('link');
+  link.rel = 'icon';
   link.type = 'image/svg+xml';
   link.href = url;
+  document.head.appendChild(link);
 }
 
 // Apply accent color CSS variables
@@ -84,21 +87,21 @@ function applyAccentColorCSS(color: string) {
   const root = document.documentElement;
   root.style.setProperty('--text-accent', color);
   root.style.setProperty('--border-active', color);
-  
+
   // Update favicon with new accent color
   updateFavicon(color);
-  
+
   // Parse hex to RGB then to HSL for derived colors
   const hex = color.replace('#', '');
   const r = parseInt(hex.substr(0, 2), 16) / 255;
   const g = parseInt(hex.substr(2, 2), 16) / 255;
   const b = parseInt(hex.substr(4, 2), 16) / 255;
   const hsl = rgbToHsl(Math.round(r * 255), Math.round(g * 255), Math.round(b * 255));
-  
+
   root.style.setProperty('--accent-h', String(hsl.h));
   root.style.setProperty('--accent-s', `${hsl.s}%`);
   root.style.setProperty('--accent-l', `${hsl.l}%`);
-  
+
   // Syntax highlighting derived colors
   root.style.setProperty('--syntax-primary', color);
   root.style.setProperty('--syntax-function', adjustColor(color, 30, 1.2));
@@ -117,8 +120,8 @@ const SettingsContext = createContext<SettingsContextType>({
   settings: DEFAULT_SETTINGS,
   isLoading: true,
   isHydrated: false,
-  updateSettings: async () => {},
-  refreshSettings: async () => {},
+  updateSettings: async () => { },
+  refreshSettings: async () => { },
 });
 
 export function SettingsProvider({ children }: { children: React.ReactNode }) {
@@ -139,11 +142,11 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const fetchSettings = useCallback(async () => {
     // Always keep the current accent color from localStorage
     const currentAccentColor = getAccentColorFromStorage();
-    
+
     if (!user) {
       setSettings({
         ...DEFAULT_ACCOUNT_SETTINGS,
-        accentColor: currentAccentColor,
+        accentColor: getAccentColorFromStorage(),
       });
       setIsLoading(false);
       setIsHydrated(true);
@@ -168,12 +171,18 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
           chatMode,
           userName: data.userName,
           userGender: data.userGender || DEFAULT_ACCOUNT_SETTINGS.userGender,
-          accentColor: currentAccentColor, // Always use localStorage value
+          accentColor: getAccentColorFromStorage(), // Always use fresh localStorage value
         });
       }
     } catch (error) {
       console.error('Failed to fetch settings:', error);
     } finally {
+      // Use functional update to ensure we get the latest accent color from storage
+      // This prevents a race condition where accent color changes during the fetch
+      setSettings(prev => ({
+        ...prev,
+        accentColor: getAccentColorFromStorage(),
+      }));
       setIsLoading(false);
       setIsHydrated(true);
     }
@@ -193,10 +202,10 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       const { accentColor: _accentColor, ...accountUpdates } = updates;
       updates = accountUpdates;
     }
-    
+
     // If there are no account settings to update, we're done
     if (Object.keys(updates).length === 0) return;
-    
+
     // For account settings, require authentication
     if (!user) return;
 
@@ -233,6 +242,13 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       applyAccentColorCSS(settings.accentColor);
     }
   }, [isHydrated, settings.accentColor]);
+
+  // Re-apply favicon on mount to handle client-side navigation
+  // This ensures the favicon persists when switching between chats
+  useEffect(() => {
+    const storedColor = getAccentColorFromStorage();
+    updateFavicon(storedColor);
+  }, []);
 
   return (
     <SettingsContext.Provider value={{ settings, isLoading, isHydrated, updateSettings, refreshSettings }}>
@@ -274,11 +290,11 @@ function adjustColor(hex: string, hueShift: number, satMult: number): string {
   const r = parseInt(cleanHex.substr(0, 2), 16);
   const g = parseInt(cleanHex.substr(2, 2), 16);
   const b = parseInt(cleanHex.substr(4, 2), 16);
-  
+
   const hsl = rgbToHsl(r, g, b);
   hsl.h = (hsl.h + hueShift + 360) % 360;
   hsl.s = Math.min(100, Math.max(0, hsl.s * satMult));
-  
+
   return hslToHex(hsl.h, hsl.s, hsl.l);
 }
 

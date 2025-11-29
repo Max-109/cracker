@@ -6,6 +6,7 @@ import { DefaultChatTransport } from 'ai';
 import { PanelLeft, Settings2 } from 'lucide-react';
 import type { ChatMessage, MessagePart } from '@/lib/chat-types';
 import { useChatContext } from './ChatContext';
+import { updateFavicon, getAccentColorFromStorage } from './SettingsContext';
 import { useAttachments } from '@/app/hooks/useAttachments';
 import { usePersistedSetting, useAccentColor, useResponseLength, useUserProfile, useLearningMode, useChatMode, ReasoningEffortLevel, ChatMode } from '@/app/hooks/usePersistedSettings';
 import { ModelSelector } from './ModelSelector';
@@ -71,6 +72,12 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
   useEffect(() => { userGenderRef.current = userGender; }, [userGender]);
   useEffect(() => { learningModeRef.current = learningMode; }, [learningMode]);
   useEffect(() => { chatModeRef.current = chatMode; }, [chatMode]);
+
+  // Re-apply favicon on mount to handle client-side navigation between chats
+  useEffect(() => {
+    const storedColor = getAccentColorFromStorage();
+    updateFavicon(storedColor);
+  }, []);
 
   // Update document title based on current chat
   useEffect(() => {

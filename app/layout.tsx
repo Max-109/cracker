@@ -46,6 +46,21 @@ const accentColorScript = `
     root.style.setProperty('--accent-h', Math.round(h * 360));
     root.style.setProperty('--accent-s', Math.round(s * 100) + '%');
     root.style.setProperty('--accent-l', Math.round(l * 100) + '%');
+    
+    // Update favicon with accent color - remove all existing and create fresh
+    var svg = '<svg width="32" height="32" viewBox="0 0 291 291" xmlns="http://www.w3.org/2000/svg">' +
+      '<rect x="3.252" y="3.252" width="283.465" height="283.465" rx="60" ry="60" fill="#262626" stroke="#7c7c7c" stroke-width="6.5"/>' +
+      '<circle cx="144.985" cy="144.985" r="70.866" fill="' + color + '" stroke="#7c7c7c" stroke-width="6.5"/>' +
+      '</svg>';
+    var blob = new Blob([svg], { type: 'image/svg+xml' });
+    var url = URL.createObjectURL(blob);
+    var existingLinks = document.querySelectorAll("link[rel='icon'], link[rel='shortcut icon'], link[rel='apple-touch-icon']");
+    existingLinks.forEach(function(l) { l.remove(); });
+    var link = document.createElement('link');
+    link.rel = 'icon';
+    link.type = 'image/svg+xml';
+    link.href = url;
+    document.head.appendChild(link);
   } catch (e) {}
 })();
 `;
