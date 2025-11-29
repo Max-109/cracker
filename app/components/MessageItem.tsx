@@ -52,6 +52,34 @@ const THINKING_LABELS = [
   "Cracking"
 ];
 
+// AI Indicator - animated signal pulse with scan effect
+function AIIndicator() {
+  return (
+    <div className="flex-shrink-0 pt-[2px] group/indicator">
+      <div className="relative w-4 h-4 flex items-center justify-center">
+        {/* Outer frame - corner brackets */}
+        <div className="absolute inset-0">
+          <div className="absolute top-0 left-0 w-[5px] h-[1px] bg-[var(--text-accent)] opacity-60" />
+          <div className="absolute top-0 left-0 w-[1px] h-[5px] bg-[var(--text-accent)] opacity-60" />
+          <div className="absolute top-0 right-0 w-[5px] h-[1px] bg-[var(--text-accent)] opacity-60" />
+          <div className="absolute top-0 right-0 w-[1px] h-[5px] bg-[var(--text-accent)] opacity-60" />
+          <div className="absolute bottom-0 left-0 w-[5px] h-[1px] bg-[var(--text-accent)] opacity-60" />
+          <div className="absolute bottom-0 left-0 w-[1px] h-[5px] bg-[var(--text-accent)] opacity-60" />
+          <div className="absolute bottom-0 right-0 w-[5px] h-[1px] bg-[var(--text-accent)] opacity-60" />
+          <div className="absolute bottom-0 right-0 w-[1px] h-[5px] bg-[var(--text-accent)] opacity-60" />
+        </div>
+        {/* Inner core - pulsing dot */}
+        <div className="w-[4px] h-[4px] bg-[var(--text-accent)] animate-pulse" />
+        {/* Scan line on hover */}
+        <div className="absolute inset-0 overflow-hidden opacity-0 group-hover/indicator:opacity-100">
+          <div className="absolute inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-[var(--text-accent)] to-transparent animate-[scan_1s_ease-in-out_infinite]" 
+               style={{ animation: 'scan 1.2s ease-in-out infinite' }} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Animated "Thinking" Icon - ASCII Spinner
 function ThinkingIcon({ className }: { className?: string }) {
   return (
@@ -115,6 +143,82 @@ function SourceItem({ url, title, index }: { url: string; title?: string; index:
       </div>
       <ExternalLink size={12} className="text-[var(--text-secondary)] group-hover:text-[var(--text-accent)] flex-shrink-0" />
     </a>
+  );
+}
+
+// Deep Research Completed Badge - matches DeepResearchProgress styling
+function DeepResearchCompletedBadge({ sources }: { sources: { url: string; title?: string }[] }) {
+  const [isSourcesExpanded, setIsSourcesExpanded] = useState(false);
+  
+  return (
+    <div className="border border-[var(--text-accent)]/30 bg-[#141414] p-4 space-y-3">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <Microscope size={20} className="text-[var(--text-accent)]" />
+          </div>
+          <div>
+            <div className="text-xs uppercase tracking-[0.12em] font-semibold text-[var(--text-accent)]">
+              Deep Research Complete
+            </div>
+            <div className="text-[10px] text-[var(--text-secondary)] mt-0.5">
+              Comprehensive analysis from {sources.length > 0 ? sources.length : 'multiple'} sources
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      {/* Progress Bar (always at 100%) */}
+      <div className="space-y-1">
+        <div className="h-1.5 bg-[#2a2a2a] overflow-hidden">
+          <div className="h-full w-full bg-[var(--text-accent)]" />
+        </div>
+        <div className="flex items-center justify-between text-[9px] text-[var(--text-secondary)] uppercase tracking-wider">
+          <span>Research complete</span>
+          <span>100%</span>
+        </div>
+      </div>
+      
+      {/* Sources */}
+      {sources.length > 0 && (
+        <div className="space-y-2">
+          <button
+            onClick={() => setIsSourcesExpanded(!isSourcesExpanded)}
+            className="flex items-center gap-2 text-[10px] uppercase tracking-[0.12em] text-[var(--text-secondary)] hover:text-[var(--text-accent)] transition-colors w-full"
+          >
+            <Globe size={12} className="text-[var(--text-accent)]" />
+            <span>Sources ({sources.length})</span>
+            {isSourcesExpanded ? <Minus size={12} /> : <Plus size={12} />}
+          </button>
+          
+          {isSourcesExpanded && (
+            <div className="max-h-[200px] overflow-y-auto space-y-1 pl-5">
+              {sources.map((source, idx) => (
+                <a
+                  key={idx}
+                  href={source.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 text-[10px] text-[var(--text-secondary)] hover:text-[var(--text-accent)] transition-colors group"
+                >
+                  <span className="text-[var(--text-accent)] font-mono">[{idx + 1}]</span>
+                  <span className="truncate flex-1">{source.title || 'Source'}</span>
+                  <ExternalLink size={10} className="opacity-0 group-hover:opacity-100 flex-shrink-0" />
+                </a>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+      
+      {/* Phase indicators (all complete) */}
+      <div className="flex items-center gap-2 pt-2 border-t border-[var(--border-color)]">
+        {['planning', 'searching', 'analyzing', 'deep-dive', 'writing'].map((_, idx) => (
+          <div key={idx} className="flex-1 h-1 bg-[var(--text-accent)]" />
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -748,11 +852,14 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
   // Detect if reasoning mentions searching (Gemini describes search activity in thinking)
   const reasoningIndicatesSearch = !!(thinkContent && /\b(search|searching|looking up|finding|browsing|query|queries|found some|headlines|news from)\b/i.test(thinkContent));
   
+  // Check if this is a deep research result (persisted from database)
+  const isDeepResearchResult = fullModelName?.includes('deep-search') || false;
+  
   // Show search indicator when:
   // 1. We have sources (hasGoogleSearch) - always show
   // 2. Explicit search tool invocation (isSearching)
   // 3. Reasoning mentions search activity (for Gemini during streaming)
-  const showSearchIndicator = hasGoogleSearch || isSearching || (isStreaming && reasoningIndicatesSearch);
+  const showSearchIndicator = (hasGoogleSearch || isSearching || (isStreaming && reasoningIndicatesSearch)) && !isDeepResearchResult;
   
   // Determine if we're actively searching (for animation)
   const isActivelySearching = isStreaming && (hasGoogleSearch || isSearching || reasoningIndicatesSearch);
@@ -760,7 +867,7 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
   return (
     <div className="w-full mb-6 group overflow-hidden">
       <div className="flex items-start gap-3 min-w-0">
-        <span className="text-[var(--text-secondary)] text-[11px] uppercase tracking-[0.18em] leading-none pt-[2px] flex-shrink-0">[AI]:</span>
+        <AIIndicator />
 
         <div className="flex-1 text-[#E5E5E5] leading-relaxed space-y-3 overflow-hidden min-w-0">
           {/* Thinking Accordion */}
@@ -788,6 +895,11 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
                 </div>
               )}
             </div>
+          )}
+
+          {/* Deep Research Indicator (for persisted results) */}
+          {isDeepResearchResult && !isDeepResearching && finalContent && (
+            <DeepResearchCompletedBadge sources={sources} />
           )}
 
           {/* Google Search Indicator */}

@@ -5,6 +5,34 @@ import { MessageItem } from './MessageItem';
 import { LoadingIndicator } from './LoadingIndicator';
 import type { MessagePart } from '@/lib/chat-types';
 
+// AI Indicator - animated signal pulse with scan effect (matches MessageItem)
+function AIIndicator() {
+  return (
+    <div className="flex-shrink-0 pt-[2px] group/indicator">
+      <div className="relative w-4 h-4 flex items-center justify-center">
+        {/* Outer frame - corner brackets */}
+        <div className="absolute inset-0">
+          <div className="absolute top-0 left-0 w-[5px] h-[1px] bg-[var(--text-accent)] opacity-60" />
+          <div className="absolute top-0 left-0 w-[1px] h-[5px] bg-[var(--text-accent)] opacity-60" />
+          <div className="absolute top-0 right-0 w-[5px] h-[1px] bg-[var(--text-accent)] opacity-60" />
+          <div className="absolute top-0 right-0 w-[1px] h-[5px] bg-[var(--text-accent)] opacity-60" />
+          <div className="absolute bottom-0 left-0 w-[5px] h-[1px] bg-[var(--text-accent)] opacity-60" />
+          <div className="absolute bottom-0 left-0 w-[1px] h-[5px] bg-[var(--text-accent)] opacity-60" />
+          <div className="absolute bottom-0 right-0 w-[5px] h-[1px] bg-[var(--text-accent)] opacity-60" />
+          <div className="absolute bottom-0 right-0 w-[1px] h-[5px] bg-[var(--text-accent)] opacity-60" />
+        </div>
+        {/* Inner core - pulsing dot */}
+        <div className="w-[4px] h-[4px] bg-[var(--text-accent)] animate-pulse" />
+        {/* Scan line on hover */}
+        <div className="absolute inset-0 overflow-hidden opacity-0 group-hover/indicator:opacity-100">
+          <div className="absolute inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-[var(--text-accent)] to-transparent animate-[scan_1s_ease-in-out_infinite]" 
+               style={{ animation: 'scan 1.2s ease-in-out infinite' }} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 interface ResumedStreamingMessageProps {
   partialText: string;
   partialReasoning: string;
@@ -150,7 +178,7 @@ export const ResumedStreamingMessage = memo(function ResumedStreamingMessage({
     return (
       <div className="w-full mb-6">
         <div className="flex items-start gap-3">
-          <span className="text-[var(--text-secondary)] text-[11px] uppercase tracking-[0.18em] leading-none pt-[2px] flex-shrink-0">[AI]:</span>
+          <AIIndicator />
           <div className="flex-1">
             <LoadingIndicator />
             <div className="text-xs text-[var(--text-secondary)] mt-2">
