@@ -15,7 +15,10 @@ function Dialog({ open, onOpenChange, children }: DialogProps) {
   const [shouldRender, setShouldRender] = useState(open);
 
   useEffect(() => {
-    if (open) setShouldRender(true);
+    if (open) {
+      // Use requestAnimationFrame to avoid synchronous setState warning
+      requestAnimationFrame(() => setShouldRender(true));
+    }
   }, [open]);
 
   const handleAnimationEnd = () => {

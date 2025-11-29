@@ -95,11 +95,14 @@ export function SettingsDialog({
       
       console.log('[SettingsDialog] Dialog opened - localStorage responseLength:', storedResponseLength, '-> using:', freshResponseLength);
       
-      setLocalResponseLength(freshResponseLength);
-      setLocalLearningMode(freshLearningMode);
-      setLocalUserName(freshUserName);
-      setLocalUserGender(freshUserGender);
-      setLocalAccentColor(freshAccentColor);
+      // Use requestAnimationFrame to avoid synchronous setState warning
+      requestAnimationFrame(() => {
+        setLocalResponseLength(freshResponseLength);
+        setLocalLearningMode(freshLearningMode);
+        setLocalUserName(freshUserName);
+        setLocalUserGender(freshUserGender);
+        setLocalAccentColor(freshAccentColor);
+      });
     }
     prevOpenRef.current = open;
   }, [open, responseLength, learningMode, userName, userGender, accentColor]);

@@ -8,7 +8,6 @@ import { LoadingIndicator } from './LoadingIndicator';
 import { ResumedStreamingMessage } from './ResumedStreamingMessage';
 import { FadeWrapper, ErrorAlert } from '@/components/ui';
 import { Sparkles, Code, Lightbulb, PenLine, Zap, ArrowRight } from 'lucide-react';
-import { cn } from '@/lib/utils';
 
 // Custom hook for throttling values
 function useThrottledValue<T>(value: T, limit: number): T {

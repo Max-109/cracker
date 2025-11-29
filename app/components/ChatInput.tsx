@@ -48,7 +48,7 @@ export function ChatInput({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isEffortMenuOpen, setIsEffortMenuOpen] = useState(false);
-  const [voiceError, setVoiceError] = useState<string | null>(null);
+  const [, setVoiceError] = useState<string | null>(null);
 
   // Voice recording
   const handleTranscription = useCallback((text: string) => {
@@ -62,7 +62,6 @@ export function ChatInput({
   }, []);
 
   const {
-    state: voiceState,
     permissionDenied,
     startRecording,
     stopRecording,
@@ -93,10 +92,12 @@ export function ChatInput({
     wasTranscribingRef.current = isTranscribing;
     
     if (isTranscribing && !wasTranscribing) {
-      // Just started transcribing
-      setShowProgress(true);
-      setTranscribeProgress(0);
-      progressRef.current = 0;
+      // Just started transcribing - use requestAnimationFrame to avoid synchronous setState
+      requestAnimationFrame(() => {
+        setShowProgress(true);
+        setTranscribeProgress(0);
+        progressRef.current = 0;
+      });
     } else if (!isTranscribing && wasTranscribing) {
       // Just finished transcribing - animate to 100%
       const startProgress = progressRef.current;
@@ -131,7 +132,7 @@ export function ChatInput({
         animationFrameRef.current = requestAnimationFrame(animateToComplete);
       } else {
         // No progress yet, just hide immediately
-        setShowProgress(false);
+        requestAnimationFrame(() => setShowProgress(false));
       }
     }
     

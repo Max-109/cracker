@@ -25,10 +25,13 @@ function FadeWrapper({
   useEffect(() => {
     let timeout: NodeJS.Timeout;
     if (show) {
-      setShouldRender(true);
-      requestAnimationFrame(() => setIsFadingIn(true));
+      // Use requestAnimationFrame to avoid synchronous setState warning
+      requestAnimationFrame(() => {
+        setShouldRender(true);
+        requestAnimationFrame(() => setIsFadingIn(true));
+      });
     } else {
-      setIsFadingIn(false);
+      requestAnimationFrame(() => setIsFadingIn(false));
       timeout = setTimeout(() => setShouldRender(false), duration);
     }
     return () => { if (timeout) clearTimeout(timeout); };

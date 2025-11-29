@@ -110,7 +110,8 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
     chatIdRef.current = initialChatId || null;
   }, [initialChatId]);
 
-  // Transport
+  // Transport - body function accesses refs at call time, not render time
+  // eslint-disable-next-line react-hooks/refs
   const transport = useMemo(() => new DefaultChatTransport({
     api: '/api/chat',
     body: () => ({
