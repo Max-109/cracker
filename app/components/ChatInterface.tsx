@@ -695,7 +695,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
     }
   }, [currentChatId, setMessages]);
 
-  // SSE reconnection for active generation (replaces polling)
+  // SSE streaming for active generation (handles both fresh and reconnection)
   useEffect(() => {
     if (!activeGeneration || activeGeneration.status !== 'streaming') {
       // Cleanup any existing SSE connection
@@ -707,38 +707,55 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
       return;
     }
 
-    // Create placeholder message for the reconnected generation
-    const placeholderId = `reconnect-${activeGeneration.id}`;
-    reconnectPlaceholderIdRef.current = placeholderId;
+    // Determine the placeholder ID - either the existing assistant message or create a new one
+    // Fresh generation uses `assistant-{id}`, reconnection uses `reconnect-{id}`
+    const freshPlaceholderId = `assistant-${activeGeneration.id}`;
+    const reconnectPlaceholderId = `reconnect-${activeGeneration.id}`;
     
-    // Add placeholder assistant message with initial content
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    setMessages((prev: any[]) => {
-      // Check if placeholder already exists
-      if (prev.some(m => m.id === placeholderId)) {
-        return prev;
-      }
-      // Build initial parts from what we already have
-      const parts: Array<{ type: string; text?: string; isReconnecting?: boolean }> = [];
-      if (activeGeneration.partialReasoning) {
-        parts.push({ type: 'reasoning', text: activeGeneration.partialReasoning });
-      }
-      if (activeGeneration.partialText) {
-        parts.push({ type: 'text', text: activeGeneration.partialText });
-      }
-      // Add reconnecting indicator
-      parts.push({ type: 'reconnecting', isReconnecting: true });
+    // Check if there's already an assistant placeholder for this generation
+    const hasFreshPlaceholder = messagesRef.current.some(m => m.id === freshPlaceholderId);
+    const hasReconnectPlaceholder = messagesRef.current.some(m => m.id === reconnectPlaceholderId);
+    
+    let placeholderId: string;
+    let isActualReconnection = false;
+    
+    if (hasFreshPlaceholder) {
+      // Fresh generation - use existing placeholder
+      placeholderId = freshPlaceholderId;
+      isActualReconnection = false;
+    } else if (hasReconnectPlaceholder) {
+      // Already reconnected
+      placeholderId = reconnectPlaceholderId;
+      isActualReconnection = true;
+    } else {
+      // Reconnection scenario - create new placeholder
+      placeholderId = reconnectPlaceholderId;
+      isActualReconnection = true;
       
-      return [...prev, {
-        id: placeholderId,
-        role: 'assistant',
-        parts,
-        model: activeGeneration.modelId,
-      }];
-    });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      setMessages((prev: any[]) => {
+        const parts: Array<{ type: string; text?: string; isReconnecting?: boolean }> = [];
+        if (activeGeneration.partialReasoning) {
+          parts.push({ type: 'reasoning', text: activeGeneration.partialReasoning });
+        }
+        if (activeGeneration.partialText) {
+          parts.push({ type: 'text', text: activeGeneration.partialText });
+        }
+        // Only show reconnecting indicator for actual reconnections
+        parts.push({ type: 'reconnecting', isReconnecting: true });
+        
+        return [...prev, {
+          id: placeholderId,
+          role: 'assistant',
+          parts,
+          model: activeGeneration.modelId,
+        }];
+      });
+    }
     
-    setIsReconnecting(true);
-    console.log(`[Reconnect] Connecting to SSE stream for generation ${activeGeneration.id}`);
+    reconnectPlaceholderIdRef.current = placeholderId;
+    setIsReconnecting(isActualReconnection);
+    console.log(`[SSE] Connecting for generation ${activeGeneration.id}, isReconnection: ${isActualReconnection}`);
 
     // Setup SSE connection with fetch (more reliable than EventSource)
     const abortController = new AbortController();
@@ -778,20 +795,22 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
               const data = JSON.parse(line.slice(6));
               
               if (data.type === 'waiting' || data.type === 'heartbeat') {
-                // Waiting for generation to start - update UI to show waiting state
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                setMessages((prev: any[]) => prev.map(m => {
-                  if (m.id !== placeholderId) return m;
-                  const newParts: Array<{ type: string; text?: string; isReconnecting?: boolean; isWaiting?: boolean; elapsedMs?: number }> = [];
-                  // Show waiting indicator
-                  newParts.push({ 
-                    type: 'reconnecting', 
-                    isReconnecting: true, 
-                    isWaiting: true,
-                    elapsedMs: data.elapsedMs || 0,
-                  });
-                  return { ...m, parts: newParts };
-                }));
+                // Waiting for generation to start - only show for reconnections
+                if (isActualReconnection) {
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  setMessages((prev: any[]) => prev.map(m => {
+                    if (m.id !== placeholderId) return m;
+                    const newParts: Array<{ type: string; text?: string; isReconnecting?: boolean; isWaiting?: boolean; elapsedMs?: number }> = [];
+                    newParts.push({ 
+                      type: 'reconnecting', 
+                      isReconnecting: true, 
+                      isWaiting: true,
+                      elapsedMs: data.elapsedMs || 0,
+                    });
+                    return { ...m, parts: newParts };
+                  }));
+                }
+                // For fresh generations, the empty placeholder is fine (shows thinking state)
               }
               
               if (data.type === 'content') {
@@ -809,15 +828,18 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 setMessages((prev: any[]) => prev.map(m => {
                   if (m.id !== placeholderId) return m;
-                  const newParts: Array<{ type: string; text?: string; isReconnecting?: boolean }> = [];
+                  const newParts: Array<{ type: string; text?: string; isReconnecting?: boolean; isStreaming?: boolean }> = [];
                   if (accumulatedReasoning) {
-                    newParts.push({ type: 'reasoning', text: accumulatedReasoning });
+                    // Mark reasoning as streaming if text hasn't started yet
+                    newParts.push({ type: 'reasoning', text: accumulatedReasoning, isStreaming: !accumulatedText });
                   }
                   if (accumulatedText) {
                     newParts.push({ type: 'text', text: accumulatedText });
                   }
-                  // Keep reconnecting indicator while streaming
-                  newParts.push({ type: 'reconnecting', isReconnecting: true });
+                  // Only show reconnecting indicator for actual reconnections
+                  if (isActualReconnection) {
+                    newParts.push({ type: 'reconnecting', isReconnecting: true });
+                  }
                   return { ...m, parts: newParts };
                 }));
               }
@@ -953,21 +975,61 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
     }
   }, [setMessages]);
 
-  const stableHandleEdit = useCallback((index: number, newContent: string, editAttachments?: EditAttachment[]) => {
-    handleEditMessage(index, newContent, editAttachments).then(() => {
-      if (editAttachments && editAttachments.length > 0) {
-        const fileUIParts = editAttachments.map(att => ({
-          type: 'file' as const,
-          filename: att.name,
+  const stableHandleEdit = useCallback(async (index: number, newContent: string, editAttachments?: EditAttachment[]) => {
+    await handleEditMessage(index, newContent, editAttachments);
+    
+    const chatId = chatIdRef.current;
+    if (!chatId) return;
+    
+    // Build the edited message content
+    let editedContent: unknown[];
+    if (editAttachments && editAttachments.length > 0) {
+      editedContent = [
+        { type: 'text', text: newContent },
+        ...editAttachments.map(att => ({
+          type: att.mediaType.startsWith('image/') ? 'image' : 'file',
+          [att.mediaType.startsWith('image/') ? 'image' : 'data']: att.url,
           mediaType: att.mediaType,
-          url: att.url,
-        }));
-        sendMessage({ text: newContent, files: fileUIParts });
-      } else {
-        sendMessage({ text: newContent });
-      }
+          name: att.name,
+        })),
+      ];
+    } else {
+      editedContent = [{ type: 'text', text: newContent }];
+    }
+    
+    // Get current messages after truncation and add the edited message
+    const currentMsgs = messagesRef.current;
+    const allMessages = [...currentMsgs, { role: 'user', content: editedContent }];
+    
+    // Trigger background generation
+    const bgResponse = await fetch('/api/chat/background', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chatId,
+        messages: allMessages.map(m => ({
+          role: m.role,
+          content: (m as { parts?: unknown[] }).parts || (m as { content?: unknown }).content || '',
+        })),
+        model: currentModelIdRef.current,
+        reasoningEffort: reasoningEffortRef.current,
+        responseLength: responseLengthRef.current,
+        userName: userNameRef.current,
+        userGender: userGenderRef.current,
+        learningMode: learningModeRef.current,
+        customInstructions: customInstructionsRef.current,
+      }),
     });
-  }, [handleEditMessage, sendMessage]);
+    
+    if (bgResponse.ok) {
+      const bgData = await bgResponse.json();
+      setActiveGeneration({
+        id: bgData.generationId,
+        status: 'streaming',
+        modelId: currentModelIdRef.current,
+      });
+    }
+  }, [handleEditMessage]);
 
   // Handle send message
   const handleSendMessage = useCallback(async () => {
@@ -1095,23 +1157,77 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
         return;
       }
 
-      console.log(`[CLIENT DEBUG] ${new Date().toISOString()} === CALLING sendMessage() ===`);
+      // Use background generation via Inngest for reliable generation
+      // This allows generation to continue even if user closes the tab
+      console.log(`[CLIENT DEBUG] ${new Date().toISOString()} === STARTING BACKGROUND GENERATION ===`);
       console.log(`[CLIENT DEBUG] Model: ${currentModelIdRef.current}, ChatId: ${activeChatId}`);
       
-      if (processedAttachments.length > 0) {
-        const fileUIParts = processedAttachments.map(att => ({
-          type: 'file' as const,
-          filename: att.name,
-          mediaType: att.type === 'image' ? att.mediaType : att.mediaType,
-          url: att.type === 'image' ? att.image : att.data,
-        }));
-        sendMessage({ text: userMessage, files: fileUIParts });
-      } else {
-        sendMessage({ text: userMessage });
+      // Add user message to UI immediately
+      const userMsgId = `user-${Date.now()}`;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      setMessages((prev: any) => [...prev, {
+        id: userMsgId,
+        role: 'user',
+        parts: Array.isArray(finalContent) 
+          ? finalContent 
+          : [{ type: 'text', text: finalContent as string }],
+      }]);
+      
+      // Prepare messages for background API (include all conversation history)
+      const allMessages = [...messagesRef.current, {
+        role: 'user',
+        content: Array.isArray(finalContent) ? finalContent : [{ type: 'text', text: finalContent }],
+      }];
+      
+      // Trigger background generation via Inngest
+      const bgResponse = await fetch('/api/chat/background', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chatId: activeChatId,
+          messages: allMessages.map(m => ({
+            role: m.role,
+            content: (m as { parts?: unknown[] }).parts || (m as { content?: unknown }).content || '',
+          })),
+          model: currentModelIdRef.current,
+          reasoningEffort: reasoningEffortRef.current,
+          responseLength: responseLengthRef.current,
+          userName: userNameRef.current,
+          userGender: userGenderRef.current,
+          learningMode: learningModeRef.current,
+          customInstructions: customInstructionsRef.current,
+        }),
+      });
+      
+      if (!bgResponse.ok) {
+        console.error('[CLIENT DEBUG] Background generation failed to start');
+        setIsSending(false);
+        return;
       }
-      console.log(`[CLIENT DEBUG] ${new Date().toISOString()} sendMessage() called, waiting for response...`);
-      // Reset sending state after a short delay to allow UI to transition
-      setTimeout(() => setIsSending(false), 100);
+      
+      const bgData = await bgResponse.json();
+      console.log(`[CLIENT DEBUG] Background generation started: ${bgData.generationId}`);
+      
+      // Add a placeholder assistant message that will be updated by SSE
+      const assistantPlaceholderId = `assistant-${bgData.generationId}`;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      setMessages((prev: any) => [...prev, {
+        id: assistantPlaceholderId,
+        role: 'assistant',
+        parts: [{ type: 'text', text: '' }], // Empty initially, will be filled by SSE
+        model: currentModelIdRef.current,
+      }]);
+      
+      // Set active generation - this will trigger SSE streaming
+      setActiveGeneration({
+        id: bgData.generationId,
+        status: 'streaming',
+        modelId: currentModelIdRef.current,
+        partialText: '',
+        partialReasoning: '',
+      });
+      
+      setIsSending(false);
     } catch (err) {
       console.error("[CLIENT DEBUG] Failed to send message:", err);
       setIsSending(false);

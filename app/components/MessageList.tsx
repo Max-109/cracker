@@ -367,13 +367,19 @@ export function MessageList({
                 : undefined;
               const modelShortName = displayModelId ? (displayModelId.split('/').pop()?.split(':')[0] || displayModelId) : undefined;
               
+              // Check if this message is from background generation (id starts with assistant- or reconnect-)
+              const isBackgroundGenMessage = m.id.startsWith('assistant-') || m.id.startsWith('reconnect-');
+              // isThinking = true if streaming OR if this is a background generation placeholder with active generation
+              const isThinkingForMessage = (isStreaming && isLastAssistant) || 
+                (isBackgroundGenMessage && isLastAssistant && activeGeneration?.status === 'streaming');
+              
               return (
                 <ThrottledMessageItem
                   key={m.id}
                   message={m}
                   index={index}
-                  isThinking={isStreaming && isLastAssistant}
-                  isStreaming={isStreaming && isLastAssistant}
+                  isThinking={isThinkingForMessage}
+                  isStreaming={isThinkingForMessage}
                   onEdit={onEdit}
                   onRetry={onRetry}
                   modelName={modelShortName}
@@ -392,8 +398,9 @@ export function MessageList({
               </div>
             )}
             
-            {/* Background generation with smooth streaming simulation */}
-            {activeGeneration?.status === 'streaming' && !isStreaming && (
+            {/* Background generation with smooth streaming simulation - only show if no placeholder message exists */}
+            {activeGeneration?.status === 'streaming' && !isStreaming && 
+             !messages.some(m => m.id.startsWith('assistant-') || m.id.startsWith('reconnect-')) && (
               <ResumedStreamingMessage
                 partialText={activeGeneration.partialText || ''}
                 partialReasoning={activeGeneration.partialReasoning || ''}
