@@ -104,16 +104,19 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
   const streamingStartTimeRef = useRef<number | null>(null);
   const [streamingStats, setStreamingStats] = useState<{ tokensPerSecond: number; modelId: string | null }>({ tokensPerSecond: 0, modelId: null });
 
-  // Active generation state
+  // Active generation state (for background generation reconnection)
   const [activeGeneration, setActiveGeneration] = useState<{
     id: string;
     status: 'streaming' | 'completed' | 'failed';
     partialText?: string;
     partialReasoning?: string;
+    modelId?: string;
     startedAt?: string;
     lastUpdateAt?: string;
   } | null>(null);
-  const generationPollRef = useRef<NodeJS.Timeout | null>(null);
+  const [isReconnecting, setIsReconnecting] = useState(false);
+  const sseAbortControllerRef = useRef<AbortController | null>(null);
+  const reconnectPlaceholderIdRef = useRef<string | null>(null);
 
   // Deep research state
   const [deepResearchState, setDeepResearchState] = useState<{
@@ -134,8 +137,16 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
   const ignoreNextChatIdChangeRef = useRef(false);
   const isRegeneratingRef = useRef(false);
 
-  // Sync state when prop changes
+  // Sync state when prop changes and cleanup SSE connection
   useEffect(() => {
+    // Cleanup any existing SSE connection when chatId changes
+    if (sseAbortControllerRef.current) {
+      sseAbortControllerRef.current.abort();
+      sseAbortControllerRef.current = null;
+    }
+    setIsReconnecting(false);
+    setActiveGeneration(null);
+    
     setCurrentChatId(initialChatId || null);
     chatIdRef.current = initialChatId || null;
   }, [initialChatId]);
@@ -194,11 +205,58 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
   const { messages, status, stop, setMessages, regenerate, sendMessage, error } = chatHelpers;
   const typedMessages = messages as unknown as ChatMessage[];
   const isStreaming = status === 'submitted' || status === 'streaming';
-  const isLoading = isStreaming || activeGeneration?.status === 'streaming' || deepResearchState.isActive;
+  const isLoading = isStreaming || activeGeneration?.status === 'streaming' || deepResearchState.isActive || isReconnecting;
 
   // Handle stop with saving partial content
   const handleStop = useCallback(async () => {
     const activeId = chatIdRef.current;
+    
+    // If we're in a reconnected SSE stream, abort it and cleanup
+    if (isReconnecting && sseAbortControllerRef.current) {
+      console.log('[Stop] Aborting SSE reconnection stream');
+      sseAbortControllerRef.current.abort();
+      sseAbortControllerRef.current = null;
+      setIsReconnecting(false);
+      
+      // The server will detect the connection close and save the partial content
+      // via stale detection, or the generation will complete normally
+      // Either way, reload messages from DB after a short delay
+      if (activeId) {
+        setTimeout(async () => {
+          try {
+            const res = await fetch(`/api/chats/${activeId}`);
+            const data = await res.json();
+            if (Array.isArray(data)) {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const uiMessages = data.map((msg: any) => {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                let parts: Array<any>;
+                if (Array.isArray(msg.content)) {
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  parts = msg.content.map((p: any) => {
+                    if (typeof p === 'string') return { type: 'text', text: p };
+                    if (p.type === 'text') return { type: 'text', text: p.text || '' };
+                    if (p.type === 'reasoning') return { type: 'reasoning', text: p.text || p.reasoning || '' };
+                    if (p.type === 'stopped') return { type: 'stopped', stopType: p.stopType };
+                    if (p.type === 'source' || p.type === 'source-url') return { type: 'source', url: p.url, title: p.title, source: p.source };
+                    return p;
+                  });
+                } else {
+                  parts = [{ type: 'text', text: msg.content || '' }];
+                }
+                return { id: msg.id, role: msg.role, parts, model: msg.model, tokensPerSecond: msg.tokensPerSecond };
+              });
+              setMessages(uiMessages as Parameters<typeof setMessages>[0]);
+            }
+          } catch (e) {
+            console.error('[Stop] Failed to reload messages after SSE abort:', e);
+          }
+        }, 500);
+      }
+      setActiveGeneration(null);
+      return;
+    }
+    
     if (!activeId) {
       stop();
       return;
@@ -294,7 +352,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
         console.error('Failed to reload messages after stop:', e);
       }
     }, 100);
-  }, [stop, setMessages]);
+  }, [stop, setMessages, isReconnecting]);
 
   // Deep search function with SSE streaming
   const startDeepSearch = useCallback(async (
@@ -610,16 +668,18 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
         .catch(err => console.error("Failed to fetch messages:", err))
         .finally(() => setIsMessagesLoading(false));
       
-      // Check for active generations
+      // Check for active generations (background generation that might be in progress)
       fetch(`/api/generate?chatId=${currentChatId}`)
         .then(res => res.json())
         .then(genData => {
           if (genData.status === 'streaming') {
+            console.log(`[ChatInterface] Found active generation: ${genData.id} for chat ${currentChatId}`);
             setActiveGeneration({
               id: genData.id,
               status: genData.status,
               partialText: genData.partialText,
               partialReasoning: genData.partialReasoning,
+              modelId: genData.modelId,
               startedAt: genData.startedAt,
               lastUpdateAt: genData.lastUpdateAt,
             });
@@ -635,74 +695,217 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
     }
   }, [currentChatId, setMessages]);
 
-  // Poll for active generation progress
+  // SSE reconnection for active generation (replaces polling)
   useEffect(() => {
     if (!activeGeneration || activeGeneration.status !== 'streaming') {
-      if (generationPollRef.current) {
-        clearInterval(generationPollRef.current);
-        generationPollRef.current = null;
+      // Cleanup any existing SSE connection
+      if (sseAbortControllerRef.current) {
+        sseAbortControllerRef.current.abort();
+        sseAbortControllerRef.current = null;
       }
+      setIsReconnecting(false);
       return;
     }
 
-    generationPollRef.current = setInterval(async () => {
+    // Create placeholder message for the reconnected generation
+    const placeholderId = `reconnect-${activeGeneration.id}`;
+    reconnectPlaceholderIdRef.current = placeholderId;
+    
+    // Add placeholder assistant message with initial content
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    setMessages((prev: any[]) => {
+      // Check if placeholder already exists
+      if (prev.some(m => m.id === placeholderId)) {
+        return prev;
+      }
+      // Build initial parts from what we already have
+      const parts: Array<{ type: string; text?: string; isReconnecting?: boolean }> = [];
+      if (activeGeneration.partialReasoning) {
+        parts.push({ type: 'reasoning', text: activeGeneration.partialReasoning });
+      }
+      if (activeGeneration.partialText) {
+        parts.push({ type: 'text', text: activeGeneration.partialText });
+      }
+      // Add reconnecting indicator
+      parts.push({ type: 'reconnecting', isReconnecting: true });
+      
+      return [...prev, {
+        id: placeholderId,
+        role: 'assistant',
+        parts,
+        model: activeGeneration.modelId,
+      }];
+    });
+    
+    setIsReconnecting(true);
+    console.log(`[Reconnect] Connecting to SSE stream for generation ${activeGeneration.id}`);
+
+    // Setup SSE connection with fetch (more reliable than EventSource)
+    const abortController = new AbortController();
+    sseAbortControllerRef.current = abortController;
+
+    const connectSSE = async () => {
       try {
-        const res = await fetch(`/api/generate?generationId=${activeGeneration.id}`);
-        const data = await res.json();
-        
-        if (data.status === 'none') {
+        const response = await fetch(`/api/generate/stream?generationId=${activeGeneration.id}`, {
+          signal: abortController.signal,
+        });
+
+        if (!response.ok || !response.body) {
+          console.error('[Reconnect] SSE connection failed:', response.status);
+          setIsReconnecting(false);
           setActiveGeneration(null);
-          if (currentChatId) {
-            const msgRes = await fetch(`/api/chats/${currentChatId}`);
-            const msgData = await msgRes.json();
-            if (Array.isArray(msgData)) {
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              const uiMessages = msgData.map((msg: any) => {
+          return;
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let accumulatedText = activeGeneration.partialText || '';
+        let accumulatedReasoning = activeGeneration.partialReasoning || '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n\n');
+          buffer = lines.pop() || '';
+
+          for (const line of lines) {
+            if (!line.startsWith('data: ')) continue;
+            
+            try {
+              const data = JSON.parse(line.slice(6));
+              
+              if (data.type === 'waiting' || data.type === 'heartbeat') {
+                // Waiting for generation to start - update UI to show waiting state
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                let parts: Array<any>;
-                if (Array.isArray(msg.content)) {
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  parts = msg.content.map((p: any) => {
-                    if (typeof p === 'string') return { type: 'text', text: p };
-                    if (p.type === 'text') return { type: 'text', text: p.text || '' };
-                    if (p.type === 'reasoning') return { type: 'reasoning', text: p.text || p.reasoning || '' };
-                    if (p.type === 'stopped') return { type: 'stopped', stopType: p.stopType };
-                    if (p.type === 'source' || p.type === 'source-url') return { type: 'source', url: p.url, title: p.title, source: p.source };
-                    return p;
+                setMessages((prev: any[]) => prev.map(m => {
+                  if (m.id !== placeholderId) return m;
+                  const newParts: Array<{ type: string; text?: string; isReconnecting?: boolean; isWaiting?: boolean; elapsedMs?: number }> = [];
+                  // Show waiting indicator
+                  newParts.push({ 
+                    type: 'reconnecting', 
+                    isReconnecting: true, 
+                    isWaiting: true,
+                    elapsedMs: data.elapsedMs || 0,
                   });
+                  return { ...m, parts: newParts };
+                }));
+              }
+              
+              if (data.type === 'content') {
+                // Handle incremental or full content
+                if (data.isIncremental) {
+                  if (data.text) accumulatedText += data.text;
+                  if (data.reasoning) accumulatedReasoning += data.reasoning;
                 } else {
-                  parts = [{ type: 'text', text: msg.content || '' }];
+                  // Full content (initial state)
+                  if (data.text) accumulatedText = data.text;
+                  if (data.reasoning) accumulatedReasoning = data.reasoning;
                 }
-                return { id: msg.id, role: msg.role, parts, model: msg.model, tokensPerSecond: msg.tokensPerSecond };
-              });
-              setMessages(uiMessages as Parameters<typeof setMessages>[0]);
+                
+                // Update the placeholder message with new content
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                setMessages((prev: any[]) => prev.map(m => {
+                  if (m.id !== placeholderId) return m;
+                  const newParts: Array<{ type: string; text?: string; isReconnecting?: boolean }> = [];
+                  if (accumulatedReasoning) {
+                    newParts.push({ type: 'reasoning', text: accumulatedReasoning });
+                  }
+                  if (accumulatedText) {
+                    newParts.push({ type: 'text', text: accumulatedText });
+                  }
+                  // Keep reconnecting indicator while streaming
+                  newParts.push({ type: 'reconnecting', isReconnecting: true });
+                  return { ...m, parts: newParts };
+                }));
+              }
+              
+              if (data.type === 'complete') {
+                console.log('[Reconnect] Generation completed');
+                // Update TPS stats if available
+                if (data.tokensPerSecond) {
+                  setStreamingStats({
+                    modelId: activeGeneration.modelId || null,
+                    tokensPerSecond: parseFloat(data.tokensPerSecond) || 0,
+                  });
+                }
+              }
+              
+              if (data.type === 'done') {
+                console.log(`[Reconnect] SSE stream ended: ${data.reason}`);
+                setIsReconnecting(false);
+                setActiveGeneration(null);
+                
+                // Reload messages from DB to get the final saved version
+                if (currentChatId) {
+                  try {
+                    const msgRes = await fetch(`/api/chats/${currentChatId}`);
+                    const msgData = await msgRes.json();
+                    if (Array.isArray(msgData)) {
+                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                      const uiMessages = msgData.map((msg: any) => {
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        let parts: Array<any>;
+                        if (Array.isArray(msg.content)) {
+                          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                          parts = msg.content.map((p: any) => {
+                            if (typeof p === 'string') return { type: 'text', text: p };
+                            if (p.type === 'text') return { type: 'text', text: p.text || '' };
+                            if (p.type === 'reasoning') return { type: 'reasoning', text: p.text || p.reasoning || '' };
+                            if (p.type === 'stopped') return { type: 'stopped', stopType: p.stopType };
+                            if (p.type === 'source' || p.type === 'source-url') return { type: 'source', url: p.url, title: p.title, source: p.source };
+                            return p;
+                          });
+                        } else {
+                          parts = [{ type: 'text', text: msg.content || '' }];
+                        }
+                        return { id: msg.id, role: msg.role, parts, model: msg.model, tokensPerSecond: msg.tokensPerSecond };
+                      });
+                      setMessages(uiMessages as Parameters<typeof setMessages>[0]);
+                    }
+                  } catch (e) {
+                    console.error('[Reconnect] Failed to reload messages:', e);
+                  }
+                }
+                return; // Exit the loop
+              }
+              
+              if (data.type === 'error') {
+                console.error('[Reconnect] Generation error:', data.message);
+                setIsReconnecting(false);
+                setActiveGeneration(null);
+                // Remove the placeholder since it failed
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                setMessages((prev: any[]) => prev.filter(m => m.id !== placeholderId));
+                return;
+              }
+            } catch {
+              // Ignore JSON parse errors
             }
           }
-        } else if (data.status === 'failed') {
-          setActiveGeneration(null);
-          console.error('Background generation failed:', data.error);
-        } else if (data.status === 'streaming') {
-          setActiveGeneration({
-            id: data.id,
-            status: data.status,
-            partialText: data.partialText,
-            partialReasoning: data.partialReasoning,
-            startedAt: data.startedAt,
-            lastUpdateAt: data.lastUpdateAt,
-          });
         }
       } catch (err) {
-        console.error('Failed to poll generation status:', err);
-      }
-    }, 1000); // Poll every 1 second for smoother resume experience
-
-    return () => {
-      if (generationPollRef.current) {
-        clearInterval(generationPollRef.current);
-        generationPollRef.current = null;
+        if ((err as Error).name === 'AbortError') {
+          console.log('[Reconnect] SSE connection aborted');
+          return;
+        }
+        console.error('[Reconnect] SSE connection error:', err);
+        setIsReconnecting(false);
+        setActiveGeneration(null);
       }
     };
-  }, [activeGeneration, currentChatId, setMessages]);
+
+    connectSSE();
+
+    return () => {
+      if (sseAbortControllerRef.current) {
+        sseAbortControllerRef.current.abort();
+        sseAbortControllerRef.current = null;
+      }
+    };
+  }, [activeGeneration?.id, activeGeneration?.status, currentChatId, setMessages]);
 
   // Handle message edit
   const handleEditMessage = useCallback(async (index: number, newContent: string, editAttachments?: EditAttachment[]) => {

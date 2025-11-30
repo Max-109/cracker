@@ -763,7 +763,10 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
   let isDeepResearching = false;
   let deepResearchProgress: ResearchProgress | null = null;
   let clarifyQuestions: string[] | null = null;
-  let stopType: 'connection' | 'thinking' | null = null;
+  let stopType: 'connection' | 'thinking' | 'stale' | null = null;
+  let isReconnecting = false;
+  let isWaitingForGeneration = false;
+  let waitingElapsedMs = 0;
 
   if (typeof safeContent !== 'string' && Array.isArray(safeContent)) {
     safeContent.forEach((part: MessagePart) => {
@@ -786,8 +789,15 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
         isDeepResearching = true;
       } else if ((part as { type: string; stopType?: string }).type === 'stopped') {
         const stoppedPart = part as { type: string; stopType?: string };
-        if (stoppedPart.stopType === 'connection' || stoppedPart.stopType === 'thinking') {
+        if (stoppedPart.stopType === 'connection' || stoppedPart.stopType === 'thinking' || stoppedPart.stopType === 'stale') {
           stopType = stoppedPart.stopType;
+        }
+      } else if ((part as { type: string; isReconnecting?: boolean; isWaiting?: boolean; elapsedMs?: number }).type === 'reconnecting') {
+        const reconnectPart = part as { type: string; isReconnecting?: boolean; isWaiting?: boolean; elapsedMs?: number };
+        isReconnecting = true;
+        if (reconnectPart.isWaiting) {
+          isWaitingForGeneration = true;
+          waitingElapsedMs = reconnectPart.elapsedMs || 0;
         }
       } else if (part.type === 'source' || (part as { type: string }).type === 'source-url') {
         // Extract source information from converted source parts (handles both live and DB loaded)
@@ -1046,6 +1056,36 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
                 </div>
                 <span className="text-sm text-[var(--text-secondary)] uppercase tracking-[0.14em]">
                   Thinking interrupted
+                </span>
+              </div>
+            </div>
+          )}
+          {stopType === 'stale' && (
+            <div className="border border-[var(--border-color)] bg-[#141414] px-4 py-3 mt-2">
+              <div className="flex items-center gap-3">
+                <div className="relative flex items-center justify-center w-5 h-5">
+                  <div className="absolute w-2 h-2 bg-[var(--text-accent)]/80 rounded-full" />
+                  <div className="absolute w-4 h-4 bg-[var(--text-accent)]/20 rounded-full animate-pulse" />
+                </div>
+                <span className="text-sm text-[var(--text-secondary)] uppercase tracking-[0.14em]">
+                  Generation recovered (connection lost)
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Reconnecting indicator - shown while SSE reconnection is active */}
+          {isReconnecting && (
+            <div className="border border-[var(--text-accent)]/30 bg-[var(--text-accent)]/5 px-4 py-3 mt-2">
+              <div className="flex items-center gap-3">
+                <div className="relative flex items-center justify-center w-5 h-5">
+                  <div className="absolute w-2 h-2 bg-[var(--text-accent)] rounded-full animate-pulse" />
+                  <div className="absolute w-4 h-4 border border-[var(--text-accent)]/40 rounded-full animate-ping" />
+                </div>
+                <span className="text-sm text-[var(--text-accent)] uppercase tracking-[0.14em]">
+                  {isWaitingForGeneration 
+                    ? `Reconnected - Thinking... (${Math.round(waitingElapsedMs / 1000)}s)`
+                    : 'Reconnected - Streaming...'}
                 </span>
               </div>
             </div>

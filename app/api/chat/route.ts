@@ -522,21 +522,48 @@ export async function POST(req: Request) {
     let partialReasoning = '';
     const partialSources: Array<{ url: string; title: string }> = [];
     let lastDbUpdate = 0;
-    const DB_UPDATE_INTERVAL = 1000; // Update DB every 1 second for smoother resume
+    const DB_UPDATE_INTERVAL = 300; // Update DB every 300ms for more reliable background resume
     let chunkCount = 0;
+    let lastLoggedChunkCount = 0;
     
-    // Pre-generate UUID so we don't block on DB insert
-    // Fire-and-forget: insert generation record without waiting
-    const generationId: string | null = chatId ? randomUUID() : null;
-    if (chatId && generationId) {
+    // Pre-generate UUID for activeGenerations tracking (distinct from OpenRouter's generationId)
+    const activeGenId: string | null = chatId ? randomUUID() : null;
+    let generationCompleted = false; // Track if onFinish ran
+    
+    if (chatId && activeGenId) {
       // Non-blocking insert - don't await, let it run in background
       db.insert(activeGenerations).values({
-        id: generationId,
+        id: activeGenId,
         chatId,
         modelId,
         reasoningEffort: effort,
         status: 'streaming',
       }).catch(e => console.error('[Chat] Failed to create generation record:', e));
+      
+      // Handle client disconnect - save partial content when aborted
+      // This is crucial for background generation support
+      req.signal.addEventListener('abort', async () => {
+        console.log(`[Chat] Client disconnected for chat ${chatId}, generation ${activeGenId}`);
+        console.log(`[Chat] Partial content at disconnect: text=${partialText.length}, reasoning=${partialReasoning.length}`);
+        
+        // Only save if onFinish hasn't already run
+        if (!generationCompleted && (partialText || partialReasoning)) {
+          try {
+            // Update the generation record with latest partial content
+            // The SSE stream will pick this up when user returns
+            await db.update(activeGenerations)
+              .set({ 
+                partialText, 
+                partialReasoning,
+                lastUpdateAt: new Date(),
+              })
+              .where(eq(activeGenerations.id, activeGenId));
+            console.log(`[Chat] Saved partial content on disconnect for generation ${activeGenId}`);
+          } catch (e) {
+            console.error('[Chat] Failed to save partial on disconnect:', e);
+          }
+        }
+      });
     }
 
     debugLog('streamText() configuration ready, initiating...');
@@ -584,10 +611,10 @@ export async function POST(req: Request) {
           debugLog(`=== FIRST CHUNK RECEIVED === (${timeToFirstChunk}s after streamText call)`);
           debugLog(`First chunk type: ${chunk.type}`);
           // Update first chunk time in DB
-          if (generationId) {
+          if (activeGenId) {
             db.update(activeGenerations)
               .set({ firstChunkAt: new Date() })
-              .where(eq(activeGenerations.id, generationId))
+              .where(eq(activeGenerations.id, activeGenId))
               .catch(() => {});
           }
         }
@@ -617,22 +644,31 @@ export async function POST(req: Request) {
           }
         }
         
-        // Periodically save partial content to DB (every 2 seconds)
+        // Periodically save partial content to DB for reconnection support
         const now = Date.now();
-        if (generationId && now - lastDbUpdate > DB_UPDATE_INTERVAL) {
+        if (activeGenId && now - lastDbUpdate > DB_UPDATE_INTERVAL) {
           lastDbUpdate = now;
-          console.log(`[Chat] Saving partial: text=${partialText.length}, reasoning=${partialReasoning.length}, sources=${partialSources.length}`);
+          // Log progress every 20 chunks to avoid spam
+          if (chunkCount - lastLoggedChunkCount >= 20 || chunkCount === 1) {
+            console.log(`[Chat] Chunk #${chunkCount}: text=${partialText.length}, reasoning=${partialReasoning.length}`);
+            lastLoggedChunkCount = chunkCount;
+          }
+          // Fire-and-forget DB update - but await briefly to ensure it starts
           db.update(activeGenerations)
             .set({ 
               partialText, 
               partialReasoning,
               lastUpdateAt: new Date()
             })
-            .where(eq(activeGenerations.id, generationId))
+            .where(eq(activeGenerations.id, activeGenId))
+            .then(() => {
+              // Successfully saved
+            })
             .catch((e) => console.error('[Chat] Failed to update generation:', e));
         }
       },
       onFinish: async ({ response, providerMetadata, usage }) => {
+        generationCompleted = true; // Mark as completed so abort handler doesn't double-save
         debugLog('=== STREAM FINISHED (onFinish) ===');
         debugLog(`Total chunks received: ${chunkCount}`);
         let tps = 0;
@@ -794,20 +830,20 @@ export async function POST(req: Request) {
               console.log(`[Chat] Saved assistant message to DB for chat ${chatId}`);
             }
             
-            // Mark generation as completed and delete the record
-            if (generationId) {
+            // Mark generation as completed and delete the activeGenerations record
+            if (activeGenId) {
               await db.delete(activeGenerations)
-                .where(eq(activeGenerations.id, generationId));
-              console.log(`[Chat] Deleted generation record ${generationId}`);
+                .where(eq(activeGenerations.id, activeGenId));
+              console.log(`[Chat] Deleted generation record ${activeGenId}`);
             }
           } catch (dbError) {
             console.error('[Chat] Failed to save message to DB:', dbError);
             // Still try to delete the generation record even if save failed
-            if (generationId) {
+            if (activeGenId) {
               try {
                 await db.delete(activeGenerations)
-                  .where(eq(activeGenerations.id, generationId));
-                console.log(`[Chat] Deleted generation record ${generationId} (after error)`);
+                  .where(eq(activeGenerations.id, activeGenId));
+                console.log(`[Chat] Deleted generation record ${activeGenId} (after error)`);
               } catch (e) {
                 console.error('[Chat] Failed to delete generation record:', e);
               }
