@@ -904,3 +904,252 @@ select {
     transform: translateY(14px);
   }
 }
+
+/* ============================================
+   AUTH PAGE ANIMATIONS
+   ============================================ */
+
+/* Scanline Animation - Full Page */
+@keyframes scanline {
+  0% {
+    top: -2px;
+  }
+  100% {
+    top: 100%;
+  }
+}
+
+.animate-scanline {
+  animation: scanline 8s linear infinite;
+}
+
+/* Floating Particles */
+@keyframes float-particle {
+  0%, 100% {
+    transform: translateY(0) translateX(0);
+    opacity: 0.15;
+  }
+  25% {
+    transform: translateY(-30px) translateX(15px);
+    opacity: 0.25;
+  }
+  50% {
+    transform: translateY(-50px) translateX(-10px);
+    opacity: 0.1;
+  }
+  75% {
+    transform: translateY(-20px) translateX(-20px);
+    opacity: 0.2;
+  }
+}
+
+.animate-float-particle {
+  animation: float-particle 20s ease-in-out infinite;
+}
+
+/* Data Stream Effect */
+@keyframes data-stream {
+  0%, 100% {
+    opacity: 0.1;
+    transform: scaleY(1);
+  }
+  50% {
+    opacity: 0.4;
+    transform: scaleY(1.2);
+  }
+}
+
+.animate-data-stream {
+  animation: data-stream 4s ease-in-out infinite;
+}
+
+/* Auth Page Transitions */
+@keyframes auth-page-enter {
+  0% {
+    opacity: 0;
+    transform: translateY(20px) scale(0.98);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes auth-page-exit {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.98);
+  }
+}
+
+.auth-page-enter {
+  animation: auth-page-enter 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.auth-page-exit {
+  animation: auth-page-exit 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Auth Card Shimmer */
+@keyframes auth-shimmer {
+  0% {
+    transform: translateX(-100%) rotate(15deg);
+  }
+  100% {
+    transform: translateX(200%) rotate(15deg);
+  }
+}
+
+.auth-card-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+
+.auth-card-shimmer::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--text-accent) 50%,
+    transparent
+  );
+  opacity: 0;
+  transform: translateX(-100%) rotate(15deg);
+  transition: opacity 0.3s;
+}
+
+.auth-card-shimmer:hover::before {
+  opacity: 0.05;
+  animation: auth-shimmer 1.5s ease-in-out;
+}
+
+/* Success State Pulse */
+@keyframes success-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 var(--text-accent);
+  }
+  50% {
+    box-shadow: 0 0 30px 10px transparent;
+  }
+}
+
+.animate-success-pulse {
+  animation: success-pulse 2s ease-in-out infinite;
+}
+
+/* Auth Loading Spinner - Orbital */
+@keyframes auth-orbit {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.auth-orbit {
+  animation: auth-orbit 1.5s linear infinite;
+}
+
+/* Typing Indicator */
+@keyframes auth-typing {
+  0%, 60%, 100% {
+    transform: translateY(0);
+    opacity: 0.4;
+  }
+  30% {
+    transform: translateY(-4px);
+    opacity: 1;
+  }
+}
+
+.auth-typing-dot {
+  animation: auth-typing 1.2s ease-in-out infinite;
+}
+
+/* Input Focus Animation */
+@keyframes input-focus-glow {
+  0%, 100% {
+    box-shadow: 0 0 10px -5px var(--text-accent);
+  }
+  50% {
+    box-shadow: 0 0 20px -5px var(--text-accent);
+  }
+}
+
+.input-focused {
+  animation: input-focus-glow 2s ease-in-out infinite;
+}
+
+/* Security Badge Scan */
+@keyframes badge-scan {
+  0%, 100% {
+    background-position: -100% 0;
+  }
+  50% {
+    background-position: 200% 0;
+  }
+}
+
+.security-badge {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    var(--text-accent) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  animation: badge-scan 3s ease-in-out infinite;
+}
+
+/* Stagger Animation for Form Fields */
+.auth-field-stagger > * {
+  opacity: 0;
+  transform: translateY(10px);
+  animation: auth-field-appear 0.4s ease-out forwards;
+}
+
+.auth-field-stagger > *:nth-child(1) { animation-delay: 0.1s; }
+.auth-field-stagger > *:nth-child(2) { animation-delay: 0.2s; }
+.auth-field-stagger > *:nth-child(3) { animation-delay: 0.3s; }
+.auth-field-stagger > *:nth-child(4) { animation-delay: 0.4s; }
+.auth-field-stagger > *:nth-child(5) { animation-delay: 0.5s; }
+.auth-field-stagger > *:nth-child(6) { animation-delay: 0.6s; }
+
+@keyframes auth-field-appear {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Glitch Effect for Error States */
+@keyframes auth-glitch {
+  0%, 100% {
+    transform: translate(0);
+  }
+  20% {
+    transform: translate(-2px, 2px);
+  }
+  40% {
+    transform: translate(-2px, -2px);
+  }
+  60% {
+    transform: translate(2px, 2px);
+  }
+  80% {
+    transform: translate(2px, -2px);
+  }
+}
+
+.auth-error-glitch {
+  animation: auth-glitch 0.3s ease-in-out;
+}
