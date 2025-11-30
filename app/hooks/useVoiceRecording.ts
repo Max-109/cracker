@@ -13,19 +13,23 @@ interface UseVoiceRecordingOptions {
 // The model processes longer audio more efficiently (sub-linear scaling)
 // Formula: baseOverhead + coefficient * sqrt(audioDuration)
 // This gives: 3s audio ≈ 2.5s wait, 6s ≈ 3.2s, 15s ≈ 4.7s, 30s ≈ 6.3s
-export function calculateEstimatedTime(audioDurationMs: number): number {
+export function calculateEstimatedTime(audioDurationMs: number, model: 'fast' | 'expert' = 'fast'): number {
   const audioDurationSec = audioDurationMs / 1000;
-  
+
   // Base overhead for API call/network latency (in seconds)
-  const baseOverhead = 0.8;
-  
+  const baseOverhead = model === 'expert' ? 2.0 : 0.8;
+
   // Square root scaling - longer audio has proportionally less wait time
-  const coefficient = 1.0;
+  // Expert model is significantly slower
+  const coefficient = model === 'expert' ? 3.5 : 1.0;
   const estimated = baseOverhead + coefficient * Math.sqrt(audioDurationSec);
-  
-  // Minimum 1.5s, cap at reasonable max
-  const clamped = Math.max(1.5, Math.min(estimated, 15));
-  
+
+  // Minimum 1.5s (4s for expert), cap at reasonable max
+  const minTime = model === 'expert' ? 4.0 : 1.5;
+  const maxTime = model === 'expert' ? 45 : 15;
+
+  const clamped = Math.max(minTime, Math.min(estimated, maxTime));
+
   return clamped * 1000; // Return in ms
 }
 
@@ -38,31 +42,33 @@ export function useVoiceRecording({ onTranscription, onError }: UseVoiceRecordin
   const chunksRef = useRef<Blob[]>([]);
   const streamRef = useRef<MediaStream | null>(null);
   const recordingStartTimeRef = useRef<number>(0);
+  const selectedModelRef = useRef<'fast' | 'expert'>('fast');
 
-  const startRecording = useCallback(async () => {
+  const startRecording = useCallback(async (model: 'fast' | 'expert' = 'fast') => {
     // Reset permission denied state
     setPermissionDenied(false);
+    selectedModelRef.current = model;
     setState('requesting');
 
     try {
       // Request microphone permission
-      const stream = await navigator.mediaDevices.getUserMedia({ 
+      const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
           sampleRate: 16000,
-        } 
+        }
       });
-      
+
       streamRef.current = stream;
       chunksRef.current = [];
 
       // Create MediaRecorder with best available format
-      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') 
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
         ? 'audio/webm;codecs=opus'
         : MediaRecorder.isTypeSupported('audio/webm')
-        ? 'audio/webm'
-        : 'audio/mp4';
+          ? 'audio/webm'
+          : 'audio/mp4';
 
       const mediaRecorder = new MediaRecorder(stream, { mimeType });
       mediaRecorderRef.current = mediaRecorder;
@@ -76,7 +82,7 @@ export function useVoiceRecording({ onTranscription, onError }: UseVoiceRecordin
       mediaRecorder.onstop = async () => {
         // Stop all tracks
         stream.getTracks().forEach(track => track.stop());
-        
+
         if (chunksRef.current.length === 0) {
           setState('idle');
           onError?.('No audio recorded');
@@ -85,18 +91,19 @@ export function useVoiceRecording({ onTranscription, onError }: UseVoiceRecordin
 
         // Calculate recording duration and estimated transcription time
         const recordingDuration = Date.now() - recordingStartTimeRef.current;
-        const estimated = calculateEstimatedTime(recordingDuration);
+        const estimated = calculateEstimatedTime(recordingDuration, selectedModelRef.current);
         setEstimatedDuration(estimated);
         setTranscribeStartTime(Date.now());
         setState('transcribing');
 
         // Create blob from chunks
         const audioBlob = new Blob(chunksRef.current, { type: mimeType });
-        
+
         try {
           // Send to transcription API
           const formData = new FormData();
           formData.append('audio', audioBlob, `recording.${mimeType.includes('webm') ? 'webm' : 'mp4'}`);
+          formData.append('model', selectedModelRef.current);
 
           const response = await fetch('/api/transcribe', {
             method: 'POST',
@@ -109,7 +116,7 @@ export function useVoiceRecording({ onTranscription, onError }: UseVoiceRecordin
           }
 
           const data = await response.json();
-          
+
           if (data.transcription) {
             onTranscription?.(data.transcription);
           } else {
@@ -129,7 +136,7 @@ export function useVoiceRecording({ onTranscription, onError }: UseVoiceRecordin
     } catch (error) {
       console.error('Recording error:', error);
       setState('idle');
-      
+
       if (error instanceof DOMException && error.name === 'NotAllowedError') {
         setPermissionDenied(true);
         onError?.('Microphone permission denied');
@@ -151,7 +158,7 @@ export function useVoiceRecording({ onTranscription, onError }: UseVoiceRecordin
       mediaRecorderRef.current.ondataavailable = null;
       mediaRecorderRef.current.onstop = null;
       mediaRecorderRef.current.stop();
-      
+
       // Stop all tracks
       if (streamRef.current) {
         streamRef.current.getTracks().forEach(track => track.stop());

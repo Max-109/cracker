@@ -25,8 +25,8 @@ function AIIndicator() {
         <div className="w-[4px] h-[4px] bg-[var(--text-accent)] animate-pulse" />
         {/* Scan line on hover */}
         <div className="absolute inset-0 overflow-hidden opacity-0 group-hover/indicator:opacity-100">
-          <div className="absolute inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-[var(--text-accent)] to-transparent animate-[scan_1s_ease-in-out_infinite]" 
-               style={{ animation: 'scan 1.2s ease-in-out infinite' }} />
+          <div className="absolute inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-[var(--text-accent)] to-transparent animate-[scan_1s_ease-in-out_infinite]"
+            style={{ animation: 'scan 1.2s ease-in-out infinite' }} />
         </div>
       </div>
     </div>
@@ -44,9 +44,11 @@ interface ResumedStreamingMessageProps {
 // Tick interval in ms (lower = faster)
 const TICK_INTERVAL = 16;
 // When resuming, how fast to "catch up" to current content (chars per tick)
-const CATCH_UP_CHARS_PER_TICK = 50;
+// Reduced from 50 to 8 for smoother catch-up
+const CATCH_UP_CHARS_PER_TICK = 8;
 // After catching up, use normal speed
-const NORMAL_CHARS_PER_TICK = 3;
+// Reduced from 3 to 1 for smoother typing effect
+const NORMAL_CHARS_PER_TICK = 1;
 
 export const ResumedStreamingMessage = memo(function ResumedStreamingMessage({
   partialText,
@@ -58,7 +60,7 @@ export const ResumedStreamingMessage = memo(function ResumedStreamingMessage({
   const [revealedReasoningLength, setRevealedReasoningLength] = useState(0);
   const [revealedTextLength, setRevealedTextLength] = useState(0);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
-  
+
   // Track if we're in "catch up" mode (revealing cached content quickly)
   const [isCatchingUp, setIsCatchingUp] = useState(true);
   const prevTextLengthRef = useRef(0);
@@ -87,19 +89,19 @@ export const ResumedStreamingMessage = memo(function ResumedStreamingMessage({
   useEffect(() => {
     const animate = () => {
       const now = Date.now();
-      
+
       // Initialize lastTickRef if not set
       if (lastTickRef.current === 0) {
         lastTickRef.current = now;
       }
-      
+
       const elapsed = now - lastTickRef.current;
 
       if (elapsed >= TICK_INTERVAL) {
         lastTickRef.current = now;
-        
+
         const charsPerTick = isCatchingUp ? CATCH_UP_CHARS_PER_TICK : NORMAL_CHARS_PER_TICK;
-        
+
         // First reveal reasoning, then text
         setRevealedReasoningLength(prev => {
           if (prev < partialReasoning.length) {
@@ -122,15 +124,15 @@ export const ResumedStreamingMessage = memo(function ResumedStreamingMessage({
 
         // Check if we've caught up to the current content
         if (revealedReasoningLength >= prevReasoningLengthRef.current &&
-            revealedTextLength >= prevTextLengthRef.current) {
+          revealedTextLength >= prevTextLengthRef.current) {
           setIsCatchingUp(false);
         }
       }
 
       // Continue animating if there's more to reveal
       if (revealedReasoningLength < partialReasoning.length ||
-          revealedTextLength < partialText.length ||
-          isStillStreaming) {
+        revealedTextLength < partialText.length ||
+        isStillStreaming) {
         animationFrameRef.current = requestAnimationFrame(animate);
       }
     };
@@ -147,7 +149,7 @@ export const ResumedStreamingMessage = memo(function ResumedStreamingMessage({
   // Track when new content arrives from server
   useEffect(() => {
     if (partialText.length > prevTextLengthRef.current ||
-        partialReasoning.length > prevReasoningLengthRef.current) {
+      partialReasoning.length > prevReasoningLengthRef.current) {
       // New content arrived, continue at normal speed if we were caught up
       prevTextLengthRef.current = partialText.length;
       prevReasoningLengthRef.current = partialReasoning.length;
@@ -157,19 +159,19 @@ export const ResumedStreamingMessage = memo(function ResumedStreamingMessage({
   // Build content parts for display
   const displayContent = useMemo((): MessagePart[] => {
     const parts: MessagePart[] = [];
-    
+
     // Add revealed reasoning
     if (partialReasoning && revealedReasoningLength > 0) {
       const revealedReasoning = partialReasoning.slice(0, revealedReasoningLength);
       parts.push({ type: 'reasoning', text: revealedReasoning });
     }
-    
+
     // Add revealed text
     if (partialText && revealedTextLength > 0) {
       const revealedText = partialText.slice(0, revealedTextLength);
       parts.push({ type: 'text', text: revealedText });
     }
-    
+
     return parts;
   }, [partialText, partialReasoning, revealedTextLength, revealedReasoningLength]);
 
@@ -191,7 +193,7 @@ export const ResumedStreamingMessage = memo(function ResumedStreamingMessage({
   }
 
   const isFullyRevealed = revealedReasoningLength >= partialReasoning.length &&
-                          revealedTextLength >= partialText.length;
+    revealedTextLength >= partialText.length;
 
   return (
     <div className="relative">
@@ -200,8 +202,8 @@ export const ResumedStreamingMessage = memo(function ResumedStreamingMessage({
         content={displayContent}
         isThinking={isStillStreaming || !isFullyRevealed}
         isStreaming={isStillStreaming || !isFullyRevealed}
-        onEdit={() => {}}
-        onRetry={() => {}}
+        onEdit={() => { }}
+        onRetry={() => { }}
       />
       {isStillStreaming && (
         <div className="text-xs text-[var(--text-secondary)] mt-1 ml-[52px] animate-pulse">

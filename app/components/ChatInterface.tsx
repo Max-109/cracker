@@ -118,6 +118,16 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
   const sseAbortControllerRef = useRef<AbortController | null>(null);
   const reconnectPlaceholderIdRef = useRef<string | null>(null);
 
+  // Smooth reveal animation refs for SSE content
+  const sseTargetTextRef = useRef('');
+  const sseTargetReasoningRef = useRef('');
+  const sseRevealedTextRef = useRef('');
+  const sseRevealedReasoningRef = useRef('');
+  const sseRevealAnimationRef = useRef<number | null>(null);
+  const sseLastRevealTimeRef = useRef(0);
+  const ssePlaceholderIdRef = useRef<string | null>(null);
+  const sseIsReconnectionRef = useRef(false);
+
   // Deep research state
   const [deepResearchState, setDeepResearchState] = useState<{
     isActive: boolean;
@@ -757,6 +767,80 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
     setIsReconnecting(isActualReconnection);
     console.log(`[SSE] Connecting for generation ${activeGeneration.id}, isReconnection: ${isActualReconnection}`);
 
+    // Initialize smooth reveal refs
+    sseTargetTextRef.current = activeGeneration.partialText || '';
+    sseTargetReasoningRef.current = activeGeneration.partialReasoning || '';
+    sseRevealedTextRef.current = activeGeneration.partialText || '';
+    sseRevealedReasoningRef.current = activeGeneration.partialReasoning || '';
+    ssePlaceholderIdRef.current = placeholderId;
+    sseIsReconnectionRef.current = isActualReconnection;
+    sseLastRevealTimeRef.current = 0;
+
+    // Smooth reveal animation function
+    const CHARS_PER_FRAME = 15; // Characters to reveal per frame (~60fps = ~900 chars/sec)
+    const FRAME_INTERVAL = 16; // ~60fps
+    
+    const runRevealAnimation = () => {
+      const now = Date.now();
+      if (now - sseLastRevealTimeRef.current < FRAME_INTERVAL) {
+        sseRevealAnimationRef.current = requestAnimationFrame(runRevealAnimation);
+        return;
+      }
+      sseLastRevealTimeRef.current = now;
+
+      let needsUpdate = false;
+      
+      // Reveal reasoning first
+      if (sseRevealedReasoningRef.current.length < sseTargetReasoningRef.current.length) {
+        sseRevealedReasoningRef.current = sseTargetReasoningRef.current.slice(
+          0, 
+          sseRevealedReasoningRef.current.length + CHARS_PER_FRAME
+        );
+        needsUpdate = true;
+      }
+      
+      // Then reveal text (only after reasoning is fully revealed)
+      if (sseRevealedReasoningRef.current.length >= sseTargetReasoningRef.current.length &&
+          sseRevealedTextRef.current.length < sseTargetTextRef.current.length) {
+        sseRevealedTextRef.current = sseTargetTextRef.current.slice(
+          0, 
+          sseRevealedTextRef.current.length + CHARS_PER_FRAME
+        );
+        needsUpdate = true;
+      }
+      
+      if (needsUpdate && ssePlaceholderIdRef.current) {
+        const pid = ssePlaceholderIdRef.current;
+        const revReasoning = sseRevealedReasoningRef.current;
+        const revText = sseRevealedTextRef.current;
+        const isReconn = sseIsReconnectionRef.current;
+        
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        setMessages((prev: any[]) => prev.map(m => {
+          if (m.id !== pid) return m;
+          const newParts: Array<{ type: string; text?: string; isReconnecting?: boolean; isStreaming?: boolean }> = [];
+          if (revReasoning) {
+            newParts.push({ type: 'reasoning', text: revReasoning, isStreaming: !revText });
+          }
+          if (revText) {
+            newParts.push({ type: 'text', text: revText });
+          }
+          if (isReconn) {
+            newParts.push({ type: 'reconnecting', isReconnecting: true });
+          }
+          return { ...m, parts: newParts };
+        }));
+      }
+      
+      // Continue animation if there's more to reveal
+      if (sseRevealedReasoningRef.current.length < sseTargetReasoningRef.current.length ||
+          sseRevealedTextRef.current.length < sseTargetTextRef.current.length) {
+        sseRevealAnimationRef.current = requestAnimationFrame(runRevealAnimation);
+      } else {
+        sseRevealAnimationRef.current = null;
+      }
+    };
+
     // Setup SSE connection with fetch (more reliable than EventSource)
     const abortController = new AbortController();
     sseAbortControllerRef.current = abortController;
@@ -777,8 +861,6 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         let buffer = '';
-        let accumulatedText = activeGeneration.partialText || '';
-        let accumulatedReasoning = activeGeneration.partialReasoning || '';
 
         while (true) {
           const { done, value } = await reader.read();
@@ -814,34 +896,20 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
               }
               
               if (data.type === 'content') {
-                // Handle incremental or full content
+                // Handle incremental or full content - update target refs
                 if (data.isIncremental) {
-                  if (data.text) accumulatedText += data.text;
-                  if (data.reasoning) accumulatedReasoning += data.reasoning;
+                  if (data.text) sseTargetTextRef.current += data.text;
+                  if (data.reasoning) sseTargetReasoningRef.current += data.reasoning;
                 } else {
                   // Full content (initial state)
-                  if (data.text) accumulatedText = data.text;
-                  if (data.reasoning) accumulatedReasoning = data.reasoning;
+                  if (data.text) sseTargetTextRef.current = data.text;
+                  if (data.reasoning) sseTargetReasoningRef.current = data.reasoning;
                 }
                 
-                // Update the placeholder message with new content
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                setMessages((prev: any[]) => prev.map(m => {
-                  if (m.id !== placeholderId) return m;
-                  const newParts: Array<{ type: string; text?: string; isReconnecting?: boolean; isStreaming?: boolean }> = [];
-                  if (accumulatedReasoning) {
-                    // Mark reasoning as streaming if text hasn't started yet
-                    newParts.push({ type: 'reasoning', text: accumulatedReasoning, isStreaming: !accumulatedText });
-                  }
-                  if (accumulatedText) {
-                    newParts.push({ type: 'text', text: accumulatedText });
-                  }
-                  // Only show reconnecting indicator for actual reconnections
-                  if (isActualReconnection) {
-                    newParts.push({ type: 'reconnecting', isReconnecting: true });
-                  }
-                  return { ...m, parts: newParts };
-                }));
+                // Start reveal animation if not already running
+                if (!sseRevealAnimationRef.current) {
+                  sseRevealAnimationRef.current = requestAnimationFrame(runRevealAnimation);
+                }
               }
               
               if (data.type === 'complete') {
@@ -857,6 +925,18 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
               
               if (data.type === 'done') {
                 console.log(`[Reconnect] SSE stream ended: ${data.reason}`);
+                
+                // Cancel reveal animation and cleanup refs
+                if (sseRevealAnimationRef.current) {
+                  cancelAnimationFrame(sseRevealAnimationRef.current);
+                  sseRevealAnimationRef.current = null;
+                }
+                sseTargetTextRef.current = '';
+                sseTargetReasoningRef.current = '';
+                sseRevealedTextRef.current = '';
+                sseRevealedReasoningRef.current = '';
+                ssePlaceholderIdRef.current = null;
+                
                 setIsReconnecting(false);
                 setActiveGeneration(null);
                 
@@ -925,6 +1005,11 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
       if (sseAbortControllerRef.current) {
         sseAbortControllerRef.current.abort();
         sseAbortControllerRef.current = null;
+      }
+      // Cleanup reveal animation
+      if (sseRevealAnimationRef.current) {
+        cancelAnimationFrame(sseRevealAnimationRef.current);
+        sseRevealAnimationRef.current = null;
       }
     };
   }, [activeGeneration?.id, activeGeneration?.status, currentChatId, setMessages]);

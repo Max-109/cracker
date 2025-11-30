@@ -53,7 +53,20 @@ export function ChatInput({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isEffortMenuOpen, setIsEffortMenuOpen] = useState(false);
+  const [voiceModel, setVoiceModel] = useState<'fast' | 'expert'>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('voiceModel');
+      if (saved === 'fast' || saved === 'expert') return saved;
+    }
+    return 'fast';
+  });
+  const [isVoiceMenuOpen, setIsVoiceMenuOpen] = useState(false);
   const [, setVoiceError] = useState<string | null>(null);
+
+  // Persist voice model to localStorage
+  useEffect(() => {
+    localStorage.setItem('voiceModel', voiceModel);
+  }, [voiceModel]);
 
   // Voice recording
   const handleTranscription = useCallback((text: string) => {
@@ -186,9 +199,16 @@ export function ChatInput({
     if (isRecording) {
       stopRecording();
     } else {
-      startRecording();
+      startRecording(voiceModel);
     }
-  }, [isRecording, startRecording, stopRecording]);
+  }, [isRecording, startRecording, stopRecording, voiceModel]);
+
+  const handleMicContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    if (!isRecording && !isLoading && !showProgress) {
+      setIsVoiceMenuOpen(true);
+    }
+  }, [isRecording, isLoading, showProgress]);
 
   // Auto-focus textarea when chat changes or on mount
   useEffect(() => {
@@ -308,65 +328,166 @@ export function ChatInput({
               />
 
               {/* Mic Button - Inside Prompt Box */}
-              <button
-                onClick={handleMicClick}
-                disabled={isLoading || showProgress}
-                className={cn(
-                  "flex-shrink-0 w-8 h-8 flex items-center justify-center transition-all duration-150 relative mb-0.5",
-                  isRecording
-                    ? "text-[var(--text-accent)]"
-                    : showProgress
+              <div className="relative">
+                <button
+                  onClick={handleMicClick}
+                  onContextMenu={handleMicContextMenu}
+                  disabled={isLoading || showProgress}
+                  className={cn(
+                    "flex-shrink-0 w-8 h-8 flex items-center justify-center transition-all duration-150 relative mb-0.5",
+                    isRecording
                       ? "text-[var(--text-accent)]"
-                      : "text-[var(--text-accent)] hover:scale-110",
-                  (isLoading || showProgress) && !isRecording && "cursor-not-allowed"
-                )}
-                title={isRecording ? "Stop recording" : showProgress ? "Transcribing..." : permissionDenied ? "Microphone access denied" : "Voice input"}
-              >
-                {showProgress ? (
-                  /* Circular Progress Indicator */
-                  <div className="relative w-7 h-7">
-                    {/* Background circle */}
-                    <svg className="w-full h-full -rotate-90" viewBox="0 0 28 28">
-                      <circle
-                        cx="14"
-                        cy="14"
-                        r="12"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        className="opacity-20"
-                      />
-                      {/* Progress circle */}
-                      <circle
-                        cx="14"
-                        cy="14"
-                        r="12"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeDasharray={2 * Math.PI * 12}
-                        strokeDashoffset={2 * Math.PI * 12 * (1 - transcribeProgress)}
-                        className="transition-all duration-100"
-                      />
-                    </svg>
-                    {/* Center icon */}
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <Mic size={12} strokeWidth={2.5} className="opacity-70" />
+                      : showProgress
+                        ? "text-[var(--text-accent)]"
+                        : "text-[var(--text-accent)] hover:scale-110",
+                    (isLoading || showProgress) && !isRecording && "cursor-not-allowed"
+                  )}
+                  title={isRecording ? "Stop recording" : showProgress ? "Transcribing..." : permissionDenied ? "Microphone access denied" : `Voice input (${voiceModel === 'expert' ? 'Expert' : 'Fast'}) - Right click for options`}
+                >
+                  {showProgress ? (
+                    /* Circular Progress Indicator */
+                    <div className="relative w-7 h-7">
+                      {/* Background circle */}
+                      <svg className="w-full h-full -rotate-90" viewBox="0 0 28 28">
+                        <circle
+                          cx="14"
+                          cy="14"
+                          r="12"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          className="opacity-20"
+                        />
+                        {/* Progress circle */}
+                        <circle
+                          cx="14"
+                          cy="14"
+                          r="12"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeDasharray={2 * Math.PI * 12}
+                          strokeDashoffset={2 * Math.PI * 12 * (1 - transcribeProgress)}
+                          className="transition-all duration-100"
+                        />
+                      </svg>
+                      {/* Center icon */}
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <Mic size={12} strokeWidth={2.5} className="opacity-70" />
+                      </div>
+                      {/* Pulsing glow */}
+                      <div className="absolute inset-0 rounded-full bg-[var(--text-accent)] opacity-10 animate-pulse" />
                     </div>
-                    {/* Pulsing glow */}
-                    <div className="absolute inset-0 rounded-full bg-[var(--text-accent)] opacity-10 animate-pulse" />
-                  </div>
-                ) : isRecording ? (
-                  <AudioLines size={20} strokeWidth={2} className="animate-pulse" />
-                ) : (
-                  <Mic size={20} strokeWidth={2} />
+                  ) : isRecording ? (
+                    <AudioLines size={20} strokeWidth={2} className="animate-pulse" />
+                  ) : (
+                    <Mic size={20} strokeWidth={2} />
+                  )}
+                  {/* Recording indicator ring */}
+                  {isRecording && (
+                    <span className="absolute inset-0 border-2 border-[var(--text-accent)] animate-ping opacity-30" />
+                  )}
+
+                  {/* Expert Mode Indicator Dot */}
+                  {voiceModel === 'expert' && !isRecording && !showProgress && (
+                    <span className="absolute top-0 right-0 w-1.5 h-1.5 bg-[var(--text-accent)] rounded-full shadow-[0_0_4px_var(--text-accent)]" />
+                  )}
+                </button>
+
+                {/* Voice Model Menu */}
+                {isVoiceMenuOpen && (
+                  <>
+                    <div className="fixed inset-0 z-[9998]" onClick={() => setIsVoiceMenuOpen(false)} />
+                    <div className="absolute bottom-full right-0 mb-2 w-[240px] bg-[var(--bg-sidebar)] border border-[var(--border-color)] overflow-hidden z-[9999] animate-in fade-in slide-in-from-bottom-2 duration-150 origin-bottom-right shadow-xl">
+                      {/* Header */}
+                      <div className="px-3 py-2.5 border-b border-[var(--border-color)] bg-[#0f0f0f]">
+                        <div className="flex items-center gap-2">
+                          <Mic size={12} className="text-[var(--text-accent)]" />
+                          <span className="text-[10px] uppercase tracking-[0.16em] font-semibold text-[var(--text-secondary)]">Voice Model</span>
+                        </div>
+                      </div>
+
+                      <div className="p-1.5">
+                        {/* Fast Option */}
+                        <button
+                          onClick={() => {
+                            setVoiceModel('fast');
+                            setIsVoiceMenuOpen(false);
+                          }}
+                          className={cn(
+                            "flex items-center gap-3 w-full text-left px-3 py-2.5 text-sm transition-all duration-150 group relative mb-1",
+                            voiceModel === 'fast'
+                              ? "bg-[var(--text-accent)]/10 border-l-2 border-l-[var(--text-accent)]"
+                              : "hover:bg-[#1e1e1e] border-l-2 border-l-transparent"
+                          )}
+                        >
+                          <div className={cn(
+                            "w-8 h-8 flex items-center justify-center border transition-all duration-150",
+                            voiceModel === 'fast'
+                              ? "bg-[var(--text-accent)] border-[var(--text-accent)] text-black"
+                              : "bg-[#1a1a1a] border-[var(--border-color)] text-[var(--text-secondary)] group-hover:border-[var(--text-accent)]/50 group-hover:text-[var(--text-accent)]"
+                          )}>
+                            <Zap size={16} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className={cn(
+                              "font-semibold uppercase tracking-[0.1em] text-xs",
+                              voiceModel === 'fast' ? "text-[var(--text-accent)]" : "text-[var(--text-primary)]"
+                            )}>
+                              Fast
+                            </div>
+                            <div className="text-[10px] text-[var(--text-secondary)] mt-0.5">Gemini 2.0 Flash</div>
+                          </div>
+                        </button>
+
+                        {/* Expert Option */}
+                        <button
+                          onClick={() => {
+                            setVoiceModel('expert');
+                            setIsVoiceMenuOpen(false);
+                          }}
+                          className={cn(
+                            "flex items-center gap-3 w-full text-left px-3 py-2.5 text-sm transition-all duration-150 group relative",
+                            voiceModel === 'expert'
+                              ? "bg-[var(--text-accent)]/10 border-l-2 border-l-[var(--text-accent)]"
+                              : "hover:bg-[#1e1e1e] border-l-2 border-l-transparent"
+                          )}
+                        >
+                          <div className={cn(
+                            "w-8 h-8 flex items-center justify-center border transition-all duration-150",
+                            voiceModel === 'expert'
+                              ? "bg-[var(--text-accent)] border-[var(--text-accent)] text-black"
+                              : "bg-[#1a1a1a] border-[var(--border-color)] text-[var(--text-secondary)] group-hover:border-[var(--text-accent)]/50 group-hover:text-[var(--text-accent)]"
+                          )}>
+                            <Sparkles size={16} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className={cn(
+                              "font-semibold uppercase tracking-[0.1em] text-xs",
+                              voiceModel === 'expert' ? "text-[var(--text-accent)]" : "text-[var(--text-primary)]"
+                            )}>
+                              Expert
+                            </div>
+                            <div className="text-[10px] text-[var(--text-secondary)] mt-0.5">Gemini 3.0 Preview</div>
+                          </div>
+                          {/* Premium Indicator */}
+                          {voiceModel === 'expert' && (
+                            <div className="absolute top-2 right-2 w-1.5 h-1.5 bg-[var(--text-accent)] rounded-full animate-pulse" />
+                          )}
+                        </button>
+                      </div>
+
+                      {/* Footer hint */}
+                      <div className="px-3 py-2 border-t border-[var(--border-color)] bg-[#0f0f0f]">
+                        <p className="text-[9px] text-[var(--text-secondary)] uppercase tracking-wider">
+                          {voiceModel === 'expert' ? 'Slower but extremely accurate' : 'Standard speed & accuracy'}
+                        </p>
+                      </div>
+                    </div>
+                  </>
                 )}
-                {/* Recording indicator ring */}
-                {isRecording && (
-                  <span className="absolute inset-0 border-2 border-[var(--text-accent)] animate-ping opacity-30" />
-                )}
-              </button>
+              </div>
             </div>
           </div>
 

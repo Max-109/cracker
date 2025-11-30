@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
     // Convert audio file to base64
     const arrayBuffer = await audioFile.arrayBuffer();
     const base64Audio = Buffer.from(arrayBuffer).toString('base64');
-    
+
     // Determine mime type
     const mimeType = audioFile.type || 'audio/webm';
 
@@ -22,18 +22,26 @@ export async function POST(req: NextRequest) {
       client_email: process.env.GOOGLE_CLIENT_EMAIL,
       private_key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
     };
-    
+
     const auth = new GoogleAuth({
       credentials,
       scopes: ['https://www.googleapis.com/auth/cloud-platform'],
     });
-    
+
     const client = await auth.getClient();
     const accessToken = (await client.getAccessToken()).token;
 
+    const modelType = formData.get('model') as string || 'fast';
+
     const projectId = process.env.GOOGLE_VERTEX_PROJECT;
     const location = process.env.GOOGLE_VERTEX_LOCATION || 'global';
-    const modelId = 'gemini-2.5-flash-lite';
+
+    // Select model based on type
+    // fast: gemini-2.0-flash-exp (Fastest)
+    // expert: gemini-3-pro-preview (Gemini 3.0 Preview - matches ModelSelector)
+    const modelId = modelType === 'expert' ? 'gemini-3-pro-preview' : 'gemini-2.0-flash-exp';
+
+    console.log(`[Transcribe] Using model: ${modelId} (type: ${modelType})`);
 
     // Call Vertex AI API directly
     const response = await fetch(
@@ -71,16 +79,32 @@ export async function POST(req: NextRequest) {
 
     if (!response.ok) {
       const errorData = await response.text();
-      console.error('Vertex AI error:', errorData);
-      throw new Error(`Vertex AI API error: ${response.status}`);
+      console.error('[Transcribe] Vertex AI error:', {
+        status: response.status,
+        statusText: response.statusText,
+        modelId,
+        errorData,
+      });
+
+      // Return more specific error to client
+      return NextResponse.json(
+        {
+          error: `Vertex AI returned ${response.status}: ${response.statusText}`,
+          details: errorData,
+          modelId,
+        },
+        { status: response.status }
+      );
     }
 
     const data = await response.json();
     const transcription = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
-    
+
+    console.log(`[Transcribe] Success with ${modelId}, transcription length: ${transcription.length}`);
+
     return NextResponse.json({ transcription });
   } catch (error) {
-    console.error('Transcription error:', error);
+    console.error('[Transcribe] Exception:', error);
     return NextResponse.json(
       { error: 'Failed to transcribe audio', details: error instanceof Error ? error.message : 'Unknown error' },
       { status: 500 }
