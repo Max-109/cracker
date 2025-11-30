@@ -13,6 +13,7 @@ import { ModelSelector } from './ModelSelector';
 import { ChatInput } from './ChatInput';
 import { MessageList } from './MessageList';
 import { SettingsDialog } from './SettingsDialog';
+import { ChatBackground } from './ChatBackground';
 
 interface ChatInterfaceProps {
   initialChatId?: string;
@@ -930,8 +931,9 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
   }, [regenerate]);
 
   return (
-    <div className="flex h-full w-full bg-[var(--bg-main)] text-[var(--text-primary)]">
-      <main className="flex-1 flex flex-col h-full min-h-0">
+    <div className="flex h-full w-full bg-[var(--bg-main)] text-[var(--text-primary)] relative">
+      <ChatBackground />
+      <main className="flex-1 flex flex-col h-full min-h-0 relative z-10">
         {/* Top Bar - outside overflow to allow dropdowns */}
         <div className="flex-shrink-0 w-full h-14 flex items-center justify-between px-4 bg-[var(--bg-sidebar)] border-b border-[var(--border-color)] relative z-50 dropdown-container">
           {/* Left: Mobile menu button + Settings */}

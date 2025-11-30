@@ -1173,3 +1173,20 @@ select {
 .animate-float-icon {
   animation: float-icon 12s ease-in-out infinite;
 }
+
+/* Slower, more subtle float for chat background */
+@keyframes float-icon-slow {
+  0%, 100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  33% {
+    transform: translateY(-8px) rotate(1deg);
+  }
+  66% {
+    transform: translateY(-4px) rotate(-1deg);
+  }
+}
+
+.animate-float-icon-slow {
+  animation: float-icon-slow 20s ease-in-out infinite;
+}
