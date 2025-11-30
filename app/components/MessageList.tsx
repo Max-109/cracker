@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useEffect, useState, memo } from 'react';
+import React, { useRef, useEffect, useState, memo, useCallback } from 'react';
 import type { ChatMessage, MessagePart } from '@/lib/chat-types';
 import { MessageItem } from './MessageItem';
 import { Skeleton } from './Skeleton';
@@ -8,6 +8,111 @@ import { LoadingIndicator } from './LoadingIndicator';
 import { ResumedStreamingMessage } from './ResumedStreamingMessage';
 import { FadeWrapper, ErrorAlert } from '@/components/ui';
 import { Sparkles, Code, Lightbulb, PenLine, Zap, ArrowRight } from 'lucide-react';
+
+// Autoscroll hook using scrollIntoView
+function useAutoScroll(
+  isStreaming: boolean,
+  messagesLength: number
+) {
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [userPaused, setUserPaused] = useState(false);
+  const scrollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const lastScrollTopRef = useRef(0);
+  const isAutoScrollingRef = useRef(false);
+
+  // Scroll to bottom using scrollIntoView on the end marker
+  const scrollToBottom = useCallback(() => {
+    if (messagesEndRef.current) {
+      isAutoScrollingRef.current = true;
+      messagesEndRef.current.scrollIntoView({ behavior: 'instant', block: 'end' });
+      setTimeout(() => {
+        isAutoScrollingRef.current = false;
+      }, 100);
+    }
+  }, []);
+
+  // Detect user scrolling to pause/resume autoscroll
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      if (isAutoScrollingRef.current) return;
+      
+      const currentScrollTop = container.scrollTop;
+      const delta = currentScrollTop - lastScrollTopRef.current;
+      const { scrollHeight, clientHeight } = container;
+      const distanceFromBottom = scrollHeight - currentScrollTop - clientHeight;
+      
+      // User scrolled UP - pause (no auto-resume)
+      if (delta < -30) {
+        setUserPaused(true);
+      }
+      
+      // User scrolled DOWN and is near bottom - resume
+      if (delta > 20 && distanceFromBottom < 100) {
+        setUserPaused(false);
+      }
+      
+      lastScrollTopRef.current = currentScrollTop;
+    };
+
+    container.addEventListener('scroll', handleScroll, { passive: true });
+    return () => container.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // Continuous scrolling during streaming
+  useEffect(() => {
+    if (scrollIntervalRef.current) {
+      clearInterval(scrollIntervalRef.current);
+      scrollIntervalRef.current = null;
+    }
+
+    if (isStreaming && !userPaused) {
+      scrollToBottom();
+      scrollIntervalRef.current = setInterval(scrollToBottom, 50);
+    }
+
+    return () => {
+      if (scrollIntervalRef.current) {
+        clearInterval(scrollIntervalRef.current);
+        scrollIntervalRef.current = null;
+      }
+    };
+  }, [isStreaming, userPaused, scrollToBottom]);
+
+  // Reset pause when NEW streaming starts
+  useEffect(() => {
+    if (isStreaming) {
+      setUserPaused(false);
+    }
+  }, [isStreaming]);
+
+  // Scroll on new messages (non-streaming)
+  useEffect(() => {
+    if (!userPaused) {
+      scrollToBottom();
+    }
+  }, [messagesLength, scrollToBottom, userPaused]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (scrollIntervalRef.current) clearInterval(scrollIntervalRef.current);
+    };
+  }, []);
+
+  return {
+    scrollContainerRef,
+    messagesEndRef,
+    forceScrollToBottom: useCallback(() => {
+      setUserPaused(false);
+      scrollToBottom();
+    }, [scrollToBottom]),
+    isUserPaused: userPaused
+  };
+}
 
 // Custom hook for throttling values
 function useThrottledValue<T>(value: T, limit: number): T {
@@ -211,46 +316,16 @@ export function MessageList({
   onClarifySubmit,
   onSkipClarify,
 }: MessageListProps) {
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
-  const userScrolledUpRef = useRef(false);
-  const lastScrollTopRef = useRef(0);
-
-  const handleScroll = () => {
-    if (!scrollContainerRef.current) return;
-    const { scrollTop, scrollHeight, clientHeight } = scrollContainerRef.current;
-    
-    if (scrollTop < lastScrollTopRef.current - 10) {
-      userScrolledUpRef.current = true;
-    }
-    lastScrollTopRef.current = scrollTop;
-    
-    const threshold = 100;
-    const isAtBottom = scrollHeight - scrollTop - clientHeight < threshold;
-    
-    if (isAtBottom) {
-      userScrolledUpRef.current = false;
-    }
-    
-    setShouldAutoScroll(isAtBottom && !userScrolledUpRef.current);
-  };
-
-  useEffect(() => {
-    if (shouldAutoScroll && scrollContainerRef.current) {
-      const { scrollHeight, clientHeight } = scrollContainerRef.current;
-      scrollContainerRef.current.scrollTo({
-        top: scrollHeight - clientHeight,
-        behavior: "smooth"
-      });
-    }
-  }, [messages, shouldAutoScroll]);
+  // Use the new flawless autoscroll hook
+  const { scrollContainerRef, messagesEndRef } = useAutoScroll(
+    isStreaming,
+    messages.length
+  );
 
   return (
     <div
-      className="flex-1 overflow-y-auto scroll-smooth scrollbar-custom"
+      className="flex-1 overflow-y-auto scrollbar-custom"
       ref={scrollContainerRef}
-      onScroll={handleScroll}
     >
       <div className="max-w-[800px] mx-auto pt-6 pb-6 px-4 md:px-6 relative">
         {/* Loading Skeletons */}

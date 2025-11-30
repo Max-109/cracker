@@ -1471,7 +1471,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
           messages={typedMessages}
           isMessagesLoading={isMessagesLoading}
           isSending={isSending}
-          isStreaming={isStreaming}
+          isStreaming={isStreaming || activeGeneration?.status === 'streaming'}
           status={status}
           activeGeneration={activeGeneration}
           streamingStats={streamingStats}
