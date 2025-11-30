@@ -748,15 +748,38 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
       
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       setMessages((prev: any[]) => {
-        const parts: Array<{ type: string; text?: string; isReconnecting?: boolean }> = [];
-        if (activeGeneration.partialReasoning) {
-          parts.push({ type: 'reasoning', text: activeGeneration.partialReasoning });
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const parts: Array<any> = [];
+        
+        // For deep-search, show progress indicator
+        if (activeGeneration.modelId === 'deep-search') {
+          // Try to parse progress from partialText (stored as JSON)
+          let progress = { phase: 'searching', percent: 0, message: 'Resuming research...' };
+          if (activeGeneration.partialText) {
+            try {
+              progress = JSON.parse(activeGeneration.partialText);
+            } catch { /* ignore */ }
+          }
+          parts.push({
+            type: 'deep-research-progress',
+            progress: {
+              phase: progress.phase || 'searching',
+              phaseDescription: progress.message || 'Resuming research...',
+              percent: progress.percent || 0,
+              message: progress.message || 'Resuming research...',
+            },
+          });
+        } else {
+          // Regular chat - show text/reasoning
+          if (activeGeneration.partialReasoning) {
+            parts.push({ type: 'reasoning', text: activeGeneration.partialReasoning });
+          }
+          if (activeGeneration.partialText) {
+            parts.push({ type: 'text', text: activeGeneration.partialText });
+          }
+          // Only show reconnecting indicator for actual reconnections
+          parts.push({ type: 'reconnecting', isReconnecting: true });
         }
-        if (activeGeneration.partialText) {
-          parts.push({ type: 'text', text: activeGeneration.partialText });
-        }
-        // Only show reconnecting indicator for actual reconnections
-        parts.push({ type: 'reconnecting', isReconnecting: true });
         
         return [...prev, {
           id: placeholderId,
@@ -916,6 +939,27 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                 }
               }
               
+              // Handle deep search progress events
+              if (data.type === 'deep-search-progress') {
+                const progress = data.progress || {};
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                setMessages((prev: any[]) => prev.map(m => {
+                  if (m.id !== placeholderId) return m;
+                  return {
+                    ...m,
+                    parts: [{
+                      type: 'deep-research-progress',
+                      progress: {
+                        phase: progress.phase || 'searching',
+                        phaseDescription: progress.message || 'Researching...',
+                        percent: progress.percent || 0,
+                        message: progress.message || '',
+                      },
+                    }],
+                  };
+                }));
+              }
+              
               if (data.type === 'complete') {
                 console.log('[Reconnect] Generation completed');
                 // Update TPS stats if available
@@ -930,53 +974,71 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
               if (data.type === 'done') {
                 console.log(`[Reconnect] SSE stream ended: ${data.reason}`);
                 
-                // Cancel reveal animation and cleanup refs
-                if (sseRevealAnimationRef.current) {
-                  cancelAnimationFrame(sseRevealAnimationRef.current);
-                  sseRevealAnimationRef.current = null;
-                }
-                sseTargetTextRef.current = '';
-                sseTargetReasoningRef.current = '';
-                sseRevealedTextRef.current = '';
-                sseRevealedReasoningRef.current = '';
-                ssePlaceholderIdRef.current = null;
-                
-                setIsReconnecting(false);
-                setActiveGeneration(null);
-                
-                // Reload messages from DB to get the final saved version
-                if (currentChatId) {
-                  try {
-                    const msgRes = await fetch(`/api/chats/${currentChatId}`);
-                    const msgData = await msgRes.json();
-                    if (Array.isArray(msgData)) {
-                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                      const uiMessages = msgData.map((msg: any) => {
-                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                        let parts: Array<any>;
-                        if (Array.isArray(msg.content)) {
-                          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                          parts = msg.content.map((p: any) => {
-                            if (typeof p === 'string') return { type: 'text', text: p };
-                            if (p.type === 'text') return { type: 'text', text: p.text || '' };
-                            if (p.type === 'reasoning') return { type: 'reasoning', text: p.text || p.reasoning || '' };
-                            if (p.type === 'stopped') return { type: 'stopped', stopType: p.stopType };
-                            if (p.type === 'generated-image') return { type: 'generated-image', data: p.data, mediaType: p.mediaType };
-                            if (p.type === 'source' || p.type === 'source-url') return { type: 'source', url: p.url, title: p.title, source: p.source };
-                            return p;
-                          });
-                        } else {
-                          parts = [{ type: 'text', text: msg.content || '' }];
-                        }
-                        return { id: msg.id, role: msg.role, parts, model: msg.model, tokensPerSecond: msg.tokensPerSecond };
-                      });
-                      setMessages(uiMessages as Parameters<typeof setMessages>[0]);
-                    }
-                  } catch (e) {
-                    console.error('[Reconnect] Failed to reload messages:', e);
+                // Wait for animation to complete before reloading from DB
+                // This ensures smooth reveal of remaining content
+                const waitForAnimationAndReload = async () => {
+                  // Check if there's still content to reveal
+                  const hasMoreContent = 
+                    sseRevealedTextRef.current.length < sseTargetTextRef.current.length ||
+                    sseRevealedReasoningRef.current.length < sseTargetReasoningRef.current.length;
+                  
+                  if (hasMoreContent && sseRevealAnimationRef.current) {
+                    // Wait a bit and check again (animation will continue)
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                    return waitForAnimationAndReload();
                   }
-                }
-                return; // Exit the loop
+                  
+                  // Animation complete, now cleanup and reload
+                  if (sseRevealAnimationRef.current) {
+                    cancelAnimationFrame(sseRevealAnimationRef.current);
+                    sseRevealAnimationRef.current = null;
+                  }
+                  sseTargetTextRef.current = '';
+                  sseTargetReasoningRef.current = '';
+                  sseRevealedTextRef.current = '';
+                  sseRevealedReasoningRef.current = '';
+                  ssePlaceholderIdRef.current = null;
+                  
+                  setIsReconnecting(false);
+                  setActiveGeneration(null);
+                  
+                  // Reload messages from DB to get the final saved version
+                  if (currentChatId) {
+                    try {
+                      const msgRes = await fetch(`/api/chats/${currentChatId}`);
+                      const msgData = await msgRes.json();
+                      if (Array.isArray(msgData)) {
+                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                        const uiMessages = msgData.map((msg: any) => {
+                          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                          let parts: Array<any>;
+                          if (Array.isArray(msg.content)) {
+                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                            parts = msg.content.map((p: any) => {
+                              if (typeof p === 'string') return { type: 'text', text: p };
+                              if (p.type === 'text') return { type: 'text', text: p.text || '' };
+                              if (p.type === 'reasoning') return { type: 'reasoning', text: p.text || p.reasoning || '' };
+                              if (p.type === 'stopped') return { type: 'stopped', stopType: p.stopType };
+                              if (p.type === 'generated-image') return { type: 'generated-image', data: p.data, mediaType: p.mediaType };
+                              if (p.type === 'source' || p.type === 'source-url') return { type: 'source', url: p.url, title: p.title, source: p.source };
+                              return p;
+                            });
+                          } else {
+                            parts = [{ type: 'text', text: msg.content || '' }];
+                          }
+                          return { id: msg.id, role: msg.role, parts, model: msg.model, tokensPerSecond: msg.tokensPerSecond };
+                        });
+                        setMessages(uiMessages as Parameters<typeof setMessages>[0]);
+                      }
+                    } catch (e) {
+                      console.error('[Reconnect] Failed to reload messages:', e);
+                    }
+                  }
+                };
+                
+                // Start the wait-and-reload process
+                waitForAnimationAndReload();
+                return; // Exit the SSE loop
               }
               
               if (data.type === 'error') {

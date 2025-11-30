@@ -252,7 +252,28 @@ export async function GET(req: Request) {
           const newText = currentGen.partialText || '';
           const newReasoning = currentGen.partialReasoning || '';
           
-          if (newText !== lastSentText || newReasoning !== lastSentReasoning) {
+          // Special handling for deep search - partialText contains JSON progress
+          if (currentGen.modelId === 'deep-search') {
+            if (newText !== lastSentText) {
+              try {
+                const progress = JSON.parse(newText);
+                sendEvent({
+                  type: 'deep-search-progress',
+                  progress,
+                });
+              } catch {
+                // Not valid JSON, send as regular text
+                sendEvent({
+                  type: 'content',
+                  text: newText.slice(lastSentText.length),
+                  reasoning: '',
+                  isIncremental: true,
+                });
+              }
+              lastSentText = newText;
+              lastUpdateTime = Date.now();
+            }
+          } else if (newText !== lastSentText || newReasoning !== lastSentReasoning) {
             const textDelta = newText.slice(lastSentText.length);
             const reasoningDelta = newReasoning.slice(lastSentReasoning.length);
             

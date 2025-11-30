@@ -342,7 +342,7 @@ export function ChatInput({
                         : "text-[var(--text-accent)] hover:scale-110",
                     (isLoading || showProgress) && !isRecording && "cursor-not-allowed"
                   )}
-                  title={isRecording ? "Stop recording" : showProgress ? "Transcribing..." : permissionDenied ? "Microphone access denied" : `Voice input (${voiceModel === 'expert' ? 'Expert' : 'Fast'}) - Right click for options`}
+                  title={isRecording ? "Stop recording" : showProgress ? "Transcribing..." : permissionDenied ? "Microphone access denied" : `Voice input (${voiceModel === 'expert' ? 'Accurate' : 'Fast'}) - Right click for options`}
                 >
                   {showProgress ? (
                     /* Circular Progress Indicator */
@@ -409,6 +409,42 @@ export function ChatInput({
                       </div>
 
                       <div className="p-1.5">
+                        {/* Accurate Option */}
+                        <button
+                          onClick={() => {
+                            setVoiceModel('expert');
+                            setIsVoiceMenuOpen(false);
+                          }}
+                          className={cn(
+                            "flex items-center gap-3 w-full text-left px-3 py-2.5 text-sm transition-all duration-150 group relative mb-1",
+                            voiceModel === 'expert'
+                              ? "bg-[var(--text-accent)]/10 border-l-2 border-l-[var(--text-accent)]"
+                              : "hover:bg-[#1e1e1e] border-l-2 border-l-transparent"
+                          )}
+                        >
+                          <div className={cn(
+                            "w-8 h-8 flex items-center justify-center border transition-all duration-150",
+                            voiceModel === 'expert'
+                              ? "bg-[var(--text-accent)] border-[var(--text-accent)] text-black"
+                              : "bg-[#1a1a1a] border-[var(--border-color)] text-[var(--text-secondary)] group-hover:border-[var(--text-accent)]/50 group-hover:text-[var(--text-accent)]"
+                          )}>
+                            <Sparkles size={16} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className={cn(
+                              "font-semibold uppercase tracking-[0.1em] text-xs",
+                              voiceModel === 'expert' ? "text-[var(--text-accent)]" : "text-[var(--text-primary)]"
+                            )}>
+                              Accurate
+                            </div>
+                            <div className="text-[10px] text-[var(--text-secondary)] mt-0.5">Slow, very accurate</div>
+                          </div>
+                          {/* Premium Indicator */}
+                          {voiceModel === 'expert' && (
+                            <div className="absolute top-2 right-2 w-1.5 h-1.5 bg-[var(--text-accent)] rounded-full animate-pulse" />
+                          )}
+                        </button>
+
                         {/* Fast Option */}
                         <button
                           onClick={() => {
@@ -416,7 +452,7 @@ export function ChatInput({
                             setIsVoiceMenuOpen(false);
                           }}
                           className={cn(
-                            "flex items-center gap-3 w-full text-left px-3 py-2.5 text-sm transition-all duration-150 group relative mb-1",
+                            "flex items-center gap-3 w-full text-left px-3 py-2.5 text-sm transition-all duration-150 group relative",
                             voiceModel === 'fast'
                               ? "bg-[var(--text-accent)]/10 border-l-2 border-l-[var(--text-accent)]"
                               : "hover:bg-[#1e1e1e] border-l-2 border-l-transparent"
@@ -437,44 +473,8 @@ export function ChatInput({
                             )}>
                               Fast
                             </div>
-                            <div className="text-[10px] text-[var(--text-secondary)] mt-0.5">Gemini 2.0 Flash</div>
+                            <div className="text-[10px] text-[var(--text-secondary)] mt-0.5">Standard accuracy</div>
                           </div>
-                        </button>
-
-                        {/* Expert Option */}
-                        <button
-                          onClick={() => {
-                            setVoiceModel('expert');
-                            setIsVoiceMenuOpen(false);
-                          }}
-                          className={cn(
-                            "flex items-center gap-3 w-full text-left px-3 py-2.5 text-sm transition-all duration-150 group relative",
-                            voiceModel === 'expert'
-                              ? "bg-[var(--text-accent)]/10 border-l-2 border-l-[var(--text-accent)]"
-                              : "hover:bg-[#1e1e1e] border-l-2 border-l-transparent"
-                          )}
-                        >
-                          <div className={cn(
-                            "w-8 h-8 flex items-center justify-center border transition-all duration-150",
-                            voiceModel === 'expert'
-                              ? "bg-[var(--text-accent)] border-[var(--text-accent)] text-black"
-                              : "bg-[#1a1a1a] border-[var(--border-color)] text-[var(--text-secondary)] group-hover:border-[var(--text-accent)]/50 group-hover:text-[var(--text-accent)]"
-                          )}>
-                            <Sparkles size={16} />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className={cn(
-                              "font-semibold uppercase tracking-[0.1em] text-xs",
-                              voiceModel === 'expert' ? "text-[var(--text-accent)]" : "text-[var(--text-primary)]"
-                            )}>
-                              Expert
-                            </div>
-                            <div className="text-[10px] text-[var(--text-secondary)] mt-0.5">Gemini 3.0 Preview</div>
-                          </div>
-                          {/* Premium Indicator */}
-                          {voiceModel === 'expert' && (
-                            <div className="absolute top-2 right-2 w-1.5 h-1.5 bg-[var(--text-accent)] rounded-full animate-pulse" />
-                          )}
                         </button>
                       </div>
 

@@ -1,7 +1,7 @@
 import { inngest } from "./client";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { createVertex } from "@ai-sdk/google-vertex";
-import { streamText, CoreMessage } from "ai";
+import { streamText, generateText, CoreMessage } from "ai";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { db } from "@/db";
 import { messages as messagesTable, activeGenerations } from "@/db/schema";
@@ -669,5 +669,228 @@ export const generateInBackground = inngest.createFunction(
     });
 
     return { success: true, chatId, generationId };
+  }
+);
+
+// ===== DEEP SEARCH INNGEST FUNCTION =====
+
+// Helper for Tavily search
+async function tavilySearch(query: string, maxResults: number = 10): Promise<{ title: string; url: string; content: string }[]> {
+  const apiKey = process.env.TAVILY_API_KEY;
+  if (!apiKey) {
+    console.error('[DeepSearch] TAVILY_API_KEY not set');
+    return [];
+  }
+
+  try {
+    const response = await fetch('https://api.tavily.com/search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        api_key: apiKey,
+        query,
+        max_results: maxResults,
+        include_answer: false,
+        include_raw_content: true,
+        search_depth: 'advanced',
+      }),
+    });
+
+    if (!response.ok) {
+      console.error('[DeepSearch] Tavily API error:', response.status);
+      return [];
+    }
+
+    const data = await response.json();
+    return (data.results || []).map((r: { title: string; url: string; content: string; raw_content?: string }) => ({
+      title: r.title,
+      url: r.url,
+      content: r.raw_content || r.content || '',
+    }));
+  } catch (error) {
+    console.error('[DeepSearch] Tavily search error:', error);
+    return [];
+  }
+}
+
+// Get date context for prompts
+function getDateContext(): string {
+  const now = new Date();
+  const options: Intl.DateTimeFormatOptions = { 
+    weekday: 'long', 
+    year: 'numeric', 
+    month: 'long', 
+    day: 'numeric',
+  };
+  const formattedDate = now.toLocaleDateString('en-US', options);
+  const year = now.getFullYear();
+  const quarter = Math.ceil((now.getMonth() + 1) / 3);
+  
+  return `CURRENT DATE: ${formattedDate}
+TEMPORAL CONTEXT: We are in Q${quarter} ${year}. When researching, prioritize recent information from ${year} and late ${year - 1}.`;
+}
+
+// Deep Search Inngest function
+export const deepSearchInBackground = inngest.createFunction(
+  {
+    id: "deep-search-research",
+    retries: 0,
+  },
+  { event: "deep-search/start" },
+  async ({ event, step }) => {
+    const { chatId, generationId, query, clarifyAnswers } = event.data;
+    console.log(`[DeepSearch Inngest] Starting deep search for chat ${chatId}, generation ${generationId}`);
+
+    // Step 1: Mark as started
+    await step.run("mark-started", async () => {
+      await db.update(activeGenerations)
+        .set({ 
+          status: 'streaming',
+          partialText: JSON.stringify({ phase: 'planning', percent: 5, message: 'Generating search queries...' }),
+        })
+        .where(eq(activeGenerations.id, generationId));
+    });
+
+    // Step 2: Generate search queries
+    const searchQueries = await step.run("generate-queries", async () => {
+      const clarifyContext = clarifyAnswers 
+        ? `\n\nUser clarifications:\n${clarifyAnswers.map((a: { q: string; a: string }) => `Q: ${a.q}\nA: ${a.a}`).join('\n\n')}`
+        : '';
+      
+      const result = await generateText({
+        model: vertex('gemini-3-pro-preview'),
+        prompt: `${getDateContext()}\n\nGenerate 15-20 diverse search queries for: "${query}"${clarifyContext}\n\nCover: main topic, comparisons, reviews, news, technical specs, pricing, issues, recommendations.\n\nReturn ONLY queries, one per line.`,
+      });
+      
+      return result.text.split('\n').filter((q: string) => q.trim().length > 0).slice(0, 20);
+    });
+
+    // Step 3: Execute searches
+    const allSources = await step.run("execute-searches", async () => {
+      const sources = new Map<string, { title: string; url: string; content: string }>();
+      
+      // Update progress
+      await db.update(activeGenerations)
+        .set({ partialText: JSON.stringify({ phase: 'searching', percent: 15, message: `Searching ${searchQueries.length} queries...` }) })
+        .where(eq(activeGenerations.id, generationId));
+
+      for (let i = 0; i < searchQueries.length; i += 3) {
+        const batch = searchQueries.slice(i, i + 3);
+        const results = await Promise.all(batch.map(q => tavilySearch(q, 10)));
+        results.flat().forEach(r => {
+          if (!sources.has(r.url)) sources.set(r.url, r);
+        });
+        
+        const percent = 15 + Math.floor(((i + batch.length) / searchQueries.length) * 25);
+        await db.update(activeGenerations)
+          .set({ partialText: JSON.stringify({ phase: 'searching', percent, message: `Found ${sources.size} sources...` }) })
+          .where(eq(activeGenerations.id, generationId));
+      }
+      
+      return Array.from(sources.values());
+    });
+
+    // Step 4: Deep dive searches
+    const finalSources = await step.run("deep-dive", async () => {
+      await db.update(activeGenerations)
+        .set({ partialText: JSON.stringify({ phase: 'analyzing', percent: 45, message: 'Analyzing findings...' }) })
+        .where(eq(activeGenerations.id, generationId));
+
+      const topTitles = allSources.slice(0, 15).map(s => s.title).join('\n');
+      const ddResult = await generateText({
+        model: vertex('gemini-3-pro-preview'),
+        prompt: `Generate 10 follow-up searches to fill gaps:\n\nOriginal: ${query}\nFindings:\n${topTitles}\n\nReturn ONLY queries, one per line.`,
+      });
+      
+      const deepQueries = ddResult.text.split('\n').filter((q: string) => q.trim()).slice(0, 10);
+      const sources = new Map(allSources.map(s => [s.url, s]));
+
+      for (let i = 0; i < deepQueries.length; i += 3) {
+        const batch = deepQueries.slice(i, i + 3);
+        const results = await Promise.all(batch.map(q => tavilySearch(q, 10)));
+        results.flat().forEach(r => {
+          if (!sources.has(r.url)) sources.set(r.url, r);
+        });
+        
+        const percent = 50 + Math.floor(((i + batch.length) / deepQueries.length) * 20);
+        await db.update(activeGenerations)
+          .set({ partialText: JSON.stringify({ phase: 'deep-dive', percent, message: `Deep dive: ${sources.size} sources...` }) })
+          .where(eq(activeGenerations.id, generationId));
+      }
+
+      return Array.from(sources.values());
+    });
+
+    // Step 5: Generate final report
+    const reportText = await step.run("generate-report", async () => {
+      await db.update(activeGenerations)
+        .set({ partialText: JSON.stringify({ phase: 'writing', percent: 75, message: 'Writing report...' }) })
+        .where(eq(activeGenerations.id, generationId));
+
+      const sourcesContext = finalSources.slice(0, 50).map((s, i) => 
+        `[${i + 1}] ${s.title}\nURL: ${s.url}\nContent: ${s.content.slice(0, 1500)}`
+      ).join('\n---\n');
+
+      const clarifyContext = clarifyAnswers 
+        ? `\nUSER CONTEXT:\n${clarifyAnswers.map((a: { q: string; a: string }) => `Q: ${a.q}\nA: ${a.a}`).join('\n\n')}\n`
+        : '';
+
+      const result = await generateText({
+        model: vertex('gemini-3-pro-preview'),
+        prompt: `${getDateContext()}
+
+Create a comprehensive research report for: "${query}"
+${clarifyContext}
+SOURCES (${finalSources.length} total):
+${sourcesContext}
+
+REQUIREMENTS:
+1. Start with "## Executive Summary"
+2. Use inline citations [1], [2], etc.
+3. Include specific data, specs, prices
+4. End with formatted Sources section:
+   ---
+   ### Sources
+   **[1]** Title
+   https://url
+
+Be thorough and cite every claim.`,
+      });
+      
+      return result.text;
+    });
+
+    // Step 6: Save to database
+    await step.run("save-report", async () => {
+      await db.update(activeGenerations)
+        .set({ partialText: JSON.stringify({ phase: 'complete', percent: 100, message: 'Research complete!' }) })
+        .where(eq(activeGenerations.id, generationId));
+
+      const contentParts: Array<{ type: string; text?: string; url?: string; title?: string }> = [
+        { type: 'text', text: reportText }
+      ];
+      
+      finalSources.slice(0, 50).forEach(s => {
+        contentParts.push({ type: 'source', url: s.url, title: s.title });
+      });
+
+      await db.insert(messagesTable).values({
+        chatId,
+        role: 'assistant',
+        content: contentParts,
+        model: 'deep-search/gemini-3-pro-preview',
+      });
+      
+      console.log(`[DeepSearch Inngest] Saved report for chat ${chatId}`);
+    });
+
+    // Step 7: Cleanup
+    await step.run("cleanup", async () => {
+      await db.delete(activeGenerations)
+        .where(eq(activeGenerations.id, generationId));
+      console.log(`[DeepSearch Inngest] Cleaned up generation ${generationId}`);
+    });
+
+    return { success: true, chatId, generationId, sourcesCount: finalSources.length };
   }
 );

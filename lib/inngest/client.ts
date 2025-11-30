@@ -27,3 +27,13 @@ export type ChatMessageEvent = {
     }>;
   };
 };
+
+export type DeepSearchEvent = {
+  name: "deep-search/start";
+  data: {
+    chatId: string;
+    generationId: string;
+    query: string;
+    clarifyAnswers?: Array<{ q: string; a: string }>;
+  };
+};
