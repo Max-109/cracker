@@ -11,6 +11,7 @@ import { CodeBlock } from './CodeBlock';
 import { cn } from '@/lib/utils';
 import type { MessagePart } from '@/lib/chat-types';
 import { DeepResearchProgress, SourcesDisplay, type ResearchProgress } from './DeepResearchProgress';
+import { LoadingIndicator } from './LoadingIndicator';
 import 'katex/dist/katex.min.css';
 const REMARK_PLUGINS = [remarkMath, remarkGfm];
 const REHYPE_PLUGINS = [rehypeKatex];
@@ -1027,9 +1028,7 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
             </div>
           ) : (
             (actuallyThinking && !hasThinking) ? (
-              <div className="flex items-center gap-3 text-[var(--text-secondary)]">
-                <ThinkingIcon />
-              </div>
+              <LoadingIndicator />
             ) : null
           )}
 
