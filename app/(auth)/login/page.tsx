@@ -7,7 +7,7 @@ import { LogIn, Mail, Lock, AlertTriangle, Sparkles, ArrowRight, Shield, Fingerp
 import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils';
 import { AuthBackground } from '../components/AuthBackground';
-import { FeatureShowcase } from '../components/FeatureShowcase';
+import { FloatingIcons } from '../components/FeatureShowcase';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -60,11 +60,9 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-[var(--bg-main)] flex items-center justify-center p-4 relative overflow-hidden">
       <AuthBackground />
+      <FloatingIcons />
       
-      <div className="flex items-center justify-center gap-16 w-full max-w-5xl relative z-10">
-        {/* Left Feature Showcase */}
-        <FeatureShowcase side="left" />
-
+      <div className="flex items-center justify-center w-full relative z-10">
         <div className={cn(
           "w-full max-w-[400px] transition-all duration-500",
           isPageMounted && !isExiting ? "auth-page-enter" : "",
@@ -258,9 +256,6 @@ export default function LoginPage() {
             </span>
           </div>
         </div>
-
-        {/* Right space for symmetry on very large screens */}
-        <div className="hidden xl:block w-[200px]" />
       </div>
     </div>
   );

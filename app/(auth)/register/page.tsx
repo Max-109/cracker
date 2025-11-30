@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { UserPlus, Mail, Lock, User, Ticket, AlertTriangle, Sparkles, Check, ArrowRight, Shield, ArrowLeft, Fingerprint } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AuthBackground } from '../components/AuthBackground';
-import { FeatureShowcase } from '../components/FeatureShowcase';
+import { FloatingIcons } from '../components/FeatureShowcase';
 
 export default function RegisterPage() {
   const [email, setEmail] = useState('');
@@ -75,6 +75,7 @@ export default function RegisterPage() {
     return (
       <div className="min-h-screen bg-[var(--bg-main)] flex items-center justify-center p-4 relative overflow-hidden">
         <AuthBackground />
+        <FloatingIcons />
         
         <div className={cn(
           "w-full max-w-[400px] relative z-10",
@@ -132,10 +133,9 @@ export default function RegisterPage() {
     <div className="min-h-screen bg-[var(--bg-main)] flex items-center justify-center p-4 relative overflow-hidden">
       <AuthBackground />
       
-      <div className="flex items-center justify-center gap-16 w-full max-w-5xl relative z-10">
-        {/* Left Feature Showcase */}
-        <FeatureShowcase side="left" />
-
+      <FloatingIcons />
+      
+      <div className="flex items-center justify-center w-full relative z-10">
         <div className={cn(
           "w-full max-w-[420px] transition-all duration-500",
           isPageMounted && !isExiting ? "auth-page-enter" : "",
@@ -398,9 +398,6 @@ export default function RegisterPage() {
             </span>
           </div>
         </div>
-
-        {/* Right space for symmetry */}
-        <div className="hidden xl:block w-[200px]" />
       </div>
     </div>
   );
