@@ -4,6 +4,7 @@ import { Skeleton } from './Skeleton';
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from './AuthContext';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import {
     Input,
     FadeWrapper,
@@ -287,7 +288,8 @@ export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose
 
             {/* Sticky Header for New Chat */}
             <div className="mb-4 z-10 relative flex items-center gap-2">
-                <button
+                <Link
+                    href="/"
                     onClick={onNewChat}
                     onMouseEnter={(e) => {
                         const btn = e.currentTarget;
@@ -334,7 +336,7 @@ export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose
                         </span>
                         <span>New Chat</span>
                     </div>
-                </button>
+                </Link>
                 {/* Mobile Close Button */}
                 <button
                     onClick={onClose}
@@ -383,9 +385,16 @@ export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose
                                             {chats.map((chat) => {
                                                 const isSelected = currentChatId === chat.id;
                                                 return (
-                                                    <div
+                                                    <Link
                                                         key={chat.id}
-                                                        onClick={() => !animatingDeleteId && onSelectChat(chat.id)}
+                                                        href={`/chat/${chat.id}`}
+                                                        onClick={(e) => {
+                                                            if (animatingDeleteId) {
+                                                                e.preventDefault();
+                                                                return;
+                                                            }
+                                                            onSelectChat(chat.id);
+                                                        }}
                                                         className={cn(
                                                             "group relative px-2 py-2 text-sm cursor-pointer transition-all duration-150 flex items-center gap-2.5 border-l-2",
                                                             isSelected
@@ -461,7 +470,7 @@ export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose
                                                                 )}
                                                             </>
                                                         )}
-                                                    </div>
+                                                    </Link>
                                                 );
                                             })}
                                         </div>
