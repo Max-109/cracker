@@ -76,6 +76,9 @@ const ThrottledMessageItem = memo(function ThrottledMessageItem({
           } else if (p.type === 'image') {
             const imageUrl = (p.url || p.image) as string;
             converted.push({ type: 'image', image: imageUrl, mediaType: p.mediaType as string, name: p.filename as string });
+          } else if (p.type === 'generated-image') {
+            // Pass through generated images directly
+            converted.push({ type: 'generated-image', data: p.data as string, mediaType: p.mediaType as string } as unknown as MessagePart);
           } else if (p.type === 'file') {
             const fileData = (p.url || p.data) as string;
             const fileName = (p.filename || p.name) as string;

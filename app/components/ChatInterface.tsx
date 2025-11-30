@@ -248,6 +248,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                     if (p.type === 'text') return { type: 'text', text: p.text || '' };
                     if (p.type === 'reasoning') return { type: 'reasoning', text: p.text || p.reasoning || '' };
                     if (p.type === 'stopped') return { type: 'stopped', stopType: p.stopType };
+                    if (p.type === 'generated-image') return { type: 'generated-image', data: p.data, mediaType: p.mediaType };
                     if (p.type === 'source' || p.type === 'source-url') return { type: 'source', url: p.url, title: p.title, source: p.source };
                     return p;
                   });
@@ -348,6 +349,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                 if (p.type === 'text') return { type: 'text', text: p.text || '' };
                 if (p.type === 'reasoning') return { type: 'reasoning', text: p.text || p.reasoning || '' };
                 if (p.type === 'stopped') return { type: 'stopped', stopType: p.stopType };
+                if (p.type === 'generated-image') return { type: 'generated-image', data: p.data, mediaType: p.mediaType };
                 if (p.type === 'source' || p.type === 'source-url') return { type: 'source', url: p.url, title: p.title, source: p.source };
                 return p;
               });
@@ -527,6 +529,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                   if (p.type === 'text') return { type: 'text', text: p.text || '' };
                   if (p.type === 'reasoning') return { type: 'reasoning', text: p.text || p.reasoning || '' };
                   if (p.type === 'stopped') return { type: 'stopped', stopType: p.stopType };
+                  if (p.type === 'generated-image') return { type: 'generated-image', data: p.data, mediaType: p.mediaType };
                   if (p.type === 'source' || p.type === 'source-url') return { type: 'source', url: p.url, title: p.title, source: p.source };
                   return p;
                 });
@@ -657,6 +660,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                   if (p.type === 'text') return { type: 'text', text: p.text || '' };
                   if (p.type === 'reasoning') return { type: 'reasoning', text: p.text || p.reasoning || '' };
                   if (p.type === 'stopped') return { type: 'stopped', stopType: p.stopType };
+                  if (p.type === 'generated-image') return { type: 'generated-image', data: p.data, mediaType: p.mediaType };
                   if (p.type === 'image') return { type: 'file', url: p.image || p.url, mediaType: p.mediaType || 'image/png', filename: p.name || 'image' };
                   if (p.type === 'file') return { type: 'file', url: p.data || p.url, mediaType: p.mediaType || p.mimeType || 'application/octet-stream', filename: p.filename || p.name || 'file' };
                   if (p.type === 'source' || p.type === 'source-url') return { type: 'source', url: p.url, title: p.title, source: p.source };
@@ -957,6 +961,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                             if (p.type === 'text') return { type: 'text', text: p.text || '' };
                             if (p.type === 'reasoning') return { type: 'reasoning', text: p.text || p.reasoning || '' };
                             if (p.type === 'stopped') return { type: 'stopped', stopType: p.stopType };
+                            if (p.type === 'generated-image') return { type: 'generated-image', data: p.data, mediaType: p.mediaType };
                             if (p.type === 'source' || p.type === 'source-url') return { type: 'source', url: p.url, title: p.title, source: p.source };
                             return p;
                           });
@@ -1285,7 +1290,8 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
       });
       
       if (!bgResponse.ok) {
-        console.error('[CLIENT DEBUG] Background generation failed to start');
+        const errorText = await bgResponse.text();
+        console.error('[CLIENT DEBUG] Background generation failed to start:', bgResponse.status, errorText);
         setIsSending(false);
         return;
       }

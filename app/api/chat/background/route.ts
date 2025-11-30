@@ -53,6 +53,24 @@ export async function POST(req: Request) {
     console.log(`[BackgroundChat] Created generation ${generationId} for chat ${chatId}`);
 
     // Trigger the Inngest event
+    // Filter out generated-image parts from message history to avoid exceeding Inngest's 3MB limit
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const filteredMessages = messages.map((m: { role: string; content: unknown }) => {
+      if (Array.isArray(m.content)) {
+        // Filter out generated-image parts (they can be 1MB+ each)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const filteredContent = (m.content as any[]).filter((part: any) => {
+          if (part.type === 'generated-image') {
+            console.log(`[BackgroundChat] Filtering out generated-image from history`);
+            return false;
+          }
+          return true;
+        });
+        return { role: m.role, content: filteredContent };
+      }
+      return { role: m.role, content: m.content };
+    });
+
     await inngest.send({
       name: "chat/message.sent",
       data: {
@@ -65,10 +83,7 @@ export async function POST(req: Request) {
         userGender: uGender,
         learningMode: isLearningMode,
         customInstructions: userCustomInstructions,
-        messages: messages.map((m: { role: string; content: unknown }) => ({
-          role: m.role,
-          content: m.content,
-        })),
+        messages: filteredMessages,
       },
     });
 

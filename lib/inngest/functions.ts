@@ -2,6 +2,7 @@ import { inngest } from "./client";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { createVertex } from "@ai-sdk/google-vertex";
 import { streamText, CoreMessage } from "ai";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 import { db } from "@/db";
 import { messages as messagesTable, activeGenerations } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -21,6 +22,10 @@ const vertex = createVertex({
 // Reference for tools
 const vertexProvider = vertex;
 
+// Native Google Generative AI SDK for image generation
+// The Vercel AI SDK doesn't properly pass responseModalities, so we use the native SDK
+const nativeGoogleAI = new GoogleGenerativeAI(process.env.GOOGLE_GENERATIVE_AI_API_KEY!);
+
 const openrouter = createOpenRouter({
   apiKey: process.env.OPENROUTER_API_KEY!,
 });
@@ -32,6 +37,124 @@ function isGoogleModel(modelId: string): boolean {
 
 function getGoogleModelId(modelId: string): string {
   return modelId.startsWith("google/") ? modelId.replace("google/", "") : modelId;
+}
+
+// Helper to check if model supports image generation
+function isImageGenerationModel(modelId: string): boolean {
+  const imageModels = [
+    'gemini-3-pro-image-preview',
+    'gemini-2.5-flash-image',
+  ];
+  const normalizedId = modelId.replace('google/', '');
+  const isImage = imageModels.some(m => normalizedId === m || normalizedId.startsWith(m));
+  console.log(`[ImageGen] isImageGenerationModel check: modelId=${modelId}, normalizedId=${normalizedId}, isImage=${isImage}`);
+  return isImage;
+}
+
+// Native Google SDK image generation function
+// This bypasses Vercel AI SDK which doesn't properly pass responseModalities
+async function generateWithNativeGoogleSDK(
+  modelId: string,
+  messages: Array<{ role: string; content: unknown }>,
+  generationId: string
+): Promise<{ text: string; reasoning: string; images: Array<{ data: string; mediaType: string }> }> {
+  const googleModelId = getGoogleModelId(modelId);
+  console.log(`[NativeGoogleSDK] Starting image generation with model: ${googleModelId}`);
+
+  // Get the model with image generation config
+  const model = nativeGoogleAI.getGenerativeModel({
+    model: googleModelId,
+    generationConfig: {
+      // @ts-expect-error - responseModalities is valid but not in types yet
+      responseModalities: ['Text', 'Image'],
+    },
+  });
+
+  // Build the prompt from messages (get the last user message)
+  // For image editing, we need to include both text AND any attached images
+  const lastUserMessage = messages.filter(m => m.role === 'user').pop();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const promptParts: any[] = [];
+  
+  if (lastUserMessage) {
+    if (typeof lastUserMessage.content === 'string') {
+      promptParts.push({ text: lastUserMessage.content });
+    } else if (Array.isArray(lastUserMessage.content)) {
+      for (const part of lastUserMessage.content) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const p = part as any;
+        if (p.type === 'text' && p.text) {
+          promptParts.push({ text: p.text });
+        } else if (p.type === 'image') {
+          // Handle attached images for editing
+          const imageData = p.image || p.url || p.data;
+          if (imageData && typeof imageData === 'string') {
+            let base64Data = imageData;
+            let mimeType = p.mediaType || p.mimeType || 'image/png';
+            if (imageData.startsWith('data:')) {
+              const matches = imageData.match(/^data:([^;]+);base64,(.+)$/);
+              if (matches) {
+                mimeType = matches[1];
+                base64Data = matches[2];
+              }
+            }
+            console.log(`[NativeGoogleSDK] Including input image: ${mimeType}, ${base64Data.length} bytes`);
+            promptParts.push({
+              inlineData: {
+                mimeType,
+                data: base64Data,
+              },
+            });
+          }
+        }
+      }
+    }
+  }
+
+  const textPrompt = promptParts.filter(p => p.text).map(p => p.text).join(' ');
+  console.log(`[NativeGoogleSDK] Prompt: ${textPrompt.substring(0, 100)}...`);
+  console.log(`[NativeGoogleSDK] Prompt parts: ${promptParts.length} (${promptParts.filter(p => p.inlineData).length} images)`);
+
+  // Generate content with multimodal input
+  const result = await model.generateContent(promptParts.length === 1 && promptParts[0].text ? textPrompt : promptParts);
+  const response = result.response;
+
+  let textContent = '';
+  const generatedImages: Array<{ data: string; mediaType: string }> = [];
+
+  // Process response parts
+  for (const part of response.candidates?.[0]?.content?.parts || []) {
+    if ('text' in part && part.text) {
+      textContent += part.text;
+      console.log(`[NativeGoogleSDK] Text part received: ${part.text.substring(0, 100)}...`);
+    } else if ('inlineData' in part && part.inlineData) {
+      const imageData = {
+        data: part.inlineData.data,
+        mediaType: part.inlineData.mimeType,
+      };
+      generatedImages.push(imageData);
+      console.log(`[NativeGoogleSDK] IMAGE GENERATED! Type: ${imageData.mediaType}, Size: ${imageData.data.length} bytes`);
+    }
+  }
+
+  console.log(`[NativeGoogleSDK] Generation complete: text=${textContent.length}, images=${generatedImages.length}`);
+
+  // If model didn't return text but generated an image, add a default message
+  const finalText = textContent.trim() || (generatedImages.length > 0 ? 'Here is the generated image:' : '');
+
+  // Update with final content for SSE
+  await db.update(activeGenerations)
+    .set({ 
+      partialText: finalText,
+      lastUpdateAt: new Date() 
+    })
+    .where(eq(activeGenerations.id, generationId));
+
+  return {
+    text: finalText,
+    reasoning: '',
+    images: generatedImages,
+  };
 }
 
 // System prompt generator (exact copy from /api/chat/route.ts)
@@ -269,6 +392,18 @@ export const generateInBackground = inngest.createFunction(
     // Step 2: Run the AI generation
     const result = await step.run("generate-response", async () => {
       const isGoogle = isGoogleModel(modelId);
+      const supportsImageGen = isImageGenerationModel(modelId);
+      
+      console.log(`[Inngest] Starting generation for model ${modelId}`);
+      console.log(`[Inngest] Provider: ${supportsImageGen ? 'NATIVE_GOOGLE_SDK' : isGoogle ? 'VERTEX_AI' : 'OPENROUTER'}`);
+      
+      // For IMAGE GENERATION: Use native Google SDK directly (Vercel AI SDK doesn't pass responseModalities correctly)
+      if (supportsImageGen) {
+        console.log(`[Inngest] Using NATIVE Google Generative AI SDK for image generation`);
+        return await generateWithNativeGoogleSDK(modelId, messages, generationId);
+      }
+      
+      // For NON-IMAGE models: Use Vercel AI SDK with streaming
       const selectedModel = isGoogle
         ? vertex(getGoogleModelId(modelId))
         : openrouter(modelId);
@@ -282,24 +417,132 @@ export const generateInBackground = inngest.createFunction(
       );
 
       // Convert messages to CoreMessage format for AI SDK
+      // Must preserve multimodal content (images, files) for proper processing
       const modelMessages: CoreMessage[] = messages.map((m: { role: string; content: unknown }) => {
+        // Debug: log incoming message structure
+        console.log(`[Inngest] Processing message: role=${m.role}, contentType=${typeof m.content}, isArray=${Array.isArray(m.content)}`);
+        if (Array.isArray(m.content)) {
+          console.log(`[Inngest] Content parts:`, m.content.map((p: unknown) => {
+            const part = p as Record<string, unknown>;
+            return { type: part.type, hasImage: !!part.image, hasData: !!part.data, hasUrl: !!part.url };
+          }));
+        }
+
         // Handle different content formats
-        let content: string;
         if (typeof m.content === 'string') {
-          content = m.content;
+          return {
+            role: m.role as 'user' | 'assistant' | 'system',
+            content: m.content,
+          };
         } else if (Array.isArray(m.content)) {
-          // Extract text from parts array
-          content = m.content
+          // Convert parts array to AI SDK format, preserving images
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const contentParts: any[] = [];
+          for (const part of m.content) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const p = part as any;
+            if (p.type === 'text' && p.text) {
+              contentParts.push({ type: 'text', text: p.text });
+            } else if (p.type === 'image') {
+              // Handle image parts - can be URL or base64 data
+              const imageData = p.image || p.url || p.data;
+              console.log(`[Inngest] Found image part: hasData=${!!imageData}, startsWithData=${imageData?.startsWith?.('data:')}`);
+              if (imageData && typeof imageData === 'string') {
+                if (imageData.startsWith('data:')) {
+                  // Base64 data URL - extract the data
+                  const matches = imageData.match(/^data:([^;]+);base64,(.+)$/);
+                  if (matches) {
+                    console.log(`[Inngest] Extracted image: mimeType=${matches[1]}, dataLength=${matches[2].length}`);
+                    contentParts.push({ 
+                      type: 'image', 
+                      image: matches[2], // base64 data without prefix
+                      mimeType: matches[1],
+                    });
+                  }
+                } else if (imageData.startsWith('http')) {
+                  // URL-based image
+                  contentParts.push({ type: 'image', image: new URL(imageData) });
+                } else {
+                  // Assume it's already base64
+                  contentParts.push({ 
+                    type: 'image', 
+                    image: imageData,
+                    mimeType: p.mediaType || p.mimeType || 'image/png',
+                  });
+                }
+              }
+            } else if (p.type === 'file') {
+              // Handle file attachments
+              const fileData = p.url || p.data;
+              const mimeType = p.mediaType || p.mimeType || 'application/octet-stream';
+              const filename = p.filename || p.name || 'file';
+              console.log(`[Inngest] Found file part: hasData=${!!fileData}, mimeType=${mimeType}, filename=${filename}`);
+              if (fileData && typeof fileData === 'string') {
+                if (mimeType.startsWith('image/')) {
+                  // Image files - convert to image part
+                  if (fileData.startsWith('data:')) {
+                    const matches = fileData.match(/^data:([^;]+);base64,(.+)$/);
+                    if (matches) {
+                      console.log(`[Inngest] Extracted file image: mimeType=${matches[1]}, dataLength=${matches[2].length}`);
+                      contentParts.push({ type: 'image', image: matches[2], mimeType: matches[1] });
+                    }
+                  } else {
+                    contentParts.push({ type: 'image', image: fileData, mimeType });
+                  }
+                } else {
+                  // Non-image files (PDF, JSON, text, etc.) - decode and include as text
+                  // AI SDK doesn't support 'file' type in user messages, so we include content as text
+                  let base64Data = fileData;
+                  if (fileData.startsWith('data:')) {
+                    const matches = fileData.match(/^data:([^;]+);base64,(.+)$/);
+                    if (matches) {
+                      base64Data = matches[2];
+                    }
+                  }
+                  try {
+                    // Decode base64 to text
+                    const decodedContent = Buffer.from(base64Data, 'base64').toString('utf-8');
+                    console.log(`[Inngest] Decoded file to text: ${decodedContent.length} chars`);
+                    // Add as text with filename context
+                    contentParts.push({ 
+                      type: 'text', 
+                      text: `[File: ${filename}]\n\`\`\`\n${decodedContent}\n\`\`\``,
+                    });
+                  } catch (e) {
+                    console.error(`[Inngest] Failed to decode file: ${e}`);
+                    // For binary files we can't decode, just note that a file was attached
+                    contentParts.push({ 
+                      type: 'text', 
+                      text: `[Attached file: ${filename} (${mimeType}) - binary content not displayable]`,
+                    });
+                  }
+                }
+              }
+            }
+          }
+          console.log(`[Inngest] Converted ${contentParts.length} content parts (${contentParts.filter(p => p.type === 'image').length} images)`);
+          // If we have content parts, return them; otherwise fall back to text-only
+          if (contentParts.length > 0) {
+            return {
+              role: m.role as 'user' | 'assistant' | 'system',
+              content: contentParts,
+            };
+          }
+          // Fallback: extract just text
+          const textOnly = m.content
             .filter((p: { type?: string }) => p.type === 'text')
             .map((p: { text?: string }) => p.text || '')
             .join('');
+          return {
+            role: m.role as 'user' | 'assistant' | 'system',
+            content: textOnly,
+          };
         } else {
-          content = String(m.content || '');
+          return {
+            role: m.role as 'user' | 'assistant' | 'system',
+            content: String(m.content || ''),
+          };
         }
-        return {
-          role: m.role as 'user' | 'assistant' | 'system',
-          content,
-        };
       });
 
       let partialText = '';
@@ -307,13 +550,23 @@ export const generateInBackground = inngest.createFunction(
       let lastDbUpdate = 0;
       const DB_UPDATE_INTERVAL = 500;
 
-      console.log(`[Inngest] Starting streamText for model ${modelId}`);
-
       // Build tools - add Google Search for Google/Vertex models
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const tools: Record<string, any> | undefined = isGoogle
         ? { google_search: vertexProvider.tools.googleSearch({}) }
         : undefined;
+
+      // Build provider options for Google models (non-image, since image uses native SDK)
+      const googleProviderOpts = {
+        thinkingConfig: {
+          includeThoughts: true,
+          ...(modelId.includes('gemini-3')
+            ? { thinkingLevel: reasoningEffort === 'low' ? 'low' : 'high' }
+            : { thinkingBudget: reasoningEffort === 'high' ? 24576 : reasoningEffort === 'medium' ? 8192 : 2048 }
+          ),
+        },
+      };
+      console.log(`[Inngest] Google provider options:`, JSON.stringify(googleProviderOpts, null, 2));
 
       const streamResult = streamText({
         model: selectedModel,
@@ -321,17 +574,7 @@ export const generateInBackground = inngest.createFunction(
         messages: modelMessages,
         tools,
         providerOptions: isGoogle
-          ? {
-              google: {
-                thinkingConfig: {
-                  includeThoughts: true,
-                  ...(modelId.includes('gemini-3')
-                    ? { thinkingLevel: reasoningEffort === 'low' ? 'low' : 'high' }
-                    : { thinkingBudget: reasoningEffort === 'high' ? 24576 : reasoningEffort === 'medium' ? 8192 : 2048 }
-                  ),
-                },
-              },
-            }
+          ? { google: googleProviderOpts }
           : {
               openrouter: {
                 reasoning: {
@@ -380,18 +623,31 @@ export const generateInBackground = inngest.createFunction(
       return {
         text: finalText || partialText,
         reasoning: finalReasoning,
+        images: [], // Non-image models don't generate images
       };
     });
 
     // Step 3: Save the final message to DB
     await step.run("save-message", async () => {
-      const contentParts: Array<{ type: string; text?: string; reasoning?: string }> = [];
+      const contentParts: Array<{ type: string; text?: string; reasoning?: string; data?: string; mediaType?: string }> = [];
 
       if (result.reasoning) {
         contentParts.push({ type: 'reasoning', text: result.reasoning, reasoning: result.reasoning });
       }
       if (result.text) {
         contentParts.push({ type: 'text', text: result.text });
+      }
+      
+      // Add generated images
+      if (result.images && result.images.length > 0) {
+        for (const img of result.images) {
+          contentParts.push({ 
+            type: 'generated-image', 
+            data: img.data, 
+            mediaType: img.mediaType 
+          });
+        }
+        console.log(`[Inngest] Including ${result.images.length} generated image(s) in saved message`);
       }
 
       if (contentParts.length > 0) {

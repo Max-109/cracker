@@ -759,6 +759,7 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
   let thinkContent = '';
   let finalContent = '';
   const sources: { url: string; title?: string }[] = [];
+  const generatedImages: { data: string; mediaType: string }[] = [];
   let hasGoogleSearch = false;
   let isSearching = false;
   let isDeepResearching = false;
@@ -825,6 +826,12 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
           if (toolState === 'call' || toolState === 'partial-call') {
             isSearching = true;
           }
+        }
+      } else if ((part as { type: string; data?: string; mediaType?: string }).type === 'generated-image') {
+        // Handle generated images from Gemini image models
+        const imgPart = part as { type: string; data: string; mediaType: string };
+        if (imgPart.data && imgPart.mediaType) {
+          generatedImages.push({ data: imgPart.data, mediaType: imgPart.mediaType });
         }
       }
     });
@@ -1030,6 +1037,64 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
             (actuallyThinking && !hasThinking) ? (
               <LoadingIndicator />
             ) : null
+          )}
+
+          {/* Generated Images from Gemini Image Models */}
+          {generatedImages.length > 0 && (
+            <div className="mt-4 space-y-4">
+              {generatedImages.map((img, idx) => (
+                <div 
+                  key={idx} 
+                  className="relative overflow-hidden border border-[var(--border-color)] bg-[#0f0f0f] animate-in fade-in zoom-in-95 duration-500"
+                  style={{ animationDelay: `${idx * 150}ms` }}
+                >
+                  {/* Image container with reveal animation */}
+                  <div className="relative group">
+                    {/* Scanning line animation overlay */}
+                    <div className="absolute inset-0 z-10 pointer-events-none overflow-hidden">
+                      <div 
+                        className="absolute inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-[var(--text-accent)] to-transparent opacity-60 animate-[scan-reveal_2s_ease-out_forwards]"
+                        style={{ animationDelay: `${idx * 150 + 200}ms` }}
+                      />
+                    </div>
+                    
+                    {/* The actual image with blur-in effect */}
+                    <img 
+                      src={`data:${img.mediaType};base64,${img.data}`}
+                      alt={`Generated image ${idx + 1}`}
+                      className="w-full h-auto max-h-[600px] object-contain animate-[image-materialize_0.8s_ease-out_forwards]"
+                      style={{ 
+                        animationDelay: `${idx * 150 + 100}ms`,
+                        opacity: 0,
+                        filter: 'blur(20px) saturate(0)',
+                      }}
+                    />
+                    
+                    {/* Subtle glow effect on the border */}
+                    <div className="absolute inset-0 border border-[var(--text-accent)]/0 animate-[border-glow_1s_ease-out_forwards] pointer-events-none" style={{ animationDelay: `${idx * 150 + 500}ms` }} />
+                  </div>
+                  
+                  {/* Image label */}
+                  <div className="px-3 py-2 border-t border-[var(--border-color)] bg-[#0a0a0a] flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[9px] uppercase tracking-[0.14em] text-[var(--text-accent)] font-semibold">
+                        Generated Image
+                      </span>
+                      <span className="text-[9px] uppercase tracking-[0.12em] text-[var(--text-secondary)]">
+                        {img.mediaType.split('/')[1]?.toUpperCase() || 'PNG'}
+                      </span>
+                    </div>
+                    <a 
+                      href={`data:${img.mediaType};base64,${img.data}`}
+                      download={`generated-image-${idx + 1}.${img.mediaType.split('/')[1] || 'png'}`}
+                      className="text-[9px] uppercase tracking-[0.12em] text-[var(--text-secondary)] hover:text-[var(--text-accent)] transition-colors"
+                    >
+                      Download
+                    </a>
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
 
           {/* Stopped Indicator - only for connection and thinking phases */}

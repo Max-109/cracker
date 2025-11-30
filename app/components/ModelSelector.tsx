@@ -23,6 +23,7 @@ type ModelOption = {
 
 const MODEL_OPTIONS: ModelOption[] = [
   { id: "google/gemini-3-pro-preview", name: "Expert", description: "Gemini 3 Pro", tier: 'premium', icon: Sparkles },
+  { id: "google/gemini-3-pro-image-preview", name: "Creative", description: "Gemini 3 Pro Image", tier: 'premium', icon: Sparkles },
   { id: "x-ai/grok-4.1-fast", name: "Smart", description: "Grok 4.1 Fast", tier: 'standard', icon: Cpu },
   { id: "openai/gpt-5-nano", name: "Fast", description: "GPT-5 Nano", tier: 'fast', icon: Zap },
   { id: "openai/gpt-oss-safeguard-20b", name: "Ultra-Fast", description: "GPT OSS 20B", tier: 'ultra', icon: Rocket },

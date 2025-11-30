@@ -14,6 +14,14 @@ export type ImagePart = {
   name?: string;
 };
 
+export type GeneratedImagePart = {
+  type: 'generated-image';
+  data: string; // base64 image data
+  mediaType: string;
+  width?: number;
+  height?: number;
+};
+
 export type FilePart = {
   type: 'file';
   data?: string;
@@ -52,7 +60,7 @@ export type ToolInvocationPart = {
   };
 };
 
-export type MessagePart = TextPart | ImagePart | FilePart | ReasoningPart | SourcePart | ToolInvocationPart;
+export type MessagePart = TextPart | ImagePart | GeneratedImagePart | FilePart | ReasoningPart | SourcePart | ToolInvocationPart;
 
 export interface ChatMessage {
   id: string;

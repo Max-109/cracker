@@ -1,6 +1,6 @@
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { createVertex } from "@ai-sdk/google-vertex";
-import { GoogleGenerativeAIProviderMetadata } from "@ai-sdk/google";
+import { createGoogleGenerativeAI, GoogleGenerativeAIProviderMetadata } from "@ai-sdk/google";
 import { streamText, convertToModelMessages, UIMessage } from "ai";
 import { db } from "@/db";
 import { messages as messagesTable, activeGenerations } from "@/db/schema";
@@ -58,6 +58,12 @@ const vertex = createVertex({
 
 // Reference to the vertex provider for tools access
 const vertexProvider = vertex;
+
+// Initialize Google Generative AI provider for image generation models
+// NOTE: Vertex AI SDK does NOT support responseModalities - only @ai-sdk/google does!
+const googleAI = createGoogleGenerativeAI({
+  apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
+});
 
 // Custom fetch that filters out problematic file annotations from OpenRouter responses
 function createFilteredFetch(): typeof fetch {
@@ -437,6 +443,18 @@ function isGoogleModel(modelId: string): boolean {
   return modelId.startsWith("google/") || modelId.startsWith("gemini-");
 }
 
+// Helper to check if model supports image generation
+function isImageGenerationModel(modelId: string): boolean {
+  const imageModels = [
+    'gemini-3-pro-image-preview',
+    'gemini-2.5-flash-image',
+  ];
+  const normalizedId = modelId.replace('google/', '');
+  const isImage = imageModels.some(m => normalizedId === m || normalizedId.startsWith(m));
+  console.log(`[ImageGen] isImageGenerationModel check: modelId=${modelId}, normalizedId=${normalizedId}, isImage=${isImage}`);
+  return isImage;
+}
+
 // Helper to get the actual model ID for Google (strip "google/" prefix if present)
 function getGoogleModelId(modelId: string): string {
   if (modelId.startsWith("google/")) {
@@ -491,24 +509,33 @@ export async function POST(req: Request) {
 
     // Route to appropriate provider based on model
     const isGoogle = isGoogleModel(modelId);
-    debugLog(`Provider: ${isGoogle ? 'VERTEX_AI' : 'OPENROUTER'}`);
+    const supportsImageGen = isImageGenerationModel(modelId);
+    
+    debugLog(`Provider: ${supportsImageGen ? 'GOOGLE_AI' : isGoogle ? 'VERTEX_AI' : 'OPENROUTER'}`);
+    if (supportsImageGen) {
+      debugLog('Image generation model detected - using Google AI (NOT Vertex) because only @ai-sdk/google supports responseModalities');
+    }
 
     // Select the model based on provider
+    // For image generation, use googleAI which supports responseModalities
+    // Vertex AI SDK does NOT support responseModalities!
     debugLog('Creating model instance...');
-    const selectedModel = isGoogle
-      ? vertex(getGoogleModelId(modelId))
-      : openrouter(modelId);
+    const selectedModel = supportsImageGen
+      ? googleAI(getGoogleModelId(modelId))
+      : isGoogle
+        ? vertex(getGoogleModelId(modelId))
+        : openrouter(modelId);
     debugLog('Model instance created');
 
-    // Build tools object - add Google Search for Google/Vertex models
+    // Build tools object - add Google Search for Google/Vertex models (not for image models)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const tools: Record<string, any> | undefined = isGoogle
+    const tools: Record<string, any> | undefined = isGoogle && !supportsImageGen
       ? {
           google_search: vertexProvider.tools.googleSearch({}),
         }
       : undefined;
     
-    if (isGoogle) {
+    if (isGoogle && !supportsImageGen) {
       debugLog('Google Search tool enabled (Vertex AI)');
     }
 
@@ -521,6 +548,7 @@ export async function POST(req: Request) {
     let partialText = '';
     let partialReasoning = '';
     const partialSources: Array<{ url: string; title: string }> = [];
+    const generatedImages: Array<{ data: string; mediaType: string }> = [];
     let lastDbUpdate = 0;
     const DB_UPDATE_INTERVAL = 300; // Update DB every 300ms for more reliable background resume
     let chunkCount = 0;
@@ -574,26 +602,36 @@ export async function POST(req: Request) {
     console.log('\n==================== FULL SYSTEM PROMPT ====================');
     console.log(systemPrompt);
     console.log('=============================================================\n');
+
+    // Build Google provider options and log them for debugging
+    const googleProviderOpts = {
+      // Enable image generation for supported models
+      ...(supportsImageGen && { responseModalities: ['TEXT', 'IMAGE'] }),
+      // Only add thinkingConfig for non-image models (image models don't support it)
+      ...(!supportsImageGen && {
+        thinkingConfig: {
+          includeThoughts: true,
+          // Gemini 3 Pro uses thinkingLevel ("low" or "high")
+          // Gemini 2.5 uses thinkingBudget (numeric)
+          // For Gemini 3: map our effort to thinkingLevel
+          ...(modelId.includes('gemini-3') 
+            ? { thinkingLevel: effort === 'low' ? 'low' : 'high' }
+            : { thinkingBudget: effort === 'high' ? 24576 : effort === 'medium' ? 8192 : 2048 }
+          ),
+        },
+      }),
+    };
+    if (isGoogle) {
+      console.log(`[ImageGen] Google provider options:`, JSON.stringify(googleProviderOpts, null, 2));
+    }
+
     const result = streamText({
       model: selectedModel,
       system: systemPrompt,
       messages: modelMessages,
       tools,
       providerOptions: isGoogle
-        ? {
-            google: {
-              thinkingConfig: {
-                includeThoughts: true,
-                // Gemini 3 Pro uses thinkingLevel ("low" or "high")
-                // Gemini 2.5 uses thinkingBudget (numeric)
-                // For Gemini 3: map our effort to thinkingLevel
-                ...(modelId.includes('gemini-3') 
-                  ? { thinkingLevel: effort === 'low' ? 'low' : 'high' }
-                  : { thinkingBudget: effort === 'high' ? 24576 : effort === 'medium' ? 8192 : 2048 }
-                ),
-              },
-            },
-          }
+        ? { google: googleProviderOpts }
         : {
             openrouter: {
               reasoning: {
@@ -627,6 +665,14 @@ export async function POST(req: Request) {
         const chunkAny = chunk as Record<string, unknown>;
         const chunkType = chunk.type as string;
         
+        // DEBUG: Log ALL chunk types for image generation debugging
+        if (supportsImageGen) {
+          console.log(`[ImageGen] Chunk #${chunkCount}: type=${chunkType}, keys=${Object.keys(chunkAny).join(',')}`);
+          if (chunkType !== 'text-delta') {
+            console.log(`[ImageGen] Non-text chunk details:`, JSON.stringify(chunkAny).substring(0, 500));
+          }
+        }
+        
         // Accumulate partial content based on chunk type
         if (chunkType === 'text-delta') {
           // AI SDK v5 uses 'text' property
@@ -641,6 +687,22 @@ export async function POST(req: Request) {
           const title = chunkAny.title as string || url;
           if (url && !partialSources.some(s => s.url === url)) {
             partialSources.push({ url, title });
+          }
+        } else if (chunkType === 'file') {
+          // Handle generated image files from Gemini image models
+          const fileData = chunkAny.data as string || '';
+          const mediaType = chunkAny.mediaType as string || 'image/png';
+          console.log(`[ImageGen] FILE CHUNK received: mediaType=${mediaType}, hasData=${!!fileData}, dataLength=${fileData?.length || 0}`);
+          if (fileData && mediaType.startsWith('image/')) {
+            console.log(`[ImageGen] SUCCESS! Got image: ${mediaType}, ${fileData.length} bytes`);
+            generatedImages.push({ data: fileData, mediaType });
+          } else {
+            console.log(`[ImageGen] WARNING: File chunk but not a valid image. mediaType=${mediaType}, fileData first 100 chars: ${fileData?.substring(0, 100)}`);
+          }
+        } else {
+          // Log unknown chunk types for debugging
+          if (supportsImageGen && !['step-start', 'step-finish', 'finish'].includes(chunkType)) {
+            console.log(`[ImageGen] Unknown chunk type: ${chunkType}`, JSON.stringify(chunkAny).substring(0, 300));
           }
         }
         
@@ -806,7 +868,7 @@ export async function POST(req: Request) {
           // Save assistant message to DB server-side (survives client disconnect)
           try {
             // Build content parts from accumulated partial content
-            const contentParts: Array<{ type: string; text?: string; reasoning?: string }> = [];
+            const contentParts: Array<{ type: string; text?: string; reasoning?: string; data?: string; mediaType?: string }> = [];
             
             // Add reasoning if present
             if (partialReasoning) {
@@ -816,6 +878,18 @@ export async function POST(req: Request) {
             // Add text
             if (partialText) {
               contentParts.push({ type: 'text', text: partialText });
+            }
+            
+            // Add generated images
+            if (generatedImages.length > 0) {
+              for (const img of generatedImages) {
+                contentParts.push({ 
+                  type: 'generated-image', 
+                  data: img.data, 
+                  mediaType: img.mediaType 
+                });
+              }
+              console.log(`[Chat] Including ${generatedImages.length} generated image(s) in saved message`);
             }
             
             // If we got content, save to DB

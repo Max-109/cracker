@@ -8,6 +8,7 @@
   /* BACKGROUNDS - Dark but not pure black */
   --bg-main: #1a1a1a;
   --bg-main-rgb: 26, 26, 26;
+  --text-accent-rgb: 175, 135, 135;
   --bg-sidebar: #141414;
   --bg-input: #1e1e1e;
   --bg-hover: #252525;
@@ -537,6 +538,61 @@ select {
   100% {
     opacity: 1;
     filter: blur(0);
+  }
+}
+
+/* Generated Image Reveal Animations */
+@keyframes image-materialize {
+  0% {
+    opacity: 0;
+    filter: blur(20px) saturate(0);
+    transform: scale(1.02);
+  }
+  30% {
+    opacity: 0.4;
+    filter: blur(12px) saturate(0.3);
+  }
+  60% {
+    opacity: 0.8;
+    filter: blur(5px) saturate(0.7);
+    transform: scale(1.005);
+  }
+  100% {
+    opacity: 1;
+    filter: blur(0) saturate(1);
+    transform: scale(1);
+  }
+}
+
+@keyframes scan-reveal {
+  0% {
+    top: 0%;
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.8;
+  }
+  90% {
+    opacity: 0.6;
+  }
+  100% {
+    top: 100%;
+    opacity: 0;
+  }
+}
+
+@keyframes border-glow {
+  0% {
+    border-color: rgba(var(--text-accent-rgb, 175, 135, 135), 0);
+    box-shadow: inset 0 0 0 0 rgba(var(--text-accent-rgb, 175, 135, 135), 0);
+  }
+  50% {
+    border-color: rgba(var(--text-accent-rgb, 175, 135, 135), 0.5);
+    box-shadow: inset 0 0 20px 0 rgba(var(--text-accent-rgb, 175, 135, 135), 0.1);
+  }
+  100% {
+    border-color: rgba(var(--text-accent-rgb, 175, 135, 135), 0);
+    box-shadow: inset 0 0 0 0 rgba(var(--text-accent-rgb, 175, 135, 135), 0);
   }
 }
 
