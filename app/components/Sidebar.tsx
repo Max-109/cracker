@@ -183,10 +183,11 @@ export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose
         setIsDeletingAll(true);
         
         try {
-            // Delete all chats
-            await Promise.all(chats.map(chat => 
-                fetch(`/api/chats/${chat.id}`, { method: 'DELETE' })
-            ));
+            // Delete all chats for the current user via server-side endpoint
+            const response = await fetch('/api/chats', { method: 'DELETE' });
+            if (!response.ok) {
+                throw new Error('Failed to delete chats');
+            }
             setShowDeleteAllDialog(false);
             setIsDeletingAll(false);
             onRefresh?.();
