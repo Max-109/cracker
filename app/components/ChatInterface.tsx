@@ -402,6 +402,51 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
         return;
       }
 
+      // Check if response is JSON (background started) or SSE (clarifying questions)
+      const contentType = response.headers.get('Content-Type') || '';
+      if (contentType.includes('application/json')) {
+        // Background search started via Inngest - connect to /api/generate/stream for progress
+        const jsonData = await response.json();
+        console.log('[DeepSearch] Background started, generationId:', jsonData.generationId);
+        
+        // Update placeholder ID to match what SSE expects (assistant-{generationId})
+        const newPlaceholderId = `assistant-${jsonData.generationId}`;
+        
+        // Update message with new ID and show progress
+        setMessages(prev => {
+          // Also update messagesRef immediately for SSE effect
+          const updated = prev.map(m => 
+            m.id === placeholderId 
+              ? { ...m, id: newPlaceholderId, parts: [{ type: 'deep-research-progress', progress: {
+                  phase: 'starting',
+                  phaseDescription: 'Research in progress...',
+                  percent: 0,
+                  message: 'Starting deep research...',
+                  searches: [],
+                  sources: [],
+                  isComplete: false,
+                }}] as unknown as typeof m.parts}
+              : m
+          );
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          messagesRef.current = updated as any;
+          return updated;
+        });
+        
+        // Set active generation to trigger SSE polling via existing mechanism
+        // Small delay ensures messagesRef is updated before SSE effect runs
+        setTimeout(() => {
+          setActiveGeneration({
+            id: jsonData.generationId,
+            status: 'streaming',
+            modelId: 'deep-search',
+            partialText: '',
+            partialReasoning: '',
+          });
+        }, 50);
+        return;
+      }
+
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
       
