@@ -759,10 +759,18 @@ export const deepSearchInBackground = inngest.createFunction(
       
       const result = await generateText({
         model: vertex('gemini-3-pro-preview'),
-        prompt: `${getDateContext()}\n\nGenerate 15-20 diverse search queries for: "${query}"${clarifyContext}\n\nCover: main topic, comparisons, reviews, news, technical specs, pricing, issues, recommendations.\n\nReturn ONLY queries, one per line.`,
+        prompt: `${getDateContext()}\n\nGenerate 10 diverse search queries for: "${query}"${clarifyContext}\n\nCover: main topic, comparisons, reviews, news, technical specs, pricing, issues, recommendations.\n\nReturn ONLY queries, one per line.`,
+        providerOptions: {
+          google: {
+            thinkingConfig: {
+              includeThoughts: true,
+              thinkingLevel: 'high',
+            },
+          },
+        },
       });
       
-      return result.text.split('\n').filter((q: string) => q.trim().length > 0).slice(0, 20);
+      return result.text.split('\n').filter((q: string) => q.trim().length > 0).slice(0, 10);
     });
 
     // Step 3: Execute searches
@@ -776,9 +784,15 @@ export const deepSearchInBackground = inngest.createFunction(
 
       for (let i = 0; i < searchQueries.length; i += 3) {
         const batch = searchQueries.slice(i, i + 3);
-        const results = await Promise.all(batch.map(q => tavilySearch(q, 10)));
+        const results = await Promise.all(batch.map(q => tavilySearch(q, 5)));
         results.flat().forEach(r => {
-          if (!sources.has(r.url)) sources.set(r.url, r);
+          if (!sources.has(r.url)) {
+            sources.set(r.url, {
+              title: r.title.slice(0, 200),
+              url: r.url,
+              content: r.content.slice(0, 1000),
+            });
+          }
         });
         
         const percent = 15 + Math.floor(((i + batch.length) / searchQueries.length) * 25);
@@ -787,7 +801,8 @@ export const deepSearchInBackground = inngest.createFunction(
           .where(eq(activeGenerations.id, generationId));
       }
       
-      return Array.from(sources.values());
+      // Limit to 40 sources to keep step output small
+      return Array.from(sources.values()).slice(0, 40);
     });
 
     // Step 4: Deep dive searches
@@ -799,26 +814,39 @@ export const deepSearchInBackground = inngest.createFunction(
       const topTitles = allSources.slice(0, 15).map(s => s.title).join('\n');
       const ddResult = await generateText({
         model: vertex('gemini-3-pro-preview'),
-        prompt: `Generate 10 follow-up searches to fill gaps:\n\nOriginal: ${query}\nFindings:\n${topTitles}\n\nReturn ONLY queries, one per line.`,
+        prompt: `Generate 5 follow-up searches to fill gaps:\n\nOriginal: ${query}\nFindings:\n${topTitles}\n\nReturn ONLY queries, one per line.`,
+        providerOptions: {
+          google: {
+            thinkingConfig: {
+              includeThoughts: true,
+              thinkingLevel: 'high',
+            },
+          },
+        },
       });
       
-      const deepQueries = ddResult.text.split('\n').filter((q: string) => q.trim()).slice(0, 10);
+      const deepQueries = ddResult.text.split('\n').filter((q: string) => q.trim()).slice(0, 5);
       const sources = new Map(allSources.map(s => [s.url, s]));
 
-      for (let i = 0; i < deepQueries.length; i += 3) {
-        const batch = deepQueries.slice(i, i + 3);
-        const results = await Promise.all(batch.map(q => tavilySearch(q, 10)));
-        results.flat().forEach(r => {
-          if (!sources.has(r.url)) sources.set(r.url, r);
+      for (const dq of deepQueries) {
+        const results = await tavilySearch(dq, 5);
+        results.forEach(r => {
+          if (!sources.has(r.url)) {
+            sources.set(r.url, {
+              title: r.title.slice(0, 200),
+              url: r.url,
+              content: r.content.slice(0, 1000),
+            });
+          }
         });
         
-        const percent = 50 + Math.floor(((i + batch.length) / deepQueries.length) * 20);
         await db.update(activeGenerations)
-          .set({ partialText: JSON.stringify({ phase: 'deep-dive', percent, message: `Deep dive: ${sources.size} sources...` }) })
+          .set({ partialText: JSON.stringify({ phase: 'deep-dive', percent: 55, message: `Deep dive: ${sources.size} sources...` }) })
           .where(eq(activeGenerations.id, generationId));
       }
 
-      return Array.from(sources.values());
+      // Limit to 50 sources total
+      return Array.from(sources.values()).slice(0, 50);
     });
 
     // Step 5: Generate final report
@@ -827,8 +855,8 @@ export const deepSearchInBackground = inngest.createFunction(
         .set({ partialText: JSON.stringify({ phase: 'writing', percent: 75, message: 'Writing report...' }) })
         .where(eq(activeGenerations.id, generationId));
 
-      const sourcesContext = finalSources.slice(0, 50).map((s, i) => 
-        `[${i + 1}] ${s.title}\nURL: ${s.url}\nContent: ${s.content.slice(0, 1500)}`
+      const sourcesContext = finalSources.slice(0, 40).map((s, i) => 
+        `[${i + 1}] ${s.title}\nURL: ${s.url}\nContent: ${s.content.slice(0, 800)}`
       ).join('\n---\n');
 
       const clarifyContext = clarifyAnswers 
@@ -855,6 +883,14 @@ REQUIREMENTS:
    https://url
 
 Be thorough and cite every claim.`,
+        providerOptions: {
+          google: {
+            thinkingConfig: {
+              includeThoughts: true,
+              thinkingLevel: 'high',
+            },
+          },
+        },
       });
       
       return result.text;
@@ -870,7 +906,7 @@ Be thorough and cite every claim.`,
         { type: 'text', text: reportText }
       ];
       
-      finalSources.slice(0, 50).forEach(s => {
+      finalSources.slice(0, 40).forEach(s => {
         contentParts.push({ type: 'source', url: s.url, title: s.title });
       });
 
