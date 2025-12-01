@@ -839,11 +839,15 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
     setIsReconnecting(isActualReconnection);
     console.log(`[SSE] Connecting for generation ${activeGeneration.id}, isReconnection: ${isActualReconnection}`);
 
-    // Initialize smooth reveal refs
-    sseTargetTextRef.current = activeGeneration.partialText || '';
-    sseTargetReasoningRef.current = activeGeneration.partialReasoning || '';
-    sseRevealedTextRef.current = activeGeneration.partialText || '';
-    sseRevealedReasoningRef.current = activeGeneration.partialReasoning || '';
+    // For deep-search, don't use reveal animation - it has its own progress UI
+    // partialText for deep-search contains JSON progress, not actual text
+    const isDeepSearch = activeGeneration.modelId === 'deep-search';
+    
+    // Initialize smooth reveal refs (skip for deep search)
+    sseTargetTextRef.current = isDeepSearch ? '' : (activeGeneration.partialText || '');
+    sseTargetReasoningRef.current = isDeepSearch ? '' : (activeGeneration.partialReasoning || '');
+    sseRevealedTextRef.current = isDeepSearch ? '' : (activeGeneration.partialText || '');
+    sseRevealedReasoningRef.current = isDeepSearch ? '' : (activeGeneration.partialReasoning || '');
     ssePlaceholderIdRef.current = placeholderId;
     sseIsReconnectionRef.current = isActualReconnection;
     sseLastRevealTimeRef.current = 0;
@@ -987,6 +991,8 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
               // Handle deep search progress events
               if (data.type === 'deep-search-progress') {
                 const progress = data.progress || {};
+                // Detect completion from phase or isComplete flag
+                const isComplete = progress.isComplete || progress.phase === 'complete';
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 setMessages((prev: any[]) => prev.map(m => {
                   if (m.id !== placeholderId) return m;
@@ -999,6 +1005,9 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
                         phaseDescription: progress.message || 'Researching...',
                         percent: progress.percent || 0,
                         message: progress.message || '',
+                        searches: progress.searches || [],
+                        sources: progress.sources || [],
+                        isComplete,
                       },
                     }],
                   };

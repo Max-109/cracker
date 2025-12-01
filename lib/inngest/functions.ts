@@ -899,7 +899,7 @@ Be thorough and cite every claim.`,
     // Step 6: Save to database
     await step.run("save-report", async () => {
       await db.update(activeGenerations)
-        .set({ partialText: JSON.stringify({ phase: 'complete', percent: 100, message: 'Research complete!' }) })
+        .set({ partialText: JSON.stringify({ phase: 'complete', percent: 100, message: 'Research complete!', isComplete: true }) })
         .where(eq(activeGenerations.id, generationId));
 
       const contentParts: Array<{ type: string; text?: string; url?: string; title?: string }> = [

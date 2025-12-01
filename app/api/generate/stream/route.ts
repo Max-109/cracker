@@ -152,14 +152,34 @@ export async function GET(req: Request) {
 
       // Send initial content if any, or waiting status if no content yet
       if (gen.partialText || gen.partialReasoning) {
-        sendEvent({
-          type: 'content',
-          text: gen.partialText || '',
-          reasoning: gen.partialReasoning || '',
-          isIncremental: false, // Full content, not incremental
-        });
-        lastSentText = gen.partialText || '';
-        lastSentReasoning = gen.partialReasoning || '';
+        // Special handling for deep search - partialText is JSON progress, not actual text
+        if (gen.modelId === 'deep-search' && gen.partialText) {
+          try {
+            const progress = JSON.parse(gen.partialText);
+            sendEvent({
+              type: 'deep-search-progress',
+              progress,
+            });
+          } catch {
+            // Not valid JSON, send as content
+            sendEvent({
+              type: 'content',
+              text: gen.partialText || '',
+              reasoning: '',
+              isIncremental: false,
+            });
+          }
+          lastSentText = gen.partialText || '';
+        } else {
+          sendEvent({
+            type: 'content',
+            text: gen.partialText || '',
+            reasoning: gen.partialReasoning || '',
+            isIncremental: false, // Full content, not incremental
+          });
+          lastSentText = gen.partialText || '';
+          lastSentReasoning = gen.partialReasoning || '';
+        }
       } else {
         // No content yet - send waiting status so client knows we're connected
         sendEvent({
