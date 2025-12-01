@@ -1476,6 +1476,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
           activeGeneration={activeGeneration}
           streamingStats={streamingStats}
           currentChatId={currentChatId}
+          chatMode={chats.find(c => c.id === currentChatId)?.mode as ChatMode || chatMode}
           error={error}
           onEdit={stableHandleEdit}
           onRetry={handleRetry}

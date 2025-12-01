@@ -5,6 +5,7 @@ import { createContext, useContext } from 'react';
 interface Chat {
   id: string;
   title: string | null;
+  mode?: 'chat' | 'learning' | 'deep-search';
   createdAt: string;
 }
 

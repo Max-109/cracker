@@ -11,7 +11,9 @@ import { CodeBlock } from './CodeBlock';
 import { cn } from '@/lib/utils';
 import type { MessagePart } from '@/lib/chat-types';
 import { DeepResearchProgress, SourcesDisplay, type ResearchProgress } from './DeepResearchProgress';
+import { LearningModeIndicator, LearningModeBadge } from './LearningModeIndicator';
 import { LoadingIndicator } from './LoadingIndicator';
+import type { ChatMode } from '@/app/hooks/usePersistedSettings';
 import 'katex/dist/katex.min.css';
 const REMARK_PLUGINS = [remarkMath, remarkGfm];
 const REHYPE_PLUGINS = [rehypeKatex];
@@ -40,6 +42,7 @@ interface MessageItemProps {
   tokensPerSecond?: number;
   onClarifySubmit?: (answers: { q: string; a: string }[]) => void;
   onSkipClarify?: () => void;
+  chatMode?: ChatMode;
 }
 
 const THINKING_LABELS = [
@@ -73,8 +76,8 @@ function AIIndicator() {
         <div className="w-[4px] h-[4px] bg-[var(--text-accent)] animate-pulse" />
         {/* Scan line on hover */}
         <div className="absolute inset-0 overflow-hidden opacity-0 group-hover/indicator:opacity-100">
-          <div className="absolute inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-[var(--text-accent)] to-transparent animate-[scan_1s_ease-in-out_infinite]" 
-               style={{ animation: 'scan 1.2s ease-in-out infinite' }} />
+          <div className="absolute inset-x-0 h-[1px] bg-gradient-to-r from-transparent via-[var(--text-accent)] to-transparent animate-[scan_1s_ease-in-out_infinite]"
+            style={{ animation: 'scan 1.2s ease-in-out infinite' }} />
         </div>
       </div>
     </div>
@@ -130,7 +133,7 @@ function SearchIcon({ className, isSearching }: { className?: string; isSearchin
 function SourceItem({ url, title, index }: { url: string; title?: string; index: number }) {
   // Use title as domain since URLs are Google redirect URLs
   const displayDomain = title || 'source';
-  
+
   return (
     <a
       href={url}
@@ -150,7 +153,7 @@ function SourceItem({ url, title, index }: { url: string; title?: string; index:
 // Deep Research Completed Badge - matches DeepResearchProgress styling
 function DeepResearchCompletedBadge({ sources }: { sources: { url: string; title?: string }[] }) {
   const [isSourcesExpanded, setIsSourcesExpanded] = useState(false);
-  
+
   return (
     <div className="border border-[var(--text-accent)]/30 bg-[#141414] p-4 space-y-3">
       {/* Header */}
@@ -169,7 +172,7 @@ function DeepResearchCompletedBadge({ sources }: { sources: { url: string; title
           </div>
         </div>
       </div>
-      
+
       {/* Progress Bar (always at 100%) */}
       <div className="space-y-1">
         <div className="h-1.5 bg-[#2a2a2a] overflow-hidden">
@@ -180,7 +183,7 @@ function DeepResearchCompletedBadge({ sources }: { sources: { url: string; title
           <span>100%</span>
         </div>
       </div>
-      
+
       {/* Sources */}
       {sources.length > 0 && (
         <div className="space-y-2">
@@ -192,7 +195,7 @@ function DeepResearchCompletedBadge({ sources }: { sources: { url: string; title
             <span>Sources ({sources.length})</span>
             {isSourcesExpanded ? <Minus size={12} /> : <Plus size={12} />}
           </button>
-          
+
           {isSourcesExpanded && (
             <div className="max-h-[200px] overflow-y-auto space-y-1 pl-5">
               {sources.map((source, idx) => (
@@ -212,7 +215,7 @@ function DeepResearchCompletedBadge({ sources }: { sources: { url: string; title
           )}
         </div>
       )}
-      
+
       {/* Phase indicators (all complete) */}
       <div className="flex items-center gap-2 pt-2 border-t border-[var(--border-color)]">
         {['planning', 'searching', 'analyzing', 'deep-dive', 'writing'].map((_, idx) => (
@@ -249,14 +252,14 @@ const generateId = () => (typeof crypto !== 'undefined' && 'randomUUID' in crypt
 
 function ModelBadge({ name, fullName, tokensPerSecond }: { name: string; fullName: string; tokensPerSecond?: number }) {
   const [copied, setCopied] = useState(false);
-  
+
   const handleClick = () => {
     navigator.clipboard.writeText(fullName).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     });
   };
-  
+
   return (
     <button
       onClick={handleClick}
@@ -283,7 +286,7 @@ function ModelBadge({ name, fullName, tokensPerSecond }: { name: string; fullNam
   );
 }
 
-export const MessageItem = memo(function MessageItem({ role, content, isThinking, isStreaming, onEdit, onRetry, modelName, fullModelName, tokensPerSecond, onClarifySubmit, onSkipClarify }: MessageItemProps) {
+export const MessageItem = memo(function MessageItem({ role, content, isThinking, isStreaming, onEdit, onRetry, modelName, fullModelName, tokensPerSecond, onClarifySubmit, onSkipClarify, chatMode }: MessageItemProps) {
   const [isThinkingOpen, setIsThinkingOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isSearchExpanded, setIsSearchExpanded] = useState(false);
@@ -348,11 +351,11 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
 
     newAttachments.forEach((attachment) => {
       readFileWithProgress(attachment.file!, (percent) => {
-        setEditAttachments(prev => prev.map(att => 
+        setEditAttachments(prev => prev.map(att =>
           att.id === attachment.id ? { ...att, progress: percent } : att
         ));
       }).then((dataUrl) => {
-        setEditAttachments(prev => prev.map(att => 
+        setEditAttachments(prev => prev.map(att =>
           att.id === attachment.id ? { ...att, url: dataUrl, isUploading: false, progress: 100 } : att
         ));
       }).catch(() => {
@@ -813,11 +816,11 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
       } else if (part.type === 'tool-invocation') {
         // Check for Google Search tool invocation
         // AI SDK v5 can have flat structure (toolName directly on part) or nested (under toolInvocation)
-        const toolPart = part as { 
-          type: 'tool-invocation'; 
-          toolName?: string; 
+        const toolPart = part as {
+          type: 'tool-invocation';
+          toolName?: string;
           state?: string;
-          toolInvocation?: { toolName: string; state: string } 
+          toolInvocation?: { toolName: string; state: string }
         };
         const toolName = toolPart.toolName || toolPart.toolInvocation?.toolName;
         const toolState = toolPart.state || toolPart.toolInvocation?.state;
@@ -859,7 +862,7 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
   // If we have finalContent, we're done thinking regardless of what isThinking prop says
   // This handles fast models where SDK status lags behind actual content
   const actuallyThinking = isThinking && !finalContent.trim();
-  
+
   // Derive thinking label from actuallyThinking for immediate updates
   const thinkingLabel = actuallyThinking ? randomLabel : "Cracked";
 
@@ -869,16 +872,16 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
 
   // Detect if reasoning mentions searching (Gemini describes search activity in thinking)
   const reasoningIndicatesSearch = !!(thinkContent && /\b(search|searching|looking up|finding|browsing|query|queries|found some|headlines|news from)\b/i.test(thinkContent));
-  
+
   // Check if this is a deep research result (persisted from database)
   const isDeepResearchResult = fullModelName?.includes('deep-search') || false;
-  
+
   // Show search indicator when:
   // 1. We have sources (hasGoogleSearch) - always show
   // 2. Explicit search tool invocation (isSearching)
   // 3. Reasoning mentions search activity (for Gemini during streaming)
   const showSearchIndicator = (hasGoogleSearch || isSearching || (isStreaming && reasoningIndicatesSearch)) && !isDeepResearchResult;
-  
+
   // Determine if we're actively searching (for animation)
   const isActivelySearching = isStreaming && (hasGoogleSearch || isSearching || reasoningIndicatesSearch);
 
@@ -888,8 +891,24 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
         <AIIndicator />
 
         <div className="flex-1 text-[#E5E5E5] leading-relaxed space-y-3 overflow-hidden min-w-0">
-          {/* Thinking Accordion */}
-          {hasThinking && (
+          {/* Conditional rendering: Learning Mode OR Thinking Accordion */}
+          {chatMode === 'learning' && hasThinking ? (
+            /* Learning Mode with expandable thinking */
+            <LearningModeIndicator
+              isStreaming={isStreaming}
+              thinkContent={thinkContent}
+              isOpen={isThinkingOpen}
+              onToggle={() => setIsThinkingOpen(!isThinkingOpen)}
+              markdownComponents={markdownComponents}
+            />
+          ) : chatMode === 'learning' && isStreaming ? (
+            /* Learning Mode streaming without thinking yet */
+            <LearningModeIndicator isStreaming={true} />
+          ) : chatMode === 'learning' && finalContent && !isDeepResearching ? (
+            /* Learning Mode completed badge (no thinking) */
+            <LearningModeBadge />
+          ) : hasThinking ? (
+            /* Regular Thinking Accordion (non-learning mode) */
             <div className="border border-[var(--border-color)] bg-[#141414] p-3">
               <button
                 onClick={() => setIsThinkingOpen(!isThinkingOpen)}
@@ -913,7 +932,7 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
                 </div>
               )}
             </div>
-          )}
+          ) : null}
 
           {/* Deep Research Indicator (for persisted results) */}
           {isDeepResearchResult && !isDeepResearching && finalContent && (
@@ -946,7 +965,7 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
                     ))}
                   </div>
                   {sources.length > 5 && !isSearchExpanded && (
-                    <button 
+                    <button
                       onClick={(e) => { e.stopPropagation(); setIsSearchExpanded(true); }}
                       className="text-xs text-[var(--text-accent)] pt-1 hover:underline cursor-pointer"
                     >
@@ -954,7 +973,7 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
                     </button>
                   )}
                   {isSearchExpanded && sources.length > 5 && (
-                    <button 
+                    <button
                       onClick={(e) => { e.stopPropagation(); setIsSearchExpanded(false); }}
                       className="text-xs text-[var(--text-secondary)] pt-1 hover:text-[var(--text-accent)] cursor-pointer"
                     >
@@ -983,7 +1002,7 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
               onSkipClarify={onSkipClarify}
             />
           )}
-          
+
           {/* Legacy Deep Research Indicator (fallback) */}
           {isDeepResearching && !finalContent && !clarifyQuestions && !deepResearchProgress && (
             <div className="border border-[var(--text-accent)]/30 bg-[#141414] p-4">
@@ -1004,7 +1023,7 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
                 </div>
                 <div className="flex gap-1">
                   {[0, 1, 2].map(i => (
-                    <div 
+                    <div
                       key={i}
                       className="w-1.5 h-1.5 bg-[var(--text-accent)] animate-bounce"
                       style={{ animationDelay: `${i * 0.15}s` }}
@@ -1014,7 +1033,7 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
               </div>
             </div>
           )}
-          
+
           {/* Sources Display for completed deep research */}
           {sources.length > 0 && !isStreaming && !showSearchIndicator && (
             <SourcesDisplay sources={sources.map(s => ({ url: s.url, title: s.title || '' }))} maxVisible={6} />
@@ -1043,8 +1062,8 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
           {generatedImages.length > 0 && (
             <div className="mt-4 space-y-4">
               {generatedImages.map((img, idx) => (
-                <div 
-                  key={idx} 
+                <div
+                  key={idx}
                   className="relative overflow-hidden border border-[var(--border-color)] bg-[#0f0f0f] animate-in fade-in zoom-in-95 duration-500"
                   style={{ animationDelay: `${idx * 150}ms` }}
                 >
@@ -1052,28 +1071,28 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
                   <div className="relative group">
                     {/* Scanning line animation overlay */}
                     <div className="absolute inset-0 z-10 pointer-events-none overflow-hidden">
-                      <div 
+                      <div
                         className="absolute inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-[var(--text-accent)] to-transparent opacity-60 animate-[scan-reveal_2s_ease-out_forwards]"
                         style={{ animationDelay: `${idx * 150 + 200}ms` }}
                       />
                     </div>
-                    
+
                     {/* The actual image with blur-in effect */}
-                    <img 
+                    <img
                       src={`data:${img.mediaType};base64,${img.data}`}
                       alt={`Generated image ${idx + 1}`}
                       className="w-full h-auto max-h-[600px] object-contain animate-[image-materialize_0.8s_ease-out_forwards]"
-                      style={{ 
+                      style={{
                         animationDelay: `${idx * 150 + 100}ms`,
                         opacity: 0,
                         filter: 'blur(20px) saturate(0)',
                       }}
                     />
-                    
+
                     {/* Subtle glow effect on the border */}
                     <div className="absolute inset-0 border border-[var(--text-accent)]/0 animate-[border-glow_1s_ease-out_forwards] pointer-events-none" style={{ animationDelay: `${idx * 150 + 500}ms` }} />
                   </div>
-                  
+
                   {/* Image label */}
                   <div className="px-3 py-2 border-t border-[var(--border-color)] bg-[#0a0a0a] flex items-center justify-between">
                     <div className="flex items-center gap-2">
@@ -1084,7 +1103,7 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
                         {img.mediaType.split('/')[1]?.toUpperCase() || 'PNG'}
                       </span>
                     </div>
-                    <a 
+                    <a
                       href={`data:${img.mediaType};base64,${img.data}`}
                       download={`generated-image-${idx + 1}.${img.mediaType.split('/')[1] || 'png'}`}
                       className="text-[9px] uppercase tracking-[0.12em] text-[var(--text-secondary)] hover:text-[var(--text-accent)] transition-colors"
@@ -1147,7 +1166,7 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
                   <div className="absolute w-4 h-4 border border-[var(--text-accent)]/40 rounded-full animate-ping" />
                 </div>
                 <span className="text-sm text-[var(--text-accent)] uppercase tracking-[0.14em]">
-                  {isWaitingForGeneration 
+                  {isWaitingForGeneration
                     ? `Reconnected - Thinking... (${Math.round(waitingElapsedMs / 1000)}s)`
                     : 'Reconnected - Streaming...'}
                 </span>
@@ -1170,9 +1189,9 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
                     <span>Copy</span>
                   </button>
                 )}
-                <button 
+                <button
                   onClick={onRetry}
-                  className="flex items-center gap-1 hover:text-[var(--text-accent)]" 
+                  className="flex items-center gap-1 hover:text-[var(--text-accent)]"
                   aria-label="Regenerate"
                 >
                   <RefreshCw size={14} />
@@ -1183,9 +1202,9 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
               {/* Right: Model info + speed */}
               <div className="flex items-center gap-2">
                 {modelName && (
-                  <ModelBadge 
-                    name={modelName} 
-                    fullName={fullModelName || modelName} 
+                  <ModelBadge
+                    name={modelName}
+                    fullName={fullModelName || modelName}
                     tokensPerSecond={tokensPerSecond}
                   />
                 )}

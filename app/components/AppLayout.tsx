@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 interface Chat {
     id: string;
     title: string | null;
+    mode?: 'chat' | 'learning' | 'deep-search';
     createdAt: string;
 }
 

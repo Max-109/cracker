@@ -8,6 +8,7 @@ import { LoadingIndicator } from './LoadingIndicator';
 import { ResumedStreamingMessage } from './ResumedStreamingMessage';
 import { FadeWrapper, ErrorAlert } from '@/components/ui';
 import { Sparkles, Code, Lightbulb, PenLine, Zap, ArrowRight } from 'lucide-react';
+import type { ChatMode } from '@/app/hooks/usePersistedSettings';
 
 // Autoscroll hook using scrollIntoView
 function useAutoScroll(
@@ -154,6 +155,7 @@ const ThrottledMessageItem = memo(function ThrottledMessageItem({
   tokensPerSecond,
   onClarifySubmit,
   onSkipClarify,
+  chatMode,
 }: { 
   message: ChatMessage; 
   index: number; 
@@ -166,6 +168,7 @@ const ThrottledMessageItem = memo(function ThrottledMessageItem({
   tokensPerSecond?: number;
   onClarifySubmit?: (answers: { q: string; a: string }[]) => void;
   onSkipClarify?: () => void;
+  chatMode?: ChatMode;
 }) {
   const extractContent = (): string | MessagePart[] => {
     const msgParts = (message as { parts?: unknown[] }).parts;
@@ -258,6 +261,7 @@ const ThrottledMessageItem = memo(function ThrottledMessageItem({
       tokensPerSecond={tokensPerSecond}
       onClarifySubmit={onClarifySubmit}
       onSkipClarify={onSkipClarify}
+      chatMode={chatMode}
     />
   );
 });
@@ -280,6 +284,7 @@ interface MessageListProps {
   activeGeneration: ActiveGeneration | null;
   streamingStats: { tokensPerSecond: number; modelId: string | null };
   currentChatId: string | null;
+  chatMode?: ChatMode;
   error: Error | null | undefined;
   onEdit: (index: number, content: string, attachments?: EditAttachment[]) => void;
   onRetry: () => void;
@@ -307,6 +312,7 @@ export function MessageList({
   activeGeneration,
   streamingStats,
   currentChatId,
+  chatMode,
   error,
   onEdit,
   onRetry,
@@ -465,6 +471,7 @@ export function MessageList({
                   tokensPerSecond={displayTps}
                   onClarifySubmit={onClarifySubmit}
                   onSkipClarify={onSkipClarify}
+                  chatMode={chatMode}
                 />
               );
             })}
