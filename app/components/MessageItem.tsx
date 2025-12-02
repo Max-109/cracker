@@ -2,7 +2,7 @@
 
 import React, { memo } from 'react';
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { Copy, RefreshCw, Check, Plus, Minus, Pencil, File as FileIcon, Paperclip, X, Globe, ExternalLink, Microscope } from 'lucide-react';
+import { Copy, RefreshCw, Check, Plus, Minus, Pencil, File as FileIcon, Paperclip, X, Globe, ExternalLink, Microscope, MessageSquareQuote } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import remarkGfm from 'remark-gfm';
@@ -14,6 +14,7 @@ import { DeepResearchProgress, SourcesDisplay, type ResearchProgress } from './D
 import { LearningModeIndicator, LearningModeBadge } from './LearningModeIndicator';
 import { LoadingIndicator } from './LoadingIndicator';
 import type { ChatMode } from '@/app/hooks/usePersistedSettings';
+import { useQuoteContext } from './QuoteContext';
 import 'katex/dist/katex.min.css';
 const REMARK_PLUGINS = [remarkMath, remarkGfm];
 const REHYPE_PLUGINS = [rehypeKatex];
@@ -295,8 +296,51 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState("");
   const [editAttachments, setEditAttachments] = useState<EditAttachment[]>([]);
+  const [isCopied, setIsCopied] = useState(false);
+  const [userCopied, setUserCopied] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const editFileInputRef = useRef<HTMLInputElement>(null);
+  const messageContentRef = useRef<HTMLDivElement>(null);
+  const { addQuote } = useQuoteContext();
+
+  // Text selection detection for quote functionality
+  useEffect(() => {
+    const handleTextSelection = () => {
+      const selection = window.getSelection();
+      if (!selection || selection.isCollapsed || !selection.toString().trim()) {
+        return;
+      }
+
+      const selectedText = selection.toString().trim();
+      if (selectedText.length === 0) {
+        return;
+      }
+
+      // Check if selection is within our message content
+      if (messageContentRef.current && messageContentRef.current.contains(selection.anchorNode)) {
+        const range = selection.getRangeAt(0);
+        const rect = range.getBoundingClientRect();
+
+        if (rect.width === 0 || rect.height === 0) {
+          return;
+        }
+
+        // Add the selected text as a quote
+        addQuote(selectedText, 'message-selection');
+      }
+    };
+
+    const handleMouseUp = () => {
+      // Small delay to allow selection to stabilize
+      setTimeout(handleTextSelection, 50);
+    };
+
+    document.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [addQuote]);
 
   // File reading with progress for edit mode
   const readFileWithProgress = useCallback((file: File, onProgress: (percent: number) => void): Promise<string> => {
@@ -488,8 +532,7 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
     });
   };
 
-  const [isCopied, setIsCopied] = useState(false);
-  const [userCopied, setUserCopied] = useState(false);
+  // Remove duplicate declarations - these are already declared above
 
   const safeContent = content || '';
 
@@ -703,11 +746,55 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
               )}
 
               {/* Render Text if there is text */}
-              {userText && (
-                <div className="bg-[#1a1a1a] text-[var(--text-primary)] whitespace-pre-wrap leading-relaxed break-words px-4 py-2.5 rounded-2xl rounded-tr-sm border border-[var(--border-color)] max-w-full" style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
-                  {userText}
-                </div>
-              )}
+              {userText && (() => {
+                // Parse quoted text if present
+                const quoteMatch = userText.match(/\[QUOTED FROM CONVERSATION\]\n([\s\S]*?)\n\[END QUOTE\]\n\n?([\s\S]*)/);
+                
+                if (quoteMatch) {
+                  const quotedContent = quoteMatch[1]
+                    .split('\n')
+                    .map(line => line.replace(/^>\s*"?|"?$/g, '').trim())
+                    .filter(Boolean)
+                    .join('\n');
+                  const userQuestion = quoteMatch[2]?.trim() || '';
+                  
+                  return (
+                    <div className="space-y-2 max-w-full">
+                      {/* Quoted text block */}
+                      <div className="border border-[var(--text-accent)]/30 bg-[var(--text-accent)]/5 px-3 py-2 rounded-lg">
+                        <div className="flex items-center gap-1.5 mb-1.5">
+                          <MessageSquareQuote size={12} className="text-[var(--text-accent)]" />
+                          <span className="text-[9px] uppercase tracking-wider text-[var(--text-accent)] font-semibold">Quoting</span>
+                        </div>
+                        <div className="text-[var(--text-primary)] text-sm italic border-l-2 border-l-[var(--text-accent)] pl-2">
+                          &ldquo;{quotedContent}&rdquo;
+                        </div>
+                      </div>
+                      {/* User's question */}
+                      {userQuestion && (
+                        <div
+                          ref={messageContentRef}
+                          className="bg-[#1a1a1a] text-[var(--text-primary)] whitespace-pre-wrap leading-relaxed break-words px-4 py-2.5 rounded-2xl rounded-tr-sm border border-[var(--border-color)] max-w-full"
+                          style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}
+                        >
+                          {userQuestion}
+                        </div>
+                      )}
+                    </div>
+                  );
+                }
+                
+                // Regular message without quotes
+                return (
+                  <div
+                    ref={messageContentRef}
+                    className="bg-[#1a1a1a] text-[var(--text-primary)] whitespace-pre-wrap leading-relaxed break-words px-4 py-2.5 rounded-2xl rounded-tr-sm border border-[var(--border-color)] max-w-full"
+                    style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}
+                  >
+                    {userText}
+                  </div>
+                );
+              })()}
 
               <div className="flex items-center gap-3 text-[11px] uppercase tracking-[0.14em] text-[var(--text-secondary)] md:opacity-0 md:group-hover:opacity-100 transition-opacity select-none justify-end w-full">
                 <button
@@ -925,7 +1012,11 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
 
               {isThinkingOpen && (
                 <div className="mt-2 text-[var(--text-secondary)] text-sm whitespace-pre-wrap overflow-hidden">
-                  <div className="prose dark:prose-invert max-w-none text-sm text-[var(--text-secondary)]" style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
+                  <div
+                    ref={messageContentRef}
+                    className="prose dark:prose-invert max-w-none text-sm text-[var(--text-secondary)]"
+                    style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}
+                  >
                     <ReactMarkdown
                       remarkPlugins={REMARK_PLUGINS}
                       rehypePlugins={REHYPE_PLUGINS}
@@ -1047,7 +1138,11 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
           {/* Final Content */}
           {finalContent ? (
             <div className="min-h-[20px] space-y-3">
-              <div className={cn("prose dark:prose-invert max-w-none break-words overflow-wrap-anywhere prose-pre:bg-transparent prose-pre:p-0", isStreaming && "streaming-prose")} style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}>
+              <div
+                ref={messageContentRef}
+                className={cn("prose dark:prose-invert max-w-none break-words overflow-wrap-anywhere prose-pre:bg-transparent prose-pre:p-0", isStreaming && "streaming-prose")}
+                style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}
+              >
                 <ReactMarkdown
                   remarkPlugins={REMARK_PLUGINS}
                   rehypePlugins={REHYPE_PLUGINS}

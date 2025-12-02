@@ -1288,3 +1288,45 @@ select {
 .animate-progress-pulse {
   animation: progressPulse 1.5s ease-in-out infinite;
 }
+
+/* Quote Button Animation */
+@keyframes quoteButtonFadeIn {
+  0% {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.9);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.quote-button {
+  animation: quoteButtonFadeIn 150ms ease-out forwards;
+}
+
+/* Quoted Text Display Animation */
+@keyframes quotedTextSlideIn {
+  0% {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.quoted-text-display {
+  animation: quotedTextSlideIn 200ms ease-out forwards;
+}
+
+/* Quote Item Hover Effects */
+.quote-item {
+  transition: all 150ms ease;
+}
+
+.quote-item:hover {
+  border-color: rgba(var(--text-accent-rgb), 0.2);
+  background-color: rgba(var(--text-accent-rgb), 0.05);
+}

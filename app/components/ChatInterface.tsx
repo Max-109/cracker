@@ -10,8 +10,9 @@ import { updateFavicon, getAccentColorFromStorage } from './SettingsContext';
 import { useAttachments } from '@/app/hooks/useAttachments';
 import { usePersistedSetting, useAccentColor, useResponseLength, useUserProfile, useLearningMode, useChatMode, useCustomInstructions, ReasoningEffortLevel, ChatMode } from '@/app/hooks/usePersistedSettings';
 import { ModelSelector } from './ModelSelector';
-import { ChatInput } from './ChatInput';
+import { EnhancedChatInput } from './EnhancedChatInput';
 import { MessageList } from './MessageList';
+import { QuoteProvider, useQuoteContext } from './QuoteContext';
 import { SettingsDialog } from './SettingsDialog';
 import { ChatBackground } from './ChatBackground';
 
@@ -1369,7 +1370,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
   }, [handleEditMessage]);
 
   // Handle send message
-  const handleSendMessage = useCallback(async () => {
+  const handleSendMessage = useCallback(async (quotes?: { id: string; text: string; source: string }[]) => {
     if (!input.trim() && attachments.length === 0) return;
     if (hasPendingAttachments) {
       console.warn('Attachments are still uploading.');
@@ -1379,7 +1380,12 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
     // Show immediate loading feedback
     setIsSending(true);
     
-    const userMessage = input;
+    // Format message with quotes if any
+    let userMessage = input;
+    if (quotes && quotes.length > 0) {
+      const quotedSection = quotes.map(q => `> "${q.text}"`).join('\n\n');
+      userMessage = `[QUOTED FROM CONVERSATION]\n${quotedSection}\n[END QUOTE]\n\n${input}`;
+    }
     
     type PreparedAttachment =
       | { type: 'image'; name: string; image: string; mediaType: string }
@@ -1651,45 +1657,47 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
           onAccentColorChange={setAccentColor}
         />
 
-        {/* Messages - this container can have overflow hidden */}
-        <MessageList
-          messages={typedMessages}
-          isMessagesLoading={isMessagesLoading}
-          isSending={isSending}
-          isStreaming={isStreaming || activeGeneration?.status === 'streaming'}
-          status={status}
-          activeGeneration={activeGeneration}
-          streamingStats={streamingStats}
-          currentChatId={currentChatId}
-          chatMode={chats.find(c => c.id === currentChatId)?.mode as ChatMode || chatMode}
-          error={error}
-          onEdit={stableHandleEdit}
-          onRetry={handleRetry}
-          onDismissError={() => setDismissedError(true)}
-          dismissedError={dismissedError}
-          onSuggestionClick={setInput}
-          onClarifySubmit={handleClarifySubmit}
-          onSkipClarify={handleSkipClarify}
-        />
+        <QuoteProvider>
+          {/* Messages - this container can have overflow hidden */}
+          <MessageList
+            messages={typedMessages}
+            isMessagesLoading={isMessagesLoading}
+            isSending={isSending}
+            isStreaming={isStreaming || activeGeneration?.status === 'streaming'}
+            status={status}
+            activeGeneration={activeGeneration}
+            streamingStats={streamingStats}
+            currentChatId={currentChatId}
+            chatMode={chats.find(c => c.id === currentChatId)?.mode as ChatMode || chatMode}
+            error={error}
+            onEdit={stableHandleEdit}
+            onRetry={handleRetry}
+            onDismissError={() => setDismissedError(true)}
+            dismissedError={dismissedError}
+            onSuggestionClick={setInput}
+            onClarifySubmit={handleClarifySubmit}
+            onSkipClarify={handleSkipClarify}
+          />
 
-        {/* Input */}
-        <ChatInput
-          input={input}
-          onInputChange={setInput}
-          onSend={handleSendMessage}
-          onStop={handleStop}
-          isLoading={isLoading}
-          attachments={attachments}
-          hasPendingAttachments={hasPendingAttachments}
-          onFileSelect={handleFileSelect}
-          onPaste={handlePaste}
-          onRemoveAttachment={removeAttachment}
-          reasoningEffort={reasoningEffort}
-          onReasoningEffortChange={setReasoningEffort}
-          chatMode={chatMode}
-          onChatModeChange={handleChatModeChange}
-          chatId={currentChatId}
-        />
+          {/* Input */}
+          <EnhancedChatInput
+            input={input}
+            onInputChange={setInput}
+            onSend={handleSendMessage}
+            onStop={handleStop}
+            isLoading={isLoading}
+            attachments={attachments}
+            hasPendingAttachments={hasPendingAttachments}
+            onFileSelect={handleFileSelect}
+            onPaste={handlePaste}
+            onRemoveAttachment={removeAttachment}
+            reasoningEffort={reasoningEffort}
+            onReasoningEffortChange={setReasoningEffort}
+            chatMode={chatMode}
+            onChatModeChange={handleChatModeChange}
+            chatId={currentChatId}
+          />
+        </QuoteProvider>
       </main>
     </div>
   );
