@@ -476,10 +476,13 @@ export function MessageList({
               );
             })}
 
-            {/* Loading indicator when waiting */}
-            {status === 'submitted' && (
-              <div className="mt-8 border-t border-[var(--border-color)] pt-4">
+            {/* Loading indicator when waiting or sending */}
+            {(status === 'submitted' || (isSending && messages.length > 0)) && (
+              <div className="mt-4 flex items-center gap-3 pl-1">
                 <LoadingIndicator />
+                <span className="text-xs text-[var(--text-secondary)] uppercase tracking-wider animate-pulse">
+                  Connecting...
+                </span>
               </div>
             )}
             

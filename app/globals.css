@@ -486,39 +486,17 @@ select {
   animation: thinking-glow 2s ease-in-out infinite;
 }
 
-/* Streaming Message - Blur fade effect on new content */
+/* Streaming Message - Smooth text appearance effect */
 .streaming-prose {
   position: relative;
 }
 
-/* Trailing blur gradient that follows content - creates "materializing" effect */
-.streaming-prose::after {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  right: 0;
-  width: 100%;
-  height: 1.5em;
-  pointer-events: none;
-  background: linear-gradient(
-    to right,
-    transparent 0%,
-    transparent 60%,
-    rgba(var(--bg-main-rgb, 15, 15, 15), 0.3) 75%,
-    rgba(var(--bg-main-rgb, 15, 15, 15), 0.6) 85%,
-    rgba(var(--bg-main-rgb, 15, 15, 15), 0.9) 95%
-  );
-  mask-image: linear-gradient(to bottom, transparent 0%, black 30%);
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 30%);
-  animation: streaming-fade 0.5s ease-out infinite alternate;
+/* Smooth character-level animation feel via word spacing transition */
+.streaming-prose > *:last-child {
+  animation: content-appear 0.15s ease-out;
 }
 
-@keyframes streaming-fade {
-  0% { opacity: 0.4; }
-  100% { opacity: 0.8; }
-}
-
-/* Last elements get blur-in animation */
+/* Last paragraph/element gets subtle materialize effect */
 .streaming-prose p:last-of-type,
 .streaming-prose li:last-of-type,
 .streaming-prose h1:last-of-type,
@@ -526,19 +504,49 @@ select {
 .streaming-prose h3:last-of-type,
 .streaming-prose h4:last-of-type,
 .streaming-prose pre:last-of-type,
-.streaming-prose blockquote:last-of-type {
-  animation: text-materialize 0.3s ease-out forwards;
+.streaming-prose blockquote:last-of-type,
+.streaming-prose code:last-of-type {
+  animation: text-materialize 0.2s ease-out forwards;
+}
+
+/* Smooth content appearance */
+@keyframes content-appear {
+  0% {
+    opacity: 0.85;
+  }
+  100% {
+    opacity: 1;
+  }
 }
 
 @keyframes text-materialize {
   0% {
     opacity: 0.7;
-    filter: blur(2px);
+    filter: blur(1px);
+    transform: translateY(1px);
   }
   100% {
     opacity: 1;
     filter: blur(0);
+    transform: translateY(0);
   }
+}
+
+/* Typing cursor effect at the end of streaming content */
+.streaming-prose::after {
+  content: '';
+  display: inline-block;
+  width: 2px;
+  height: 1.1em;
+  background-color: var(--text-accent);
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  animation: cursor-blink 0.6s ease-in-out infinite;
+}
+
+@keyframes cursor-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
 }
 
 /* Generated Image Reveal Animations */
