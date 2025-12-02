@@ -794,7 +794,12 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
         isDeepResearching = true;
       } else if ((part as { type: string; stopType?: string }).type === 'stopped') {
         const stoppedPart = part as { type: string; stopType?: string };
-        if (stoppedPart.stopType === 'connection' || stoppedPart.stopType === 'thinking' || stoppedPart.stopType === 'stale') {
+        // Don't set stale stopType for deep research - it has its own completion handling
+        if (stoppedPart.stopType === 'connection' || stoppedPart.stopType === 'thinking') {
+          stopType = stoppedPart.stopType;
+        }
+        // Only set stale for non-deep-research messages
+        else if (stoppedPart.stopType === 'stale' && !isDeepResearchResult) {
           stopType = stoppedPart.stopType;
         }
       } else if ((part as { type: string; isReconnecting?: boolean; isWaiting?: boolean; elapsedMs?: number }).type === 'reconnecting') {
@@ -1143,7 +1148,7 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
               </div>
             </div>
           )}
-          {stopType === 'stale' && (
+          {stopType === 'stale' && !isDeepResearchResult && (
             <div className="border border-[var(--border-color)] bg-[#141414] px-4 py-3 mt-2">
               <div className="flex items-center gap-3">
                 <div className="relative flex items-center justify-center w-5 h-5">

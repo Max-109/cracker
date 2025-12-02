@@ -209,14 +209,22 @@ export async function GET(req: Request) {
           // Use different timeouts: longer for initial waiting (before first chunk), shorter once streaming
           const hasStartedStreaming = currentGen.firstChunkAt || currentGen.partialText || currentGen.partialReasoning;
           const staleThreshold = hasStartedStreaming ? STALE_THRESHOLD_STREAMING_MS : STALE_THRESHOLD_INITIAL_MS;
-          
+
           // For initial phase, use startedAt. Once streaming, use lastUpdateAt
-          const referenceTime = hasStartedStreaming 
+          const referenceTime = hasStartedStreaming
             ? (currentGen.lastUpdateAt ? new Date(currentGen.lastUpdateAt).getTime() : currentGen.startedAt.getTime())
             : currentGen.startedAt.getTime();
           const timeSinceUpdate = Date.now() - referenceTime;
-          
-          if (timeSinceUpdate > staleThreshold && currentGen.status === 'streaming') {
+
+          // Special handling for deep research - it can take much longer and has its own progress tracking
+          // Don't mark deep research as stale if it's actively progressing (has partialText updates)
+          const isDeepResearchWithProgress = currentGen.modelId === 'deep-search' &&
+                                            currentGen.partialText &&
+                                            timeSinceUpdate < 300000; // 5 minutes max for deep research
+
+          if (timeSinceUpdate > staleThreshold &&
+              currentGen.status === 'streaming' &&
+              !isDeepResearchWithProgress) {
             console.log(`[GenerateStream] Generation ${currentGen.id} is STALE:`);
             console.log(`[GenerateStream]   - timeSinceUpdate: ${timeSinceUpdate}ms`);
             console.log(`[GenerateStream]   - threshold: ${staleThreshold}ms`);
