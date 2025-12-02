@@ -1278,3 +1278,13 @@ select {
 .animate-float-icon-slow {
   animation: float-icon-slow 20s ease-in-out infinite;
 }
+
+/* Progress pulse animation for deep research */
+@keyframes progressPulse {
+  0%, 100% { opacity: 0.8; }
+  50% { opacity: 1; }
+}
+
+.animate-progress-pulse {
+  animation: progressPulse 1.5s ease-in-out infinite;
+}

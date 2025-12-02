@@ -114,17 +114,24 @@ export async function POST(req: Request) {
       const { stream, send, close } = createSSEStream();
       
       (async () => {
-        send({ type: 'phase', phase: 'clarify', description: 'Understanding your needs...' });
-        
-        const questions = await generateClarifyingQuestions(query);
-        if (questions.length > 0) {
-          send({ type: 'clarify', questions });
-        } else {
-          // No questions needed, trigger Inngest immediately
-          const generationId = await startDeepSearchBackground(chatId, query, undefined);
-          send({ type: 'started', generationId });
+        try {
+          send({ type: 'phase', phase: 'clarify', description: 'Understanding your needs...' });
+
+          const questions = await generateClarifyingQuestions(query);
+          if (questions.length > 0) {
+            send({ type: 'clarify', questions });
+          } else {
+            // No questions needed, trigger Inngest immediately
+            send({ type: 'phase', phase: 'planning', description: 'Planning research approach...' });
+            const generationId = await startDeepSearchBackground(chatId, query, undefined);
+            send({ type: 'started', generationId });
+          }
+        } catch (error) {
+          console.error('[DeepSearch] Error in clarifying questions phase:', error);
+          send({ type: 'error', message: 'Failed to generate clarifying questions', details: String(error) });
+        } finally {
+          close();
         }
-        close();
       })();
 
       return new Response(stream, {

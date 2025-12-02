@@ -2,18 +2,19 @@
 
 import React, { useState } from 'react';
 import { cn } from '@/lib/utils';
-import { 
-  Microscope, 
-  Search, 
-  Globe, 
-  FileText, 
-  CheckCircle2, 
-  ChevronDown, 
+import {
+  Microscope,
+  Search,
+  Globe,
+  FileText,
+  CheckCircle2,
+  ChevronDown,
   ChevronUp,
   ExternalLink,
   Sparkles,
   Brain,
-  Loader2
+  Loader2,
+  AlertTriangle
 } from 'lucide-react';
 
 export type ResearchPhase = 'clarify' | 'planning' | 'searching' | 'analyzing' | 'deep-dive' | 'writing' | 'complete';
@@ -41,7 +42,7 @@ interface DeepResearchProgressProps {
   onSkipClarify?: () => void;
 }
 
-const PHASE_CONFIG: Record<ResearchPhase, { icon: typeof Microscope; label: string; color: string }> = {
+const PHASE_CONFIG: Record<ResearchPhase | 'error', { icon: typeof Microscope; label: string; color: string }> = {
   clarify: { icon: Brain, label: 'Understanding', color: 'text-purple-400' },
   planning: { icon: Sparkles, label: 'Planning', color: 'text-blue-400' },
   searching: { icon: Search, label: 'Searching', color: 'text-yellow-400' },
@@ -49,6 +50,7 @@ const PHASE_CONFIG: Record<ResearchPhase, { icon: typeof Microscope; label: stri
   'deep-dive': { icon: Microscope, label: 'Deep Dive', color: 'text-pink-400' },
   writing: { icon: FileText, label: 'Writing', color: 'text-green-400' },
   complete: { icon: CheckCircle2, label: 'Complete', color: 'text-[var(--text-accent)]' },
+  error: { icon: AlertTriangle, label: 'Error', color: 'text-red-400' },
 };
 
 export function DeepResearchProgress({ 
@@ -61,8 +63,11 @@ export function DeepResearchProgress({
   const [isSearchesExpanded, setIsSearchesExpanded] = useState(false);
   const [clarifyAnswers, setClarifyAnswers] = useState<string[]>([]);
   
-  const phaseConfig = PHASE_CONFIG[progress.phase] || PHASE_CONFIG.searching;
+  const phaseConfig = PHASE_CONFIG[progress.phase as ResearchPhase] || PHASE_CONFIG.searching;
   const PhaseIcon = phaseConfig.icon;
+
+  // Handle error state
+  const isErrorState = (progress as any).isError;
   
   // Handle clarifying questions mode
   if (clarifyQuestions && clarifyQuestions.length > 0 && !progress.isComplete) {
@@ -151,34 +156,35 @@ export function DeepResearchProgress({
           </div>
           <div>
             <div className={cn("text-xs uppercase tracking-[0.12em] font-semibold", phaseConfig.color)}>
-              {progress.isComplete ? 'Research Complete' : phaseConfig.label}
+              {isErrorState ? 'Research Error' : progress.isComplete ? 'Research Complete' : phaseConfig.label}
             </div>
-            <div className="text-[10px] text-[var(--text-secondary)] mt-0.5">
-              {progress.phaseDescription || progress.message}
+            <div className={cn("text-[10px] mt-0.5", isErrorState ? "text-red-400" : "text-[var(--text-secondary)]")}>
+              {isErrorState ? progress.message || 'An error occurred during research' : progress.phaseDescription || progress.message}
             </div>
           </div>
         </div>
-        
+
         {progress.elapsed && progress.isComplete && (
           <div className="text-[10px] text-[var(--text-secondary)]">
             {progress.elapsed.toFixed(1)}s
           </div>
         )}
       </div>
-      
-      {/* Progress Bar */}
+
+      {/* Progress Bar with loading animation */}
       <div className="space-y-1">
         <div className="h-1.5 bg-[#2a2a2a] overflow-hidden">
-          <div 
+          <div
             className={cn(
               "h-full transition-all duration-500 ease-out",
-              progress.isComplete ? "bg-[var(--text-accent)]" : "bg-gradient-to-r from-[var(--text-accent)] to-[var(--text-accent)]/50"
+              progress.isComplete ? "bg-[var(--text-accent)]" : "bg-gradient-to-r from-[var(--text-accent)] to-[var(--text-accent)]/50",
+              !progress.isComplete && "animate-progress-pulse"
             )}
             style={{ width: `${progress.percent}%` }}
           />
         </div>
         <div className="flex items-center justify-between text-[9px] text-[var(--text-secondary)] uppercase tracking-wider">
-          <span>{progress.message}</span>
+          <span>{progress.message || 'Loading...'}</span>
           <span>{progress.percent}%</span>
         </div>
       </div>

@@ -744,9 +744,9 @@ export const deepSearchInBackground = inngest.createFunction(
     // Step 1: Mark as started
     await step.run("mark-started", async () => {
       await db.update(activeGenerations)
-        .set({ 
+        .set({
           status: 'streaming',
-          partialText: JSON.stringify({ phase: 'planning', percent: 5, message: 'Generating search queries...' }),
+          partialText: JSON.stringify({ phase: 'planning', percent: 5, message: 'Planning research approach...' }),
         })
         .where(eq(activeGenerations.id, generationId));
     });
@@ -776,8 +776,8 @@ export const deepSearchInBackground = inngest.createFunction(
     // Step 3: Execute searches
     const allSources = await step.run("execute-searches", async () => {
       const sources = new Map<string, { title: string; url: string; content: string }>();
-      
-      // Update progress
+
+      // Update progress to searching phase
       await db.update(activeGenerations)
         .set({ partialText: JSON.stringify({ phase: 'searching', percent: 15, message: `Searching ${searchQueries.length} queries...` }) })
         .where(eq(activeGenerations.id, generationId));
@@ -807,6 +807,7 @@ export const deepSearchInBackground = inngest.createFunction(
 
     // Step 4: Deep dive searches
     const finalSources = await step.run("deep-dive", async () => {
+      // Update to analyzing phase
       await db.update(activeGenerations)
         .set({ partialText: JSON.stringify({ phase: 'analyzing', percent: 45, message: 'Analyzing findings...' }) })
         .where(eq(activeGenerations.id, generationId));
@@ -840,6 +841,7 @@ export const deepSearchInBackground = inngest.createFunction(
           }
         });
         
+        // Update to deep-dive phase
         await db.update(activeGenerations)
           .set({ partialText: JSON.stringify({ phase: 'deep-dive', percent: 55, message: `Deep dive: ${sources.size} sources...` }) })
           .where(eq(activeGenerations.id, generationId));
@@ -851,6 +853,7 @@ export const deepSearchInBackground = inngest.createFunction(
 
     // Step 5: Generate final report
     const reportText = await step.run("generate-report", async () => {
+      // Update to writing phase
       await db.update(activeGenerations)
         .set({ partialText: JSON.stringify({ phase: 'writing', percent: 75, message: 'Writing report...' }) })
         .where(eq(activeGenerations.id, generationId));

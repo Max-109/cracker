@@ -594,7 +594,21 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
       
     } catch (err) {
       console.error('Deep search error:', err);
-      setMessages(prev => prev.filter(m => m.id !== placeholderId));
+      // Add error message to UI
+      setMessages(prev => {
+        const updated = prev.map(m =>
+          m.id === placeholderId
+            ? {
+                ...m,
+                parts: [{
+                  type: 'text' as const,
+                  text: `Deep research failed: ${err instanceof Error ? err.message : String(err)}`
+                }]
+              }
+            : m
+        );
+        return updated;
+      });
       setIsSending(false);
       setDeepResearchState({ isActive: false, placeholderId: null, clarifyQuestions: null, query: null, chatId: null });
     }
@@ -929,6 +943,29 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
 
         if (!response.ok || !response.body) {
           console.error('[Reconnect] SSE connection failed:', response.status);
+          // Add error message to UI for deep research
+          if (activeGeneration.modelId === 'deep-search') {
+            setMessages((prev: any[]) => prev.map(m =>
+              m.id === placeholderId
+                ? {
+                    ...m,
+                    parts: [{
+                      type: 'deep-research-progress',
+                      progress: {
+                        phase: 'error',
+                        phaseDescription: 'Connection failed',
+                        percent: 0,
+                        message: `Failed to connect (${response.status})`,
+                        searches: [],
+                        sources: [],
+                        isComplete: false,
+                        isError: true
+                      }
+                    }]
+                  }
+                : m
+            ));
+          }
           setIsReconnecting(false);
           setActiveGeneration(null);
           return;
@@ -939,182 +976,276 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
         let buffer = '';
 
         while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
+          try {
+            const { done, value } = await reader.read();
+            if (done) break;
 
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split('\n\n');
-          buffer = lines.pop() || '';
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n\n');
+            buffer = lines.pop() || '';
 
-          for (const line of lines) {
-            if (!line.startsWith('data: ')) continue;
-            
-            try {
-              const data = JSON.parse(line.slice(6));
-              
-              if (data.type === 'waiting' || data.type === 'heartbeat') {
-                // Waiting for generation to start - only show for reconnections
-                if (isActualReconnection) {
+            for (const line of lines) {
+              if (!line.startsWith('data: ')) continue;
+
+              try {
+                const data = JSON.parse(line.slice(6));
+
+                if (data.type === 'waiting' || data.type === 'heartbeat') {
+                  // Waiting for generation to start - only show for reconnections
+                  if (isActualReconnection) {
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    setMessages((prev: any[]) => prev.map(m => {
+                      if (m.id !== placeholderId) return m;
+                      const newParts: Array<{ type: string; text?: string; isReconnecting?: boolean; isWaiting?: boolean; elapsedMs?: number }> = [];
+                      newParts.push({
+                        type: 'reconnecting',
+                        isReconnecting: true,
+                        isWaiting: true,
+                        elapsedMs: data.elapsedMs || 0,
+                      });
+                      return { ...m, parts: newParts };
+                    }));
+                  }
+                  // For fresh generations, the empty placeholder is fine (shows thinking state)
+                }
+
+                if (data.type === 'content') {
+                  // Handle incremental or full content - update target refs
+                  if (data.isIncremental) {
+                    if (data.text) sseTargetTextRef.current += data.text;
+                    if (data.reasoning) sseTargetReasoningRef.current += data.reasoning;
+                  } else {
+                    // Full content (initial state)
+                    if (data.text) sseTargetTextRef.current = data.text;
+                    if (data.reasoning) sseTargetReasoningRef.current = data.reasoning;
+                  }
+
+                  // Start reveal animation if not already running
+                  if (!sseRevealAnimationRef.current) {
+                    sseRevealAnimationRef.current = requestAnimationFrame(runRevealAnimation);
+                  }
+                }
+
+                // Handle deep search progress events
+                if (data.type === 'deep-search-progress') {
+                  const progress = data.progress || {};
+                  // Detect completion from phase or isComplete flag
+                  const isComplete = progress.isComplete || progress.phase === 'complete';
                   // eslint-disable-next-line @typescript-eslint/no-explicit-any
                   setMessages((prev: any[]) => prev.map(m => {
                     if (m.id !== placeholderId) return m;
-                    const newParts: Array<{ type: string; text?: string; isReconnecting?: boolean; isWaiting?: boolean; elapsedMs?: number }> = [];
-                    newParts.push({ 
-                      type: 'reconnecting', 
-                      isReconnecting: true, 
-                      isWaiting: true,
-                      elapsedMs: data.elapsedMs || 0,
-                    });
-                    return { ...m, parts: newParts };
+                    return {
+                      ...m,
+                      parts: [{
+                        type: 'deep-research-progress',
+                        progress: {
+                          phase: progress.phase || 'searching',
+                          phaseDescription: progress.message || 'Researching...',
+                          percent: progress.percent || 0,
+                          message: progress.message || '',
+                          searches: progress.searches || [],
+                          sources: progress.sources || [],
+                          isComplete,
+                        },
+                      }],
+                    };
                   }));
                 }
-                // For fresh generations, the empty placeholder is fine (shows thinking state)
-              }
-              
-              if (data.type === 'content') {
-                // Handle incremental or full content - update target refs
-                if (data.isIncremental) {
-                  if (data.text) sseTargetTextRef.current += data.text;
-                  if (data.reasoning) sseTargetReasoningRef.current += data.reasoning;
-                } else {
-                  // Full content (initial state)
-                  if (data.text) sseTargetTextRef.current = data.text;
-                  if (data.reasoning) sseTargetReasoningRef.current = data.reasoning;
+
+                if (data.type === 'complete') {
+                  console.log('[Reconnect] Generation completed');
+                  // Update TPS stats if available
+                  if (data.tokensPerSecond) {
+                    setStreamingStats({
+                      modelId: activeGeneration.modelId || null,
+                      tokensPerSecond: parseFloat(data.tokensPerSecond) || 0,
+                    });
+                  }
                 }
-                
-                // Start reveal animation if not already running
-                if (!sseRevealAnimationRef.current) {
-                  sseRevealAnimationRef.current = requestAnimationFrame(runRevealAnimation);
-                }
-              }
-              
-              // Handle deep search progress events
-              if (data.type === 'deep-search-progress') {
-                const progress = data.progress || {};
-                // Detect completion from phase or isComplete flag
-                const isComplete = progress.isComplete || progress.phase === 'complete';
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                setMessages((prev: any[]) => prev.map(m => {
-                  if (m.id !== placeholderId) return m;
-                  return {
-                    ...m,
-                    parts: [{
-                      type: 'deep-research-progress',
-                      progress: {
-                        phase: progress.phase || 'searching',
-                        phaseDescription: progress.message || 'Researching...',
-                        percent: progress.percent || 0,
-                        message: progress.message || '',
-                        searches: progress.searches || [],
-                        sources: progress.sources || [],
-                        isComplete,
-                      },
-                    }],
+
+                if (data.type === 'done') {
+                  console.log(`[Reconnect] SSE stream ended: ${data.reason}`);
+
+                  // Wait for animation to complete before reloading from DB
+                  // This ensures smooth reveal of remaining content
+                  const waitForAnimationAndReload = async () => {
+                    // Check if there's still content to reveal
+                    const hasMoreContent =
+                      sseRevealedTextRef.current.length < sseTargetTextRef.current.length ||
+                      sseRevealedReasoningRef.current.length < sseTargetReasoningRef.current.length;
+
+                    if (hasMoreContent && sseRevealAnimationRef.current) {
+                      // Wait a bit and check again (animation will continue)
+                      await new Promise(resolve => setTimeout(resolve, 100));
+                      return waitForAnimationAndReload();
+                    }
+
+                    // Animation complete, now cleanup and reload
+                    if (sseRevealAnimationRef.current) {
+                      cancelAnimationFrame(sseRevealAnimationRef.current);
+                      sseRevealAnimationRef.current = null;
+                    }
+                    sseTargetTextRef.current = '';
+                    sseTargetReasoningRef.current = '';
+                    sseRevealedTextRef.current = '';
+                    sseRevealedReasoningRef.current = '';
+                    ssePlaceholderIdRef.current = null;
+
+                    setIsReconnecting(false);
+                    setActiveGeneration(null);
+
+                    // Reload messages from DB to get the final saved version
+                    if (currentChatId) {
+                      try {
+                        const msgRes = await fetch(`/api/chats/${currentChatId}`);
+                        const msgData = await msgRes.json();
+                        if (Array.isArray(msgData)) {
+                          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                          const uiMessages = msgData.map((msg: any) => {
+                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                            let parts: Array<any>;
+                            if (Array.isArray(msg.content)) {
+                              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                              parts = msg.content.map((p: any) => {
+                                if (typeof p === 'string') return { type: 'text', text: p };
+                                if (p.type === 'text') return { type: 'text', text: p.text || '' };
+                                if (p.type === 'reasoning') return { type: 'reasoning', text: p.text || p.reasoning || '' };
+                                if (p.type === 'stopped') return { type: 'stopped', stopType: p.stopType };
+                                if (p.type === 'generated-image') return { type: 'generated-image', data: p.data, mediaType: p.mediaType };
+                                if (p.type === 'source' || p.type === 'source-url') return { type: 'source', url: p.url, title: p.title, source: p.source };
+                                return p;
+                              });
+                            } else {
+                              parts = [{ type: 'text', text: msg.content || '' }];
+                            }
+                            return { id: msg.id, role: msg.role, parts, model: msg.model, tokensPerSecond: msg.tokensPerSecond };
+                          });
+                          setMessages(uiMessages as Parameters<typeof setMessages>[0]);
+                        }
+                      } catch (e) {
+                        console.error('[Reconnect] Failed to reload messages:', e);
+                        // If reload fails, keep the current message state
+                        if (activeGeneration.modelId === 'deep-search') {
+                          setMessages((prev: any[]) => prev.map(m =>
+                            m.id === placeholderId
+                              ? {
+                                  ...m,
+                                  parts: (m.parts || []).map((p: any) =>
+                                    p.type === 'deep-research-progress'
+                                      ? {
+                                          ...p,
+                                          progress: {
+                                            ...p.progress,
+                                            isComplete: true,
+                                            message: 'Research completed (offline)'
+                                          }
+                                        }
+                                      : p
+                                  )
+                                }
+                              : m
+                          ));
+                        }
+                      }
+                    }
                   };
-                }));
-              }
-              
-              if (data.type === 'complete') {
-                console.log('[Reconnect] Generation completed');
-                // Update TPS stats if available
-                if (data.tokensPerSecond) {
-                  setStreamingStats({
-                    modelId: activeGeneration.modelId || null,
-                    tokensPerSecond: parseFloat(data.tokensPerSecond) || 0,
-                  });
+
+                  // Start the wait-and-reload process
+                  waitForAnimationAndReload();
+                  return; // Exit the SSE loop
                 }
-              }
-              
-              if (data.type === 'done') {
-                console.log(`[Reconnect] SSE stream ended: ${data.reason}`);
-                
-                // Wait for animation to complete before reloading from DB
-                // This ensures smooth reveal of remaining content
-                const waitForAnimationAndReload = async () => {
-                  // Check if there's still content to reveal
-                  const hasMoreContent = 
-                    sseRevealedTextRef.current.length < sseTargetTextRef.current.length ||
-                    sseRevealedReasoningRef.current.length < sseTargetReasoningRef.current.length;
-                  
-                  if (hasMoreContent && sseRevealAnimationRef.current) {
-                    // Wait a bit and check again (animation will continue)
-                    await new Promise(resolve => setTimeout(resolve, 100));
-                    return waitForAnimationAndReload();
+
+                if (data.type === 'error') {
+                  console.error('[Reconnect] Generation error:', data.message);
+                  // Add error state to deep research UI
+                  if (activeGeneration.modelId === 'deep-search') {
+                    setMessages((prev: any[]) => prev.map(m =>
+                      m.id === placeholderId
+                        ? {
+                            ...m,
+                            parts: [{
+                              type: 'deep-research-progress',
+                              progress: {
+                                phase: 'error',
+                                phaseDescription: 'Research failed',
+                                percent: 0,
+                                message: data.message || 'Unknown error occurred',
+                                searches: [],
+                                sources: [],
+                                isComplete: false,
+                                isError: true
+                              }
+                            }]
+                          }
+                        : m
+                    ));
                   }
-                  
-                  // Animation complete, now cleanup and reload
-                  if (sseRevealAnimationRef.current) {
-                    cancelAnimationFrame(sseRevealAnimationRef.current);
-                    sseRevealAnimationRef.current = null;
-                  }
-                  sseTargetTextRef.current = '';
-                  sseTargetReasoningRef.current = '';
-                  sseRevealedTextRef.current = '';
-                  sseRevealedReasoningRef.current = '';
-                  ssePlaceholderIdRef.current = null;
-                  
                   setIsReconnecting(false);
                   setActiveGeneration(null);
-                  
-                  // Reload messages from DB to get the final saved version
-                  if (currentChatId) {
-                    try {
-                      const msgRes = await fetch(`/api/chats/${currentChatId}`);
-                      const msgData = await msgRes.json();
-                      if (Array.isArray(msgData)) {
-                        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                        const uiMessages = msgData.map((msg: any) => {
-                          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                          let parts: Array<any>;
-                          if (Array.isArray(msg.content)) {
-                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                            parts = msg.content.map((p: any) => {
-                              if (typeof p === 'string') return { type: 'text', text: p };
-                              if (p.type === 'text') return { type: 'text', text: p.text || '' };
-                              if (p.type === 'reasoning') return { type: 'reasoning', text: p.text || p.reasoning || '' };
-                              if (p.type === 'stopped') return { type: 'stopped', stopType: p.stopType };
-                              if (p.type === 'generated-image') return { type: 'generated-image', data: p.data, mediaType: p.mediaType };
-                              if (p.type === 'source' || p.type === 'source-url') return { type: 'source', url: p.url, title: p.title, source: p.source };
-                              return p;
-                            });
-                          } else {
-                            parts = [{ type: 'text', text: msg.content || '' }];
-                          }
-                          return { id: msg.id, role: msg.role, parts, model: msg.model, tokensPerSecond: msg.tokensPerSecond };
-                        });
-                        setMessages(uiMessages as Parameters<typeof setMessages>[0]);
-                      }
-                    } catch (e) {
-                      console.error('[Reconnect] Failed to reload messages:', e);
-                    }
-                  }
-                };
-                
-                // Start the wait-and-reload process
-                waitForAnimationAndReload();
-                return; // Exit the SSE loop
+                  return;
+                }
+              } catch (parseError) {
+                console.error('[Reconnect] JSON parse error:', parseError);
+                // Ignore parse errors but don't crash
               }
-              
-              if (data.type === 'error') {
-                console.error('[Reconnect] Generation error:', data.message);
-                setIsReconnecting(false);
-                setActiveGeneration(null);
-                // Remove the placeholder since it failed
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                setMessages((prev: any[]) => prev.filter(m => m.id !== placeholderId));
-                return;
-              }
-            } catch {
-              // Ignore JSON parse errors
             }
+          } catch (readError) {
+            console.error('[Reconnect] Read error:', readError);
+            if ((readError as Error).name === 'AbortError') {
+              console.log('[Reconnect] SSE connection aborted');
+              return;
+            }
+            // Handle connection errors for deep research
+            if (activeGeneration.modelId === 'deep-search') {
+              setMessages((prev: any[]) => prev.map(m =>
+                m.id === placeholderId
+                  ? {
+                      ...m,
+                      parts: [{
+                        type: 'deep-research-progress',
+                        progress: {
+                          phase: 'error',
+                          phaseDescription: 'Connection lost',
+                          percent: 0,
+                          message: 'Network error occurred',
+                          searches: [],
+                          sources: [],
+                          isComplete: false,
+                          isError: true
+                        }
+                      }]
+                    }
+                  : m
+              ));
+            }
+            break;
           }
         }
       } catch (err) {
-        if ((err as Error).name === 'AbortError') {
-          console.log('[Reconnect] SSE connection aborted');
-          return;
-        }
         console.error('[Reconnect] SSE connection error:', err);
+        // Handle connection errors for deep research
+        if (activeGeneration.modelId === 'deep-search') {
+          setMessages((prev: any[]) => prev.map(m =>
+            m.id === placeholderId
+              ? {
+                  ...m,
+                  parts: [{
+                    type: 'deep-research-progress',
+                    progress: {
+                      phase: 'error',
+                      phaseDescription: 'Connection failed',
+                      percent: 0,
+                      message: err instanceof Error ? err.message : 'Unknown connection error',
+                      searches: [],
+                      sources: [],
+                      isComplete: false,
+                      isError: true
+                    }
+                  }]
+                }
+              : m
+          ));
+        }
         setIsReconnecting(false);
         setActiveGeneration(null);
       }
