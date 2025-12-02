@@ -217,10 +217,18 @@ export async function GET(req: Request) {
           const timeSinceUpdate = Date.now() - referenceTime;
 
           // Special handling for deep research - it can take much longer and has its own progress tracking
-          // Don't mark deep research as stale if it's actively progressing (has partialText updates)
+          // Don't mark deep research as stale if it's actively progressing
           const isDeepResearchWithProgress = currentGen.modelId === 'deep-search' &&
-                                            currentGen.partialText &&
+                                            (currentGen.partialText || currentGen.partialReasoning) &&
                                             timeSinceUpdate < 300000; // 5 minutes max for deep research
+
+          // Debug logging for deep research
+          if (currentGen.modelId === 'deep-search') {
+            console.log(`[GenerateStream] Deep research check: timeSinceUpdate=${timeSinceUpdate}ms, threshold=${staleThreshold}ms, hasProgress=${!!isDeepResearchWithProgress}`);
+            console.log(`[GenerateStream]   - partialText: ${currentGen.partialText?.length || 0} chars`);
+            console.log(`[GenerateStream]   - partialReasoning: ${currentGen.partialReasoning?.length || 0} chars`);
+            console.log(`[GenerateStream]   - status: ${currentGen.status}`);
+          }
 
           if (timeSinceUpdate > staleThreshold &&
               currentGen.status === 'streaming' &&
