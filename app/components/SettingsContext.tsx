@@ -4,7 +4,7 @@ import { createContext, useContext, useEffect, useState, useCallback } from 'rea
 import { useAuth } from './AuthContext';
 
 // Chat mode type
-export type ChatMode = 'chat' | 'learning' | 'deep-search';
+export type ChatMode = 'chat' | 'image' | 'learning' | 'deep-search';
 
 // Account settings (saved to database)
 interface AccountSettings {
@@ -25,7 +25,7 @@ interface Settings extends AccountSettings {
 }
 
 const DEFAULT_ACCOUNT_SETTINGS: AccountSettings = {
-  currentModelId: 'google/gemini-3-pro-preview',
+  currentModelId: 'gemini-3-pro-preview',
   currentModelName: 'Expert',
   reasoningEffort: 'medium',
   responseLength: 50,

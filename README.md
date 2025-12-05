@@ -13,8 +13,8 @@ A modern, feature-rich ChatGPT clone built with Next.js 16, featuring multi-mode
 | **Vercel AI SDK** | AI streaming & chat management |
 | **Drizzle ORM** | Database ORM |
 | **PostgreSQL (Neon)** | Serverless database |
-| **OpenRouter** | Multi-model AI provider |
-| **Google AI** | Gemini models with native support |
+| **Google Vertex AI** | Gemini models via Vertex AI |
+| **Google AI SDK** | Gemini models with native support |
 
 ## Getting Started
 
@@ -22,7 +22,8 @@ A modern, feature-rich ChatGPT clone built with Next.js 16, featuring multi-mode
 
 - [Bun](https://bun.sh/) (v1.0+)
 - PostgreSQL database (we use [Neon](https://neon.tech/))
-- OpenRouter API key and/or Google AI API key
+- Google Cloud project with Vertex AI enabled (for Vertex AI models)
+- Google AI API key (optional, for Google AI SDK models)
 
 ### Installation
 
@@ -49,8 +50,18 @@ bun dev
 
 ```env
 DATABASE_URL=postgresql://...
-OPENROUTER_API_KEY=sk-or-...
+
+# Google Vertex AI (required)
+GOOGLE_VERTEX_PROJECT=your-gcp-project-id
+GOOGLE_VERTEX_LOCATION=us-central1
+GOOGLE_CLIENT_EMAIL=your-service-account@project.iam.gserviceaccount.com
+GOOGLE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+
+# Google AI SDK (optional, for non-Vertex models)
 GOOGLE_GENERATIVE_AI_API_KEY=...
+
+# Deep Search (optional)
+TAVILY_API_KEY=...
 ```
 
 ## Project Structure
@@ -235,10 +246,14 @@ const { accentColor, setAccentColor, isHydrated } = useAccentColor();
 
 ## Features
 
-### Multi-Model Support
-- **OpenRouter**: Access to 100+ models (GPT-4, Claude, Llama, etc.)
-- **Google AI**: Native Gemini support with thinking/reasoning
-- **Custom Models**: Enter any OpenRouter model ID
+### Gemini Models
+- **Vertex AI**: Enterprise-grade Gemini models via Google Vertex AI
+- **Google AI SDK**: Direct Gemini access with thinking/reasoning support
+- **3 Model Tiers**:
+  - **Expert** (gemini-3-pro-preview): Most capable, best reasoning
+  - **Balanced** (gemini-2.5-flash): Fast and accurate
+  - **Ultra Fast** (gemini-2.5-flash-lite): Fastest responses
+- **Image Generation**: Toggle in prompt box to enable image generation (uses gemini-3-pro-image-preview)
 
 ### Reasoning & Thinking
 - Collapsible reasoning blocks for models like DeepSeek R1, Gemini
@@ -254,7 +269,7 @@ const { accentColor, setAccentColor, isHydrated } = useAccentColor();
 ### Real-time Streaming
 - Token-by-token streaming display
 - Tokens per second (TPS) metrics
-- Background generation resume support
+- Direct streaming via Vercel AI SDK (no background jobs)
 
 ### Customization
 - Dynamic accent color picker
@@ -268,6 +283,8 @@ const { accentColor, setAccentColor, isHydrated } = useAccentColor();
 chats: {
   id: uuid (primary key)
   title: text
+  userId: uuid (foreign key)
+  mode: text ('chat' | 'deep-search')
   createdAt: timestamp
 }
 
@@ -282,15 +299,19 @@ messages: {
   createdAt: timestamp
 }
 
-// Active generations (for resume support)
-activeGenerations: {
-  id: uuid
-  chatId: uuid
-  modelId: text
-  status: text ('streaming' | 'completed' | 'failed')
-  partialText: text
-  partialReasoning: text
-  ...
+// User settings table
+userSettings: {
+  id: uuid (primary key)
+  userId: uuid (unique)
+  currentModelId: text
+  currentModelName: text
+  reasoningEffort: text
+  responseLength: integer
+  accentColor: text
+  userName: text
+  userGender: text
+  learningMode: boolean
+  customInstructions: text
 }
 ```
 

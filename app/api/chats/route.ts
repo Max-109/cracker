@@ -1,5 +1,5 @@
 import { db } from '@/db';
-import { chats, messages, activeGenerations } from '@/db/schema';
+import { chats, messages } from '@/db/schema';
 import { desc, eq, inArray } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
@@ -70,8 +70,7 @@ export async function DELETE() {
 
     const chatIds = userChats.map(c => c.id);
 
-    // Delete in order: activeGenerations -> messages -> chats (due to foreign key constraints)
-    await db.delete(activeGenerations).where(inArray(activeGenerations.chatId, chatIds));
+    // Delete messages then chats
     await db.delete(messages).where(inArray(messages.chatId, chatIds));
     await db.delete(chats).where(eq(chats.userId, user.id));
 

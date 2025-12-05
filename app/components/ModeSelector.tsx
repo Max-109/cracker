@@ -2,9 +2,9 @@
 
 import React from 'react';
 import { cn } from '@/lib/utils';
-import { MessageCircle, GraduationCap, Microscope } from 'lucide-react';
+import { MessageCircle, Image, GraduationCap, Microscope } from 'lucide-react';
 
-export type ChatMode = 'chat' | 'learning' | 'deep-search';
+export type ChatMode = 'chat' | 'image' | 'learning' | 'deep-search';
 
 interface ModeSelectorProps {
   currentMode: ChatMode;
@@ -13,9 +13,10 @@ interface ModeSelectorProps {
 }
 
 const MODE_OPTIONS = [
-  { mode: 'chat' as const, icon: MessageCircle, label: 'Chat' },
-  { mode: 'learning' as const, icon: GraduationCap, label: 'Learn' },
-  { mode: 'deep-search' as const, icon: Microscope, label: 'Research' },
+  { mode: 'chat' as const, icon: MessageCircle, label: 'Chat', desc: 'Conversation' },
+  { mode: 'image' as const, icon: Image, label: 'Image', desc: 'Generate images' },
+  { mode: 'learning' as const, icon: GraduationCap, label: 'Learn', desc: 'Learning mode' },
+  { mode: 'deep-search' as const, icon: Microscope, label: 'Research', desc: 'Deep research' },
 ];
 
 export function ModeSelector({ currentMode, onModeChange, disabled }: ModeSelectorProps) {

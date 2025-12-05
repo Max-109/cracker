@@ -1,5 +1,5 @@
 import { db } from '@/db';
-import { chats, messages, activeGenerations } from '@/db/schema';
+import { chats, messages } from '@/db/schema';
 import { eq, asc, and } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
@@ -84,8 +84,7 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
       return NextResponse.json({ error: 'Chat not found' }, { status: 404 });
     }
 
-    // Delete in order: activeGenerations -> messages -> chats (due to foreign key constraints)
-    await db.delete(activeGenerations).where(eq(activeGenerations.chatId, id));
+    // Delete messages then chat
     await db.delete(messages).where(eq(messages.chatId, id));
     await db.delete(chats).where(and(eq(chats.id, id), eq(chats.userId, user.id)));
     return NextResponse.json({ success: true });

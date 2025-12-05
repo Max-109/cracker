@@ -490,21 +490,24 @@ export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose
                     <div className="px-2 py-2 space-y-2">
                         {/* User Info */}
                         <div className="flex items-center gap-2">
-                            <div className={cn(
-                                "w-8 h-8 flex items-center justify-center border flex-shrink-0",
-                                profile.isAdmin
-                                    ? "border-[var(--text-accent)] bg-[var(--text-accent)]/10"
-                                    : "border-[var(--border-color)] bg-[#1a1a1a]"
-                            )}>
-                                {profile.isAdmin ? (
-                                    <Shield size={14} className="text-[var(--text-accent)]" />
+                            {/* Avatar with initials - subtle dark design */}
+                            <div className="w-8 h-8 flex items-center justify-center bg-[#1a1a1a] border border-[var(--border-color)] flex-shrink-0 relative">
+                                {profile.name ? (
+                                    <span className="text-[11px] font-semibold text-[var(--text-accent)] uppercase tracking-wide">
+                                        {profile.name.split(' ').map(n => n[0]).slice(0, 2).join('')}
+                                    </span>
                                 ) : (
                                     <User size={14} className="text-[var(--text-secondary)]" />
                                 )}
                             </div>
                             <div className="flex-1 min-w-0">
-                                <div className="text-[11px] font-semibold text-[var(--text-primary)] truncate">
+                                <div className="text-[11px] font-semibold text-[var(--text-primary)] truncate flex items-center gap-1.5">
                                     {profile.name || 'User'}
+                                    {profile.isAdmin && (
+                                        <span className="text-[8px] px-1 py-0.5 bg-[var(--text-accent)]/15 border border-[var(--text-accent)]/30 text-[var(--text-accent)] uppercase tracking-wider font-bold">
+                                            Admin
+                                        </span>
+                                    )}
                                 </div>
                                 <div className="text-[9px] text-[var(--text-secondary)] truncate">
                                     {profile.email}
@@ -517,10 +520,9 @@ export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose
                             {profile.isAdmin && (
                                 <button
                                     onClick={() => router.push('/admin')}
-                                    className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 text-[9px] uppercase tracking-wider font-semibold border border-[var(--text-accent)]/30 text-[var(--text-accent)] hover:bg-[var(--text-accent)]/10 transition-all"
+                                    className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 text-[9px] uppercase tracking-wider font-semibold border border-[var(--border-color)] text-[var(--text-secondary)] hover:border-[var(--text-accent)]/50 hover:text-[var(--text-accent)] transition-all"
                                 >
-                                    <Shield size={10} />
-                                    Admin
+                                    Dashboard
                                 </button>
                             )}
                             <button

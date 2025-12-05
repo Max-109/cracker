@@ -5,7 +5,7 @@ import type { ChatMessage, MessagePart } from '@/lib/chat-types';
 import { MessageItem } from './MessageItem';
 import { Skeleton } from './Skeleton';
 import { LoadingIndicator } from './LoadingIndicator';
-import { ResumedStreamingMessage } from './ResumedStreamingMessage';
+
 import { FadeWrapper, ErrorAlert } from '@/components/ui';
 import { Sparkles, Code, Lightbulb, PenLine, Zap, ArrowRight } from 'lucide-react';
 import type { ChatMode } from '@/app/hooks/usePersistedSettings';
@@ -266,22 +266,12 @@ const ThrottledMessageItem = memo(function ThrottledMessageItem({
   );
 });
 
-interface ActiveGeneration {
-  id: string;
-  status: 'streaming' | 'completed' | 'failed';
-  partialText?: string;
-  partialReasoning?: string;
-  startedAt?: string;
-  lastUpdateAt?: string;
-}
-
 interface MessageListProps {
   messages: ChatMessage[];
   isMessagesLoading: boolean;
   isSending?: boolean;
   isStreaming: boolean;
   status: 'submitted' | 'streaming' | 'ready' | 'error';
-  activeGeneration: ActiveGeneration | null;
   streamingStats: { tokensPerSecond: number; modelId: string | null };
   currentChatId: string | null;
   chatMode?: ChatMode;
@@ -309,7 +299,6 @@ export function MessageList({
   isSending = false,
   isStreaming,
   status,
-  activeGeneration,
   streamingStats,
   currentChatId,
   chatMode,
@@ -451,11 +440,8 @@ export function MessageList({
                 : undefined;
               const modelShortName = displayModelId ? (displayModelId.split('/').pop()?.split(':')[0] || displayModelId) : undefined;
               
-              // Check if this message is from background generation (id starts with assistant- or reconnect-)
-              const isBackgroundGenMessage = m.id.startsWith('assistant-') || m.id.startsWith('reconnect-');
-              // isThinking = true if streaming OR if this is a background generation placeholder with active generation
-              const isThinkingForMessage = (isStreaming && isLastAssistant) || 
-                (isBackgroundGenMessage && isLastAssistant && activeGeneration?.status === 'streaming');
+              // isThinking = true if this is the last assistant message and we're streaming
+              const isThinkingForMessage = isStreaming && isLastAssistant;
               
               return (
                 <ThrottledMessageItem
@@ -486,18 +472,6 @@ export function MessageList({
               </div>
             )}
             
-            {/* Background generation with smooth streaming simulation - only show if no placeholder message exists */}
-            {activeGeneration?.status === 'streaming' && !isStreaming && 
-             !messages.some(m => m.id.startsWith('assistant-') || m.id.startsWith('reconnect-')) && (
-              <ResumedStreamingMessage
-                partialText={activeGeneration.partialText || ''}
-                partialReasoning={activeGeneration.partialReasoning || ''}
-                isStillStreaming={true}
-                startedAt={activeGeneration.startedAt}
-                lastUpdateAt={activeGeneration.lastUpdateAt}
-              />
-            )}
-
             {/* Error Display */}
             {error && !dismissedError && (
               <ErrorAlert

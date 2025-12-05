@@ -26,8 +26,8 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
   const { refreshChats, toggleSidebar, chats } = useChatContext();
 
   // Settings
-  const [currentModelId, setCurrentModelId, isModelIdHydrated] = usePersistedSetting('CHATGPT_MODEL_ID', "x-ai/grok-4.1-fast");
-  const [currentModelName, setCurrentModelName, isModelNameHydrated] = usePersistedSetting('CHATGPT_MODEL_NAME', "Smart");
+  const [currentModelId, setCurrentModelId, isModelIdHydrated] = usePersistedSetting('CHATGPT_MODEL_ID', "gemini-3-pro-preview");
+  const [currentModelName, setCurrentModelName, isModelNameHydrated] = usePersistedSetting('CHATGPT_MODEL_NAME', "Expert");
   const [rawReasoningEffort, setRawReasoningEffort] = usePersistedSetting('CHATGPT_REASONING_EFFORT', "medium");
   const { accentColor, setAccentColor, isHydrated: isColorHydrated } = useAccentColor();
   const { responseLength, setResponseLength, isHydrated: isResponseLengthHydrated } = useResponseLength();
@@ -105,29 +105,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
   const streamingStartTimeRef = useRef<number | null>(null);
   const [streamingStats, setStreamingStats] = useState<{ tokensPerSecond: number; modelId: string | null }>({ tokensPerSecond: 0, modelId: null });
 
-  // Active generation state (for background generation reconnection)
-  const [activeGeneration, setActiveGeneration] = useState<{
-    id: string;
-    status: 'streaming' | 'completed' | 'failed';
-    partialText?: string;
-    partialReasoning?: string;
-    modelId?: string;
-    startedAt?: string;
-    lastUpdateAt?: string;
-  } | null>(null);
-  const [isReconnecting, setIsReconnecting] = useState(false);
-  const sseAbortControllerRef = useRef<AbortController | null>(null);
-  const reconnectPlaceholderIdRef = useRef<string | null>(null);
 
-  // Smooth reveal animation refs for SSE content
-  const sseTargetTextRef = useRef('');
-  const sseTargetReasoningRef = useRef('');
-  const sseRevealedTextRef = useRef('');
-  const sseRevealedReasoningRef = useRef('');
-  const sseRevealAnimationRef = useRef<number | null>(null);
-  const sseLastRevealTimeRef = useRef(0);
-  const ssePlaceholderIdRef = useRef<string | null>(null);
-  const sseIsReconnectionRef = useRef(false);
 
   // Deep research state
   const [deepResearchState, setDeepResearchState] = useState<{
@@ -148,16 +126,8 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
   const ignoreNextChatIdChangeRef = useRef(false);
   const isRegeneratingRef = useRef(false);
 
-  // Sync state when prop changes and cleanup SSE connection
+  // Sync state when prop changes
   useEffect(() => {
-    // Cleanup any existing SSE connection when chatId changes
-    if (sseAbortControllerRef.current) {
-      sseAbortControllerRef.current.abort();
-      sseAbortControllerRef.current = null;
-    }
-    setIsReconnecting(false);
-    setActiveGeneration(null);
-    
     setCurrentChatId(initialChatId || null);
     chatIdRef.current = initialChatId || null;
   }, [initialChatId]);
@@ -167,10 +137,12 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
   const transport = useMemo(() => new DefaultChatTransport({
     api: '/api/chat',
     body: () => ({
-      model: currentModelIdRef.current,
+      // When image mode is selected, use the image generation model
+      model: chatModeRef.current === 'image' ? 'gemini-3-pro-image-preview' : currentModelIdRef.current,
       reasoningEffort: reasoningEffortRef.current,
       chatId: chatIdRef.current,
       responseLength: responseLengthRef.current,
+      imageMode: chatModeRef.current === 'image',
       userName: userNameRef.current,
       userGender: userGenderRef.current,
       learningMode: learningModeRef.current,
@@ -196,6 +168,8 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
         }
         
         try {
+          // Small delay to ensure backend has saved the message with TPS
+          await new Promise(resolve => setTimeout(resolve, 50));
           const statsRes = await fetch(`/api/chat?chatId=${activeId}`);
           if (statsRes.ok) {
             const serverStats = await statsRes.json();
@@ -216,156 +190,13 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
   const { messages, status, stop, setMessages, regenerate, sendMessage, error } = chatHelpers;
   const typedMessages = messages as unknown as ChatMessage[];
   const isStreaming = status === 'submitted' || status === 'streaming';
-  const isLoading = isStreaming || activeGeneration?.status === 'streaming' || deepResearchState.isActive || isReconnecting;
+  const isLoading = isStreaming || deepResearchState.isActive;
 
-  // Handle stop with saving partial content
-  const handleStop = useCallback(async () => {
-    const activeId = chatIdRef.current;
-    
-    // If we're in a reconnected SSE stream, abort it and cleanup
-    if (isReconnecting && sseAbortControllerRef.current) {
-      console.log('[Stop] Aborting SSE reconnection stream');
-      sseAbortControllerRef.current.abort();
-      sseAbortControllerRef.current = null;
-      setIsReconnecting(false);
-      
-      // The server will detect the connection close and save the partial content
-      // via stale detection, or the generation will complete normally
-      // Either way, reload messages from DB after a short delay
-      if (activeId) {
-        setTimeout(async () => {
-          try {
-            const res = await fetch(`/api/chats/${activeId}`);
-            const data = await res.json();
-            if (Array.isArray(data)) {
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              const uiMessages = data.map((msg: any) => {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                let parts: Array<any>;
-                if (Array.isArray(msg.content)) {
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  parts = msg.content.map((p: any) => {
-                    if (typeof p === 'string') return { type: 'text', text: p };
-                    if (p.type === 'text') return { type: 'text', text: p.text || '' };
-                    if (p.type === 'reasoning') return { type: 'reasoning', text: p.text || p.reasoning || '' };
-                    if (p.type === 'stopped') return { type: 'stopped', stopType: p.stopType };
-                    if (p.type === 'generated-image') return { type: 'generated-image', data: p.data, mediaType: p.mediaType };
-                    if (p.type === 'source' || p.type === 'source-url') return { type: 'source', url: p.url, title: p.title, source: p.source };
-                    return p;
-                  });
-                } else {
-                  parts = [{ type: 'text', text: msg.content || '' }];
-                }
-                return { id: msg.id, role: msg.role, parts, model: msg.model, tokensPerSecond: msg.tokensPerSecond };
-              });
-              setMessages(uiMessages as Parameters<typeof setMessages>[0]);
-            }
-          } catch (e) {
-            console.error('[Stop] Failed to reload messages after SSE abort:', e);
-          }
-        }, 500);
-      }
-      setActiveGeneration(null);
-      return;
-    }
-    
-    if (!activeId) {
-      stop();
-      return;
-    }
-    
-    // Get the current messages BEFORE stopping (stop() might clear them)
-    const currentMessages = [...messagesRef.current];
-    const lastMessage = currentMessages[currentMessages.length - 1];
-    
-    // Extract partial content if there's an assistant message
-    let partialText = '';
-    let partialReasoning = '';
-    
-    if (lastMessage?.role === 'assistant') {
-      const msgParts = (lastMessage as { parts?: unknown[] }).parts;
-      if (Array.isArray(msgParts)) {
-        for (const part of msgParts) {
-          if (typeof part === 'object' && part !== null) {
-            const p = part as Record<string, unknown>;
-            if (p.type === 'text' && typeof p.text === 'string') {
-              partialText += p.text;
-            } else if (p.type === 'reasoning' && typeof p.text === 'string') {
-              partialReasoning += p.text;
-            }
-          }
-        }
-      }
-    }
-    
-    // Determine stop type based on what content we have:
-    // 1. No content at all = stopped during connection (show "stopped_connection")
-    // 2. Has reasoning but no text = stopped during thinking (show "stopped_thinking")
-    // 3. Has text = stopped during streaming (no indicator, just keep text)
-    
-    let stopType: 'connection' | 'thinking' | 'streaming';
-    if (partialText) {
-      stopType = 'streaming';
-    } else if (partialReasoning) {
-      stopType = 'thinking';
-    } else {
-      stopType = 'connection';
-    }
-    
-    // Save to DB FIRST (before stop() which might clear state)
-    try {
-      await fetch('/api/messages/stop', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chatId: activeId,
-          partialText,
-          partialReasoning,
-          stopType,
-          model: currentModelIdRef.current,
-        }),
-      });
-    } catch (e) {
-      console.error('Failed to save stopped message:', e);
-    }
-    
-    // Now stop the streaming
+  // Handle stop - just stop the streaming
+  const handleStop = useCallback(() => {
     stop();
-    
-    // Reload messages from database to show the stopped state properly
-    // (setMessages after stop() often gets overwritten by useChat)
-    setTimeout(async () => {
-      try {
-        const res = await fetch(`/api/chats/${activeId}`);
-        const data = await res.json();
-        if (Array.isArray(data)) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const uiMessages = data.map((msg: any) => {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            let parts: Array<any>;
-            if (Array.isArray(msg.content)) {
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              parts = msg.content.map((p: any) => {
-                if (typeof p === 'string') return { type: 'text', text: p };
-                if (p.type === 'text') return { type: 'text', text: p.text || '' };
-                if (p.type === 'reasoning') return { type: 'reasoning', text: p.text || p.reasoning || '' };
-                if (p.type === 'stopped') return { type: 'stopped', stopType: p.stopType };
-                if (p.type === 'generated-image') return { type: 'generated-image', data: p.data, mediaType: p.mediaType };
-                if (p.type === 'source' || p.type === 'source-url') return { type: 'source', url: p.url, title: p.title, source: p.source };
-                return p;
-              });
-            } else {
-              parts = [{ type: 'text', text: msg.content || '' }];
-            }
-            return { id: msg.id, role: msg.role, parts, model: msg.model, tokensPerSecond: msg.tokensPerSecond };
-          });
-          setMessages(uiMessages as Parameters<typeof setMessages>[0]);
-        }
-      } catch (e) {
-        console.error('Failed to reload messages after stop:', e);
-      }
-    }, 100);
-  }, [stop, setMessages, isReconnecting]);
+    setIsSending(false);
+  }, [stop]);
 
   // Deep search function with SSE streaming
   const startDeepSearch = useCallback(async (
@@ -400,51 +231,6 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
         setMessages(prev => prev.filter(m => m.id !== placeholderId));
         setIsSending(false);
         setDeepResearchState({ isActive: false, placeholderId: null, clarifyQuestions: null, query: null, chatId: null });
-        return;
-      }
-
-      // Check if response is JSON (background started) or SSE (clarifying questions)
-      const contentType = response.headers.get('Content-Type') || '';
-      if (contentType.includes('application/json')) {
-        // Background search started via Inngest - connect to /api/generate/stream for progress
-        const jsonData = await response.json();
-        console.log('[DeepSearch] Background started, generationId:', jsonData.generationId);
-        
-        // Update placeholder ID to match what SSE expects (assistant-{generationId})
-        const newPlaceholderId = `assistant-${jsonData.generationId}`;
-        
-        // Update message with new ID and show progress
-        setMessages(prev => {
-          // Also update messagesRef immediately for SSE effect
-          const updated = prev.map(m => 
-            m.id === placeholderId 
-              ? { ...m, id: newPlaceholderId, parts: [{ type: 'deep-research-progress', progress: {
-                  phase: 'starting',
-                  phaseDescription: 'Research in progress...',
-                  percent: 0,
-                  message: 'Starting deep research...',
-                  searches: [],
-                  sources: [],
-                  isComplete: false,
-                }}] as unknown as typeof m.parts}
-              : m
-          );
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          messagesRef.current = updated as any;
-          return updated;
-        });
-        
-        // Set active generation to trigger SSE polling via existing mechanism
-        // Small delay ensures messagesRef is updated before SSE effect runs
-        setTimeout(() => {
-          setActiveGeneration({
-            id: jsonData.generationId,
-            status: 'streaming',
-            modelId: 'deep-search',
-            partialText: '',
-            partialReasoning: '',
-          });
-        }, 50);
         return;
       }
 
@@ -741,531 +527,11 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
         })
         .catch(err => console.error("Failed to fetch messages:", err))
         .finally(() => setIsMessagesLoading(false));
-      
-      // Check for active generations (background generation that might be in progress)
-      fetch(`/api/generate?chatId=${currentChatId}`)
-        .then(res => res.json())
-        .then(genData => {
-          if (genData.status === 'streaming') {
-            console.log(`[ChatInterface] Found active generation: ${genData.id} for chat ${currentChatId}`);
-            setActiveGeneration({
-              id: genData.id,
-              status: genData.status,
-              partialText: genData.partialText,
-              partialReasoning: genData.partialReasoning,
-              modelId: genData.modelId,
-              startedAt: genData.startedAt,
-              lastUpdateAt: genData.lastUpdateAt,
-            });
-          } else {
-            setActiveGeneration(null);
-          }
-        })
-        .catch(() => setActiveGeneration(null));
     } else {
       setMessages([]);
       setIsMessagesLoading(false);
-      setActiveGeneration(null);
     }
   }, [currentChatId, setMessages]);
-
-  // SSE streaming for active generation (handles both fresh and reconnection)
-  useEffect(() => {
-    if (!activeGeneration || activeGeneration.status !== 'streaming') {
-      // Cleanup any existing SSE connection
-      if (sseAbortControllerRef.current) {
-        sseAbortControllerRef.current.abort();
-        sseAbortControllerRef.current = null;
-      }
-      setIsReconnecting(false);
-      return;
-    }
-
-    // Determine the placeholder ID - either the existing assistant message or create a new one
-    // Fresh generation uses `assistant-{id}`, reconnection uses `reconnect-{id}`
-    const freshPlaceholderId = `assistant-${activeGeneration.id}`;
-    const reconnectPlaceholderId = `reconnect-${activeGeneration.id}`;
-    
-    // Check if there's already an assistant placeholder for this generation
-    const hasFreshPlaceholder = messagesRef.current.some(m => m.id === freshPlaceholderId);
-    const hasReconnectPlaceholder = messagesRef.current.some(m => m.id === reconnectPlaceholderId);
-    
-    let placeholderId: string;
-    let isActualReconnection = false;
-    
-    if (hasFreshPlaceholder) {
-      // Fresh generation - use existing placeholder
-      placeholderId = freshPlaceholderId;
-      isActualReconnection = false;
-    } else if (hasReconnectPlaceholder) {
-      // Already reconnected
-      placeholderId = reconnectPlaceholderId;
-      isActualReconnection = true;
-    } else {
-      // Reconnection scenario - create new placeholder
-      placeholderId = reconnectPlaceholderId;
-      isActualReconnection = true;
-      
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      setMessages((prev: any[]) => {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const parts: Array<any> = [];
-        
-        // For deep-search, show progress indicator
-        if (activeGeneration.modelId === 'deep-search') {
-          // Try to parse progress from partialText (stored as JSON)
-          let progress = { phase: 'searching', percent: 0, message: 'Resuming research...' };
-          if (activeGeneration.partialText) {
-            try {
-              progress = JSON.parse(activeGeneration.partialText);
-            } catch { /* ignore */ }
-          }
-          parts.push({
-            type: 'deep-research-progress',
-            progress: {
-              phase: progress.phase || 'searching',
-              phaseDescription: progress.message || 'Resuming research...',
-              percent: progress.percent || 0,
-              message: progress.message || 'Resuming research...',
-            },
-          });
-        } else {
-          // Regular chat - show text/reasoning
-          if (activeGeneration.partialReasoning) {
-            parts.push({ type: 'reasoning', text: activeGeneration.partialReasoning });
-          }
-          if (activeGeneration.partialText) {
-            parts.push({ type: 'text', text: activeGeneration.partialText });
-          }
-          // Only show reconnecting indicator for actual reconnections
-          parts.push({ type: 'reconnecting', isReconnecting: true });
-        }
-        
-        return [...prev, {
-          id: placeholderId,
-          role: 'assistant',
-          parts,
-          model: activeGeneration.modelId,
-        }];
-      });
-    }
-    
-    reconnectPlaceholderIdRef.current = placeholderId;
-    setIsReconnecting(isActualReconnection);
-    console.log(`[SSE] Connecting for generation ${activeGeneration.id}, isReconnection: ${isActualReconnection}`);
-
-    // For deep-search, don't use reveal animation - it has its own progress UI
-    // partialText for deep-search contains JSON progress, not actual text
-    const isDeepSearch = activeGeneration.modelId === 'deep-search';
-    
-    // Initialize smooth reveal refs (skip for deep search)
-    sseTargetTextRef.current = isDeepSearch ? '' : (activeGeneration.partialText || '');
-    sseTargetReasoningRef.current = isDeepSearch ? '' : (activeGeneration.partialReasoning || '');
-    sseRevealedTextRef.current = isDeepSearch ? '' : (activeGeneration.partialText || '');
-    sseRevealedReasoningRef.current = isDeepSearch ? '' : (activeGeneration.partialReasoning || '');
-    ssePlaceholderIdRef.current = placeholderId;
-    sseIsReconnectionRef.current = isActualReconnection;
-    sseLastRevealTimeRef.current = 0;
-
-    // Smooth reveal animation function
-    const CHARS_PER_FRAME = 15; // Characters to reveal per frame (~60fps = ~900 chars/sec)
-    const FRAME_INTERVAL = 16; // ~60fps
-    
-    const runRevealAnimation = () => {
-      const now = Date.now();
-      if (now - sseLastRevealTimeRef.current < FRAME_INTERVAL) {
-        sseRevealAnimationRef.current = requestAnimationFrame(runRevealAnimation);
-        return;
-      }
-      sseLastRevealTimeRef.current = now;
-
-      let needsUpdate = false;
-      
-      // Reveal reasoning first
-      if (sseRevealedReasoningRef.current.length < sseTargetReasoningRef.current.length) {
-        sseRevealedReasoningRef.current = sseTargetReasoningRef.current.slice(
-          0, 
-          sseRevealedReasoningRef.current.length + CHARS_PER_FRAME
-        );
-        needsUpdate = true;
-      }
-      
-      // Then reveal text (only after reasoning is fully revealed)
-      if (sseRevealedReasoningRef.current.length >= sseTargetReasoningRef.current.length &&
-          sseRevealedTextRef.current.length < sseTargetTextRef.current.length) {
-        sseRevealedTextRef.current = sseTargetTextRef.current.slice(
-          0, 
-          sseRevealedTextRef.current.length + CHARS_PER_FRAME
-        );
-        needsUpdate = true;
-      }
-      
-      if (needsUpdate && ssePlaceholderIdRef.current) {
-        const pid = ssePlaceholderIdRef.current;
-        const revReasoning = sseRevealedReasoningRef.current;
-        const revText = sseRevealedTextRef.current;
-        const isReconn = sseIsReconnectionRef.current;
-        
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        setMessages((prev: any[]) => prev.map(m => {
-          if (m.id !== pid) return m;
-          const newParts: Array<{ type: string; text?: string; isReconnecting?: boolean; isStreaming?: boolean }> = [];
-          if (revReasoning) {
-            newParts.push({ type: 'reasoning', text: revReasoning, isStreaming: !revText });
-          }
-          if (revText) {
-            newParts.push({ type: 'text', text: revText });
-          }
-          if (isReconn) {
-            newParts.push({ type: 'reconnecting', isReconnecting: true });
-          }
-          return { ...m, parts: newParts };
-        }));
-      }
-      
-      // Continue animation if there's more to reveal
-      if (sseRevealedReasoningRef.current.length < sseTargetReasoningRef.current.length ||
-          sseRevealedTextRef.current.length < sseTargetTextRef.current.length) {
-        sseRevealAnimationRef.current = requestAnimationFrame(runRevealAnimation);
-      } else {
-        sseRevealAnimationRef.current = null;
-      }
-    };
-
-    // Setup SSE connection with fetch (more reliable than EventSource)
-    const abortController = new AbortController();
-    sseAbortControllerRef.current = abortController;
-
-    const connectSSE = async () => {
-      try {
-        const response = await fetch(`/api/generate/stream?generationId=${activeGeneration.id}`, {
-          signal: abortController.signal,
-        });
-
-        if (!response.ok || !response.body) {
-          console.error('[Reconnect] SSE connection failed:', response.status);
-          // Add error message to UI for deep research
-          if (activeGeneration.modelId === 'deep-search') {
-            setMessages((prev: any[]) => prev.map(m =>
-              m.id === placeholderId
-                ? {
-                    ...m,
-                    parts: [{
-                      type: 'deep-research-progress',
-                      progress: {
-                        phase: 'error',
-                        phaseDescription: 'Connection failed',
-                        percent: 0,
-                        message: `Failed to connect (${response.status})`,
-                        searches: [],
-                        sources: [],
-                        isComplete: false,
-                        isError: true
-                      }
-                    }]
-                  }
-                : m
-            ));
-          }
-          setIsReconnecting(false);
-          setActiveGeneration(null);
-          return;
-        }
-
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = '';
-
-        while (true) {
-          try {
-            const { done, value } = await reader.read();
-            if (done) break;
-
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split('\n\n');
-            buffer = lines.pop() || '';
-
-            for (const line of lines) {
-              if (!line.startsWith('data: ')) continue;
-
-              try {
-                const data = JSON.parse(line.slice(6));
-
-                if (data.type === 'waiting' || data.type === 'heartbeat') {
-                  // Waiting for generation to start - only show for reconnections
-                  if (isActualReconnection) {
-                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                    setMessages((prev: any[]) => prev.map(m => {
-                      if (m.id !== placeholderId) return m;
-                      const newParts: Array<{ type: string; text?: string; isReconnecting?: boolean; isWaiting?: boolean; elapsedMs?: number }> = [];
-                      newParts.push({
-                        type: 'reconnecting',
-                        isReconnecting: true,
-                        isWaiting: true,
-                        elapsedMs: data.elapsedMs || 0,
-                      });
-                      return { ...m, parts: newParts };
-                    }));
-                  }
-                  // For fresh generations, the empty placeholder is fine (shows thinking state)
-                }
-
-                if (data.type === 'content') {
-                  // Handle incremental or full content - update target refs
-                  if (data.isIncremental) {
-                    if (data.text) sseTargetTextRef.current += data.text;
-                    if (data.reasoning) sseTargetReasoningRef.current += data.reasoning;
-                  } else {
-                    // Full content (initial state)
-                    if (data.text) sseTargetTextRef.current = data.text;
-                    if (data.reasoning) sseTargetReasoningRef.current = data.reasoning;
-                  }
-
-                  // Start reveal animation if not already running
-                  if (!sseRevealAnimationRef.current) {
-                    sseRevealAnimationRef.current = requestAnimationFrame(runRevealAnimation);
-                  }
-                }
-
-                // Handle deep search progress events
-                if (data.type === 'deep-search-progress') {
-                  const progress = data.progress || {};
-                  // Detect completion from phase or isComplete flag
-                  const isComplete = progress.isComplete || progress.phase === 'complete';
-                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                  setMessages((prev: any[]) => prev.map(m => {
-                    if (m.id !== placeholderId) return m;
-                    return {
-                      ...m,
-                      parts: [{
-                        type: 'deep-research-progress',
-                        progress: {
-                          phase: progress.phase || 'searching',
-                          phaseDescription: progress.message || 'Researching...',
-                          percent: progress.percent || 0,
-                          message: progress.message || '',
-                          searches: progress.searches || [],
-                          sources: progress.sources || [],
-                          isComplete,
-                        },
-                      }],
-                    };
-                  }));
-                }
-
-                if (data.type === 'complete') {
-                  console.log('[Reconnect] Generation completed');
-                  // Update TPS stats if available
-                  if (data.tokensPerSecond) {
-                    setStreamingStats({
-                      modelId: activeGeneration.modelId || null,
-                      tokensPerSecond: parseFloat(data.tokensPerSecond) || 0,
-                    });
-                  }
-                }
-
-                if (data.type === 'done') {
-                  console.log(`[Reconnect] SSE stream ended: ${data.reason}`);
-
-                  // Wait for animation to complete before reloading from DB
-                  // This ensures smooth reveal of remaining content
-                  const waitForAnimationAndReload = async () => {
-                    // Check if there's still content to reveal
-                    const hasMoreContent =
-                      sseRevealedTextRef.current.length < sseTargetTextRef.current.length ||
-                      sseRevealedReasoningRef.current.length < sseTargetReasoningRef.current.length;
-
-                    if (hasMoreContent && sseRevealAnimationRef.current) {
-                      // Wait a bit and check again (animation will continue)
-                      await new Promise(resolve => setTimeout(resolve, 100));
-                      return waitForAnimationAndReload();
-                    }
-
-                    // Animation complete, now cleanup and reload
-                    if (sseRevealAnimationRef.current) {
-                      cancelAnimationFrame(sseRevealAnimationRef.current);
-                      sseRevealAnimationRef.current = null;
-                    }
-                    sseTargetTextRef.current = '';
-                    sseTargetReasoningRef.current = '';
-                    sseRevealedTextRef.current = '';
-                    sseRevealedReasoningRef.current = '';
-                    ssePlaceholderIdRef.current = null;
-
-                    setIsReconnecting(false);
-                    setActiveGeneration(null);
-
-                    // Reload messages from DB to get the final saved version
-                    if (currentChatId) {
-                      try {
-                        const msgRes = await fetch(`/api/chats/${currentChatId}`);
-                        const msgData = await msgRes.json();
-                        if (Array.isArray(msgData)) {
-                          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                          const uiMessages = msgData.map((msg: any) => {
-                            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                            let parts: Array<any>;
-                            if (Array.isArray(msg.content)) {
-                              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                              parts = msg.content.map((p: any) => {
-                                if (typeof p === 'string') return { type: 'text', text: p };
-                                if (p.type === 'text') return { type: 'text', text: p.text || '' };
-                                if (p.type === 'reasoning') return { type: 'reasoning', text: p.text || p.reasoning || '' };
-                                if (p.type === 'stopped') return { type: 'stopped', stopType: p.stopType };
-                                if (p.type === 'generated-image') return { type: 'generated-image', data: p.data, mediaType: p.mediaType };
-                                if (p.type === 'source' || p.type === 'source-url') return { type: 'source', url: p.url, title: p.title, source: p.source };
-                                return p;
-                              });
-                            } else {
-                              parts = [{ type: 'text', text: msg.content || '' }];
-                            }
-                            return { id: msg.id, role: msg.role, parts, model: msg.model, tokensPerSecond: msg.tokensPerSecond };
-                          });
-                          setMessages(uiMessages as Parameters<typeof setMessages>[0]);
-                        }
-                      } catch (e) {
-                        console.error('[Reconnect] Failed to reload messages:', e);
-                        // If reload fails, keep the current message state
-                        if (activeGeneration.modelId === 'deep-search') {
-                          setMessages((prev: any[]) => prev.map(m =>
-                            m.id === placeholderId
-                              ? {
-                                  ...m,
-                                  parts: (m.parts || []).map((p: any) =>
-                                    p.type === 'deep-research-progress'
-                                      ? {
-                                          ...p,
-                                          progress: {
-                                            ...p.progress,
-                                            isComplete: true,
-                                            message: 'Research completed (offline)'
-                                          }
-                                        }
-                                      : p
-                                  )
-                                }
-                              : m
-                          ));
-                        }
-                      }
-                    }
-                  };
-
-                  // Start the wait-and-reload process
-                  waitForAnimationAndReload();
-                  return; // Exit the SSE loop
-                }
-
-                if (data.type === 'error') {
-                  console.error('[Reconnect] Generation error:', data.message);
-                  // Add error state to deep research UI
-                  if (activeGeneration.modelId === 'deep-search') {
-                    setMessages((prev: any[]) => prev.map(m =>
-                      m.id === placeholderId
-                        ? {
-                            ...m,
-                            parts: [{
-                              type: 'deep-research-progress',
-                              progress: {
-                                phase: 'error',
-                                phaseDescription: 'Research failed',
-                                percent: 0,
-                                message: data.message || 'Unknown error occurred',
-                                searches: [],
-                                sources: [],
-                                isComplete: false,
-                                isError: true
-                              }
-                            }]
-                          }
-                        : m
-                    ));
-                  }
-                  setIsReconnecting(false);
-                  setActiveGeneration(null);
-                  return;
-                }
-              } catch (parseError) {
-                console.error('[Reconnect] JSON parse error:', parseError);
-                // Ignore parse errors but don't crash
-              }
-            }
-          } catch (readError) {
-            console.error('[Reconnect] Read error:', readError);
-            if ((readError as Error).name === 'AbortError') {
-              console.log('[Reconnect] SSE connection aborted');
-              return;
-            }
-            // Handle connection errors for deep research
-            if (activeGeneration.modelId === 'deep-search') {
-              setMessages((prev: any[]) => prev.map(m =>
-                m.id === placeholderId
-                  ? {
-                      ...m,
-                      parts: [{
-                        type: 'deep-research-progress',
-                        progress: {
-                          phase: 'error',
-                          phaseDescription: 'Connection lost',
-                          percent: 0,
-                          message: 'Network error occurred',
-                          searches: [],
-                          sources: [],
-                          isComplete: false,
-                          isError: true
-                        }
-                      }]
-                    }
-                  : m
-              ));
-            }
-            break;
-          }
-        }
-      } catch (err) {
-        console.error('[Reconnect] SSE connection error:', err);
-        // Handle connection errors for deep research
-        if (activeGeneration.modelId === 'deep-search') {
-          setMessages((prev: any[]) => prev.map(m =>
-            m.id === placeholderId
-              ? {
-                  ...m,
-                  parts: [{
-                    type: 'deep-research-progress',
-                    progress: {
-                      phase: 'error',
-                      phaseDescription: 'Connection failed',
-                      percent: 0,
-                      message: err instanceof Error ? err.message : 'Unknown connection error',
-                      searches: [],
-                      sources: [],
-                      isComplete: false,
-                      isError: true
-                    }
-                  }]
-                }
-              : m
-          ));
-        }
-        setIsReconnecting(false);
-        setActiveGeneration(null);
-      }
-    };
-
-    connectSSE();
-
-    return () => {
-      if (sseAbortControllerRef.current) {
-        sseAbortControllerRef.current.abort();
-        sseAbortControllerRef.current = null;
-      }
-      // Cleanup reveal animation
-      if (sseRevealAnimationRef.current) {
-        cancelAnimationFrame(sseRevealAnimationRef.current);
-        sseRevealAnimationRef.current = null;
-      }
-    };
-  }, [activeGeneration?.id, activeGeneration?.status, currentChatId, setMessages]);
 
   // Handle message edit
   const handleEditMessage = useCallback(async (index: number, newContent: string, editAttachments?: EditAttachment[]) => {
@@ -1335,39 +601,11 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
       editedContent = [{ type: 'text', text: newContent }];
     }
     
-    // Get current messages after truncation and add the edited message
-    const currentMsgs = messagesRef.current;
-    const allMessages = [...currentMsgs, { role: 'user', content: editedContent }];
-    
-    // Trigger background generation
-    const bgResponse = await fetch('/api/chat/background', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chatId,
-        messages: allMessages.map(m => ({
-          role: m.role,
-          content: (m as { parts?: unknown[] }).parts || (m as { content?: unknown }).content || '',
-        })),
-        model: currentModelIdRef.current,
-        reasoningEffort: reasoningEffortRef.current,
-        responseLength: responseLengthRef.current,
-        userName: userNameRef.current,
-        userGender: userGenderRef.current,
-        learningMode: learningModeRef.current,
-        customInstructions: customInstructionsRef.current,
-      }),
-    });
-    
-    if (bgResponse.ok) {
-      const bgData = await bgResponse.json();
-      setActiveGeneration({
-        id: bgData.generationId,
-        status: 'streaming',
-        modelId: currentModelIdRef.current,
-      });
-    }
-  }, [handleEditMessage]);
+    // Use direct streaming - the transport body() provides model, chatId, etc.
+    // sendMessage accepts { text: string } or { parts: MessagePart[] }
+    const textContent = (editedContent as { type: string; text?: string }[]).find(p => p.type === 'text')?.text || '';
+    await sendMessage({ text: textContent });
+  }, [handleEditMessage, sendMessage]);
 
   // Handle send message
   const handleSendMessage = useCallback(async (quotes?: { id: string; text: string; source: string }[]) => {
@@ -1500,76 +738,12 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
         return;
       }
 
-      // Use background generation via Inngest for reliable generation
-      // This allows generation to continue even if user closes the tab
-      console.log(`[CLIENT DEBUG] ${new Date().toISOString()} === STARTING BACKGROUND GENERATION ===`);
-      console.log(`[CLIENT DEBUG] Model: ${currentModelIdRef.current}, ChatId: ${activeChatId}`);
-      
-      // Add user message to UI immediately
-      const userMsgId = `user-${Date.now()}`;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      setMessages((prev: any) => [...prev, {
-        id: userMsgId,
-        role: 'user',
-        parts: Array.isArray(finalContent) 
-          ? finalContent 
-          : [{ type: 'text', text: finalContent as string }],
-      }]);
-      
-      // Prepare messages for background API (include all conversation history)
-      const allMessages = [...messagesRef.current, {
-        role: 'user',
-        content: Array.isArray(finalContent) ? finalContent : [{ type: 'text', text: finalContent }],
-      }];
-      
-      // Trigger background generation via Inngest
-      const bgResponse = await fetch('/api/chat/background', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chatId: activeChatId,
-          messages: allMessages.map(m => ({
-            role: m.role,
-            content: (m as { parts?: unknown[] }).parts || (m as { content?: unknown }).content || '',
-          })),
-          model: currentModelIdRef.current,
-          reasoningEffort: reasoningEffortRef.current,
-          responseLength: responseLengthRef.current,
-          userName: userNameRef.current,
-          userGender: userGenderRef.current,
-          learningMode: learningModeRef.current,
-          customInstructions: customInstructionsRef.current,
-        }),
-      });
-      
-      if (!bgResponse.ok) {
-        const errorText = await bgResponse.text();
-        console.error('[CLIENT DEBUG] Background generation failed to start:', bgResponse.status, errorText);
-        setIsSending(false);
-        return;
-      }
-      
-      const bgData = await bgResponse.json();
-      console.log(`[CLIENT DEBUG] Background generation started: ${bgData.generationId}`);
-      
-      // Add a placeholder assistant message that will be updated by SSE
-      const assistantPlaceholderId = `assistant-${bgData.generationId}`;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      setMessages((prev: any) => [...prev, {
-        id: assistantPlaceholderId,
-        role: 'assistant',
-        parts: [{ type: 'text', text: '' }], // Empty initially, will be filled by SSE
-        model: currentModelIdRef.current,
-      }]);
-      
-      // Set active generation - this will trigger SSE streaming
-      setActiveGeneration({
-        id: bgData.generationId,
-        status: 'streaming',
-        modelId: currentModelIdRef.current,
-        partialText: '',
-        partialReasoning: '',
-      });
+      // Use direct streaming via sendMessage - transport body() provides model, chatId, etc.
+      // sendMessage accepts { text: string } for simple text messages
+      const textContent = Array.isArray(finalContent) 
+        ? (finalContent as { type: string; text?: string }[]).find(p => p.type === 'text')?.text || ''
+        : finalContent as string;
+      await sendMessage({ text: textContent });
       
       setIsSending(false);
     } catch (err) {
@@ -1663,9 +837,8 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
             messages={typedMessages}
             isMessagesLoading={isMessagesLoading}
             isSending={isSending}
-            isStreaming={isStreaming || activeGeneration?.status === 'streaming'}
+            isStreaming={isStreaming}
             status={status}
-            activeGeneration={activeGeneration}
             streamingStats={streamingStats}
             currentChatId={currentChatId}
             chatMode={chats.find(c => c.id === currentChatId)?.mode as ChatMode || chatMode}

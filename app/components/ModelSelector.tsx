@@ -3,38 +3,27 @@
 import React, { useState } from 'react';
 import { HexColorPicker } from "react-colorful";
 import { cn } from '@/lib/utils';
-import { ChevronDown, Cpu, Sparkles, Zap, Rocket, Settings2 } from 'lucide-react';
-import {
-  Dialog,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogContent,
-  DialogFooter,
-} from '@/components/ui';
+import { ChevronDown, Cpu, Brain, Sparkles, Zap } from 'lucide-react';
 
 type ModelOption = {
   id: string;
   name: string;
   description: string;
-  tier: 'premium' | 'standard' | 'fast' | 'ultra';
+  tier: 'expert' | 'balanced' | 'fast';
   icon: typeof Cpu;
 };
 
 const MODEL_OPTIONS: ModelOption[] = [
-  { id: "google/gemini-3-pro-preview", name: "Expert", description: "Gemini 3 Pro", tier: 'premium', icon: Sparkles },
-  { id: "google/gemini-3-pro-image-preview", name: "Creative", description: "Gemini 3 Pro Image", tier: 'premium', icon: Sparkles },
-  { id: "x-ai/grok-4.1-fast", name: "Smart", description: "Grok 4.1 Fast", tier: 'standard', icon: Cpu },
-  { id: "openai/gpt-5-nano", name: "Fast", description: "GPT-5 Nano", tier: 'fast', icon: Zap },
-  { id: "openai/gpt-oss-safeguard-20b", name: "Ultra-Fast", description: "GPT OSS 20B", tier: 'ultra', icon: Rocket },
+  { id: "gemini-3-pro-preview", name: "Expert", description: "Gemini 3 Pro", tier: 'expert', icon: Brain },
+  { id: "gemini-2.5-flash", name: "Balanced", description: "Gemini 2.5 Flash", tier: 'balanced', icon: Sparkles },
+  { id: "gemini-2.5-flash-lite", name: "Ultra Fast", description: "Gemini 2.5 Flash Lite", tier: 'fast', icon: Zap },
 ];
 
-// All tiers use accent color with varying intensity levels (4 = strongest, 1 = lightest)
+// Tier config with intensity levels (3 = strongest, 1 = lightest)
 const TIER_CONFIG = {
-  premium: { badge: 'MAX', level: 4 },
-  standard: { badge: 'STD', level: 3 },
-  fast: { badge: 'FAST', level: 2 },
-  ultra: { badge: 'LITE', level: 1 },
+  expert: { badge: 'PRO', level: 3 },
+  balanced: { badge: 'STD', level: 2 },
+  fast: { badge: 'LITE', level: 1 },
 };
 
 interface ModelSelectorProps {
@@ -55,53 +44,10 @@ export function ModelSelector({
   isHydrated,
 }: ModelSelectorProps) {
   const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
-  const [isCustomDialogOpen, setIsCustomDialogOpen] = useState(false);
-  const [customModelValue, setCustomModelValue] = useState(currentModelId);
   const [isColorMenuOpen, setIsColorMenuOpen] = useState(false);
-
-  const handleCustomModelSubmit = () => {
-    if (!customModelValue.trim()) return;
-    let name = customModelValue.split('/').pop() || customModelValue;
-    if (name.includes(':')) name = name.split(':')[0];
-    onModelChange(customModelValue.trim(), name);
-    setIsCustomDialogOpen(false);
-  };
 
   return (
     <>
-      {/* Custom Model Dialog */}
-      <Dialog open={isCustomDialogOpen} onOpenChange={setIsCustomDialogOpen}>
-        <DialogHeader>
-          <DialogTitle>Set Custom Model ID</DialogTitle>
-          <DialogDescription>
-            Enter the full OpenRouter model ID (e.g., openai/gpt-oss-120b:exacto).
-          </DialogDescription>
-        </DialogHeader>
-        <DialogContent>
-          <input
-            value={customModelValue}
-            onChange={(e) => setCustomModelValue(e.target.value)}
-            className="w-full bg-[var(--bg-input)] border border-[var(--border-color)] px-3 py-2 text-[var(--text-primary)] focus:outline-none focus:border-[var(--border-active)] tracking-tight"
-            placeholder="openai/gpt-oss-120b:exacto"
-            autoFocus
-          />
-        </DialogContent>
-        <DialogFooter>
-          <button
-            onClick={() => setIsCustomDialogOpen(false)}
-            className="px-4 py-2 text-[var(--text-primary)] border border-[var(--border-color)] hover-glow transition-colors uppercase tracking-[0.12em] text-xs"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleCustomModelSubmit}
-            className="px-4 py-2 bg-[var(--text-accent)] text-black border border-[var(--text-accent)] hover:bg-black hover:text-[var(--text-accent)] hover-glow font-semibold transition-colors uppercase tracking-[0.12em] text-xs"
-          >
-            Save
-          </button>
-        </DialogFooter>
-      </Dialog>
-
       <div className="flex items-center gap-2">
         {/* Model Dropdown */}
         <div className="relative">
@@ -130,8 +76,8 @@ export function ModelSelector({
                     const isSelected = currentModelId === model.id;
                     const tierConfig = TIER_CONFIG[model.tier];
                     const Icon = model.icon;
-                    // Opacity based on level (4=100%, 3=75%, 2=50%, 1=30%)
-                    const opacityClass = tierConfig.level === 4 ? 'opacity-100' : tierConfig.level === 3 ? 'opacity-75' : tierConfig.level === 2 ? 'opacity-50' : 'opacity-30';
+                    // Opacity based on level (3=100%, 2=70%, 1=40%)
+                    const opacityClass = tierConfig.level === 3 ? 'opacity-100' : tierConfig.level === 2 ? 'opacity-70' : 'opacity-40';
 
                     return (
                       <button
@@ -158,8 +104,8 @@ export function ModelSelector({
                           )}>
                             <Icon size={16} />
                           </div>
-                          {/* Intensity corner indicator */}
-                          {tierConfig.level === 4 && !isSelected && (
+                          {/* Premium indicator for expert tier */}
+                          {tierConfig.level === 3 && !isSelected && (
                             <div className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-[var(--text-accent)] animate-pulse" />
                           )}
                         </div>
@@ -173,14 +119,13 @@ export function ModelSelector({
                             )}>
                               {model.name}
                             </span>
-                            {/* Tier Badge - accent color with varying intensity */}
+                            {/* Tier Badge */}
                             <span
                               className={cn(
                                 "text-[9px] px-1.5 py-0.5 font-bold tracking-wider text-[var(--text-accent)] border border-[var(--text-accent)]",
-                                tierConfig.level === 4 && "bg-[var(--text-accent)]/20",
-                                tierConfig.level === 3 && "bg-[var(--text-accent)]/10 opacity-80",
-                                tierConfig.level === 2 && "bg-transparent opacity-60",
-                                tierConfig.level === 1 && "bg-transparent border-dashed opacity-45"
+                                tierConfig.level === 3 && "bg-[var(--text-accent)]/20",
+                                tierConfig.level === 2 && "bg-[var(--text-accent)]/10 opacity-80",
+                                tierConfig.level === 1 && "bg-transparent border-dashed opacity-60"
                               )}
                             >
                               {tierConfig.badge}
@@ -191,12 +136,12 @@ export function ModelSelector({
 
                         {/* Power Level Bars */}
                         <div className="flex items-end gap-0.5 h-4">
-                          {[1, 2, 3, 4].map((bar) => (
+                          {[1, 2, 3].map((bar) => (
                             <div
                               key={bar}
                               className={cn(
                                 "w-1 transition-all duration-150 bg-[var(--text-accent)]",
-                                bar === 1 ? "h-1" : bar === 2 ? "h-2" : bar === 3 ? "h-3" : "h-4",
+                                bar === 1 ? "h-1.5" : bar === 2 ? "h-2.5" : "h-4",
                                 bar <= tierConfig.level
                                   ? isSelected ? "opacity-100" : "opacity-60 group-hover:opacity-80"
                                   : "opacity-10"
@@ -209,27 +154,6 @@ export function ModelSelector({
                   })}
                 </div>
 
-                <div className="border-t border-[var(--border-color)]" />
-
-                {/* Custom Model Option */}
-                <div className="p-1.5">
-                  <button
-                    onClick={() => {
-                      setIsModelMenuOpen(false);
-                      setCustomModelValue(currentModelId);
-                      setIsCustomDialogOpen(true);
-                    }}
-                    className="flex items-center gap-3 w-full text-left px-3 py-2.5 text-sm transition-all duration-150 group hover:bg-[#1e1e1e] border-l-2 border-l-transparent"
-                  >
-                    <div className="w-8 h-8 flex items-center justify-center border border-dashed border-[var(--border-color)] bg-[#1a1a1a] text-[var(--text-secondary)] group-hover:border-[var(--text-accent)]/50 group-hover:text-[var(--text-accent)] transition-all duration-150">
-                      <Settings2 size={16} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="font-semibold uppercase tracking-[0.1em] text-xs text-[var(--text-primary)]">Custom Model</div>
-                      <div className="text-[10px] text-[var(--text-secondary)] mt-0.5">Enter OpenRouter ID</div>
-                    </div>
-                  </button>
-                </div>
               </div>
             </>
           )}

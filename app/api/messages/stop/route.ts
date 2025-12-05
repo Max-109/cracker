@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/db';
-import { messages, activeGenerations } from '@/db/schema';
-import { eq } from 'drizzle-orm';
+import { messages } from '@/db/schema';
 
 // POST - Save partial content as stopped message when user stops generation
 export async function POST(req: Request) {
@@ -40,9 +39,6 @@ export async function POST(req: Request) {
       content: contentParts.length > 0 ? contentParts : [{ type: 'stopped', stopType: 'connection' }],
       model: model || null,
     });
-    
-    // Clean up any active generation records for this chat
-    await db.delete(activeGenerations).where(eq(activeGenerations.chatId, chatId));
     
     return NextResponse.json({ success: true });
   } catch (e) {

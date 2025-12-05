@@ -37,9 +37,9 @@ export async function POST(req: NextRequest) {
     const location = process.env.GOOGLE_VERTEX_LOCATION || 'global';
 
     // Select model based on type
-    // fast: gemini-2.5-flash-lite-preview-09-2025 (Fastest, lowest latency)
-    // expert: gemini-3-pro-preview (Gemini 3.0 Preview - most accurate)
-    const modelId = modelType === 'expert' ? 'gemini-3-pro-preview' : 'gemini-2.5-flash-lite-preview-09-2025';
+    // fast: gemini-2.5-flash-lite (Fastest, lowest latency)
+    // expert: gemini-2.5-flash (Gemini 2.5 Flash - most accurate)
+    const modelId = modelType === 'expert' ? 'gemini-2.5-flash' : 'gemini-2.5-flash-lite';
 
     console.log(`[Transcribe] Using model: ${modelId} (type: ${modelType})`);
 
