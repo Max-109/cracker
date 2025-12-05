@@ -50,8 +50,7 @@ const vertex = createVertex({
 });
 
 // Generate system prompt with user settings
-function generateSystemPrompt(responseLength: number, userName: string, userGender: string, learningMode: boolean, customInstructions?: string, accentColor?: string): string {
-  const latexAccentColor = accentColor || '#af8787';
+function generateSystemPrompt(responseLength: number, userName: string, userGender: string, learningMode: boolean, customInstructions?: string): string {
   // User personalization section
   let userPersonalization = '';
   if (userName || (userGender && userGender !== 'not-specified')) {
@@ -136,15 +135,6 @@ Never perform a step without establishing the **Need**. Use this structure for e
 **Math** - Use LaTeX for formulas, Unicode in backticks for simple text math:
 - LaTeX: $x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}$
 - Inline: \`Δ = 5\`, \`√25\`
-- **LaTeX Colors**: Use \\textcolor{${latexAccentColor}}{...} AGGRESSIVELY to color individual elements:
-  - **Variables/Unknowns**: $\\textcolor{${latexAccentColor}}{x} = 5$, $\\textcolor{${latexAccentColor}}{y} = mx + b$
-  - **Coefficients**: $\\textcolor{${latexAccentColor}}{2}x^2 + \\textcolor{${latexAccentColor}}{3}x - \\textcolor{${latexAccentColor}}{5} = 0$
-  - **Important symbols**: $\\textcolor{${latexAccentColor}}{\\Delta} = b^2 - 4ac$, $\\textcolor{${latexAccentColor}}{\\pm}$
-  - **Operators in key steps**: $= \\textcolor{${latexAccentColor}}{\\frac{-b}{2a}}$
-  - **Results/Answers**: $x = \\textcolor{${latexAccentColor}}{1 \\pm i\\sqrt{7}}$
-  - **Subscripts/Indices**: $x_{\\textcolor{${latexAccentColor}}{1}}$, $a_{\\textcolor{${latexAccentColor}}{n}}$
-  - Color 3-5 elements per equation for visual guidance, NOT just the final answer
-  - Example: $\\textcolor{${latexAccentColor}}{x} = \\frac{\\textcolor{${latexAccentColor}}{2} \\pm \\sqrt{\\textcolor{${latexAccentColor}}{4} - 32}}{2}$
 
 ## Honesty
 - If you don't know, admit it.
@@ -202,15 +192,15 @@ Never perform a step without establishing the **Need**. Use this structure for e
   const formattingRules = `
 ## Formatting
 
-**Backticks** - ALWAYS use inline code formatting with backticks for:
+**Backticks** - Use inline code formatting with backticks for:
 - Technical terms: \`API\`, \`HTTP\`, \`JSON\`, \`SQL\`
 - Code elements: \`useState\`, \`fetchData()\`, \`myVariable\`
 - File paths: \`index.ts\`, \`/api/users\`
 - Commands: \`npm install\`, \`git commit\`
 - Technologies: \`React\`, \`PostgreSQL\`, \`Node.js\`
-- Values and constants: \`null\`, \`undefined\`, \`true\`, \`false\`
-- Numbers and results: \`x = 5\`, \`count = 42\`, \`Δ = -112\`
+- Values and constants: \`null\`, \`undefined\`, \`true\`, \`false\`, \`42\`
 - **Names and proper nouns**: \`Max\`, \`John\`, \`OpenAI\`
+- **NEVER use backticks for math** - see Math section below
 
 **Headers** - ALWAYS wrap header text in backticks:
 ### \`Solution\`
@@ -218,17 +208,17 @@ Never perform a step without establishing the **Need**. Use this structure for e
 ### \`Step 1\`
 (This enables accent-colored rendering)
 
-**Math** - Use LaTeX for formulas, Unicode in backticks:
-- LaTeX: $E = mc^2$, $\\frac{a}{b}$, $\\sqrt{x}$
+**Math** - ALWAYS use LaTeX for ANY mathematical expression:
+- **RULE**: If it contains variables (x, y, a, b), equations (=), or math symbols (√, ±, ², fractions), use LaTeX $...$
+- Inline math: $x = 0$, $x = \\sqrt{2}$, $a^2 + b^2 = c^2$
 - Block equations: use $$ on separate lines
-- In backticks use Unicode: \`Δ = -112\`, \`x² + 1\`, \`√7\` (NOT \\Delta or \\sqrt)
-- **LaTeX Colors**: Use \\textcolor{${latexAccentColor}}{...} AGGRESSIVELY to color individual elements:
-  - **Variables**: $\\textcolor{${latexAccentColor}}{x}$, $\\textcolor{${latexAccentColor}}{F}$, $\\textcolor{${latexAccentColor}}{E}$
-  - **Coefficients/Numbers**: $\\textcolor{${latexAccentColor}}{2}x + \\textcolor{${latexAccentColor}}{3}$
-  - **Key symbols**: $\\textcolor{${latexAccentColor}}{\\Delta}$, $\\textcolor{${latexAccentColor}}{\\pm}$, $\\textcolor{${latexAccentColor}}{\\sqrt{}}$
-  - **Subscripts**: $x_{\\textcolor{${latexAccentColor}}{1}}$, $a_{\\textcolor{${latexAccentColor}}{n}}$
-  - Color 3-5 elements per equation, NOT just final answers
-  - Example: $\\textcolor{${latexAccentColor}}{E} = \\textcolor{${latexAccentColor}}{m}c^{\\textcolor{${latexAccentColor}}{2}}$
+- Examples of CORRECT usage:
+  - The solution is $x = 5$ ✓
+  - We get $x = \\pm\\sqrt{2}$ ✓
+  - Therefore $\\Delta = -112$ ✓
+- Examples of WRONG usage (never do this):
+  - The solution is \`x = 5\` ✗
+  - We get \`x = √2\` ✗
 
 **Code Blocks** - Use syntax-highlighted blocks:
 \`\`\`javascript
@@ -274,7 +264,7 @@ When a user's message contains text wrapped in [QUOTED FROM CONVERSATION] and [E
 
 export async function POST(req: Request) {
   try {
-    const { messages, model, reasoningEffort, chatId, responseLength, userName, userGender, learningMode, customInstructions, accentColor } = await req.json();
+    const { messages, model, reasoningEffort, chatId, responseLength, userName, userGender, learningMode, customInstructions } = await req.json();
 
     const modelId = model || "gemini-3-pro-preview";
     const effort = reasoningEffort || "medium";
@@ -283,7 +273,6 @@ export async function POST(req: Request) {
     const uGender = userGender || 'not-specified';
     const isLearningMode = learningMode === true;
     const userCustomInstructions = customInstructions || '';
-    const userAccentColor = accentColor || '#af8787';
 
     if (!Array.isArray(messages)) {
       throw new Error("Messages must be an array");
@@ -328,7 +317,7 @@ export async function POST(req: Request) {
     console.log('[API] Processed messages:', processedMessages.length);
 
     // Generate system prompt
-    const systemPrompt = generateSystemPrompt(respLength, uName, uGender, isLearningMode, isLearningMode ? undefined : userCustomInstructions, userAccentColor);
+    const systemPrompt = generateSystemPrompt(respLength, uName, uGender, isLearningMode, isLearningMode ? undefined : userCustomInstructions);
 
     // Configure Google provider options for thinking
     const googleProviderOpts = {
