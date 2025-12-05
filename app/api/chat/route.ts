@@ -347,6 +347,7 @@ export async function POST(req: Request) {
     // Track timing for TPS calculation
     const requestStartTime = Date.now();
     let firstChunkTime: number | null = null;
+    let firstReasoningTime: number | null = null;
 
     const result = streamText({
       model: vertex(cleanModelId),
@@ -355,10 +356,15 @@ export async function POST(req: Request) {
       providerOptions: {
         google: googleProviderOpts,
       },
-      onChunk: () => {
-        // Record when first chunk arrives
+      onChunk: ({ chunk }) => {
+        // Record when first chunk of any type arrives
+        const now = Date.now();
         if (!firstChunkTime) {
-          firstChunkTime = Date.now();
+          firstChunkTime = now;
+        }
+        // Also track reasoning chunks specifically
+        if (chunk.type === 'reasoning-delta' && !firstReasoningTime) {
+          firstReasoningTime = now;
         }
       },
       onFinish: async ({ text, reasoning, usage }) => {
@@ -368,41 +374,54 @@ export async function POST(req: Request) {
         // DEBUG: Log all available data
         console.log(`\n========== TPS DEBUG [${modelId}] ==========`);
         console.log(`requestStartTime: ${requestStartTime}`);
+        console.log(`firstReasoningTime: ${firstReasoningTime}`);
         console.log(`firstChunkTime: ${firstChunkTime}`);
         console.log(`endTime: ${endTime}`);
         console.log(`usage object:`, JSON.stringify(usage, null, 2));
         console.log(`text length: ${text?.length || 0} chars`);
         console.log(`reasoning:`, reasoning ? 'present' : 'none');
 
-        // Calculate TPS: outputTokens / generation time (first token to last token)
-        // This excludes TTFT (thinking time) and measures actual generation speed
+        // Calculate TPS: total generated tokens / generation time
+        // Generation time = from FIRST token (reasoning or text) to LAST token
+        // This measures the actual token generation speed, excluding initial latency
         const outputTokens = usage?.outputTokens || 0;
         const inputTokens = usage?.inputTokens || 0;
         const totalTokens = (usage as { totalTokens?: number })?.totalTokens || 0;
+        // reasoningTokens are included in the response if available
+        const reasoningTokens = (usage as { reasoningTokens?: number })?.reasoningTokens || 0;
 
         console.log(`inputTokens: ${inputTokens}`);
         console.log(`outputTokens: ${outputTokens}`);
         console.log(`totalTokens: ${totalTokens}`);
+        console.log(`reasoningTokens: ${reasoningTokens}`);
 
-        if (firstChunkTime) {
-          const ttft = (firstChunkTime - requestStartTime) / 1000;
-          const generationSeconds = (endTime - firstChunkTime) / 1000;
+        // Use the earliest available timestamp for when generation started
+        // Priority: firstReasoningTime (if reasoning present) > firstChunkTime
+        const generationStartTime = firstReasoningTime || firstChunkTime;
+
+        if (generationStartTime) {
+          const ttft = (generationStartTime - requestStartTime) / 1000;
+          const generationSeconds = (endTime - generationStartTime) / 1000;
           const totalSeconds = (endTime - requestStartTime) / 1000;
 
-          console.log(`TTFT: ${ttft.toFixed(3)}s`);
-          console.log(`Generation time (first->last): ${generationSeconds.toFixed(3)}s`);
-          console.log(`Total time (request->end): ${totalSeconds.toFixed(3)}s`);
+          console.log(`TTFT (to first token): ${ttft.toFixed(3)}s`);
+          console.log(`Generation time (first token -> end): ${generationSeconds.toFixed(3)}s`);
+          console.log(`Total time (request -> end): ${totalSeconds.toFixed(3)}s`);
 
-          // Use totalTokens (includes reasoning + output) for TPS calculation
-          const tokensGenerated = totalTokens > 0 ? totalTokens - inputTokens : outputTokens;
+          // Total tokens generated = outputTokens (text) + reasoningTokens (thinking)
+          // If reasoningTokens is available, use it; otherwise fall back to totalTokens - inputTokens
+          const tokensGenerated = reasoningTokens > 0
+            ? outputTokens + reasoningTokens
+            : (totalTokens > 0 ? totalTokens - inputTokens : outputTokens);
+
           if (tokensGenerated > 0 && generationSeconds > 0) {
             tps = tokensGenerated / generationSeconds;
-            console.log(`TPS = ${tokensGenerated} (total-input) / ${generationSeconds.toFixed(3)} = ${tps.toFixed(1)} t/s`);
+            console.log(`TPS = ${tokensGenerated} tokens / ${generationSeconds.toFixed(3)}s = ${tps.toFixed(1)} t/s`);
           } else {
             console.log(`TPS calculation skipped: tokensGenerated=${tokensGenerated}, generationSeconds=${generationSeconds}`);
           }
         } else {
-          console.log(`ERROR: firstChunkTime is null - onChunk never fired?`);
+          console.log(`ERROR: No chunk timestamps recorded - callbacks never fired?`);
         }
         console.log(`==========================================\n`);
 
