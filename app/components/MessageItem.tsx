@@ -15,6 +15,7 @@ import { LearningModeIndicator, LearningModeBadge } from './LearningModeIndicato
 import { LoadingIndicator } from './LoadingIndicator';
 import type { ChatMode } from '@/app/hooks/usePersistedSettings';
 import { useQuoteContext } from './QuoteContext';
+import { useAnimatedText } from '@/app/hooks/useAnimatedText';
 import 'katex/dist/katex.min.css';
 const REMARK_PLUGINS = [remarkMath, remarkGfm];
 const REHYPE_PLUGINS = [rehypeKatex];
@@ -749,7 +750,7 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
               {userText && (() => {
                 // Parse quoted text if present
                 const quoteMatch = userText.match(/\[QUOTED FROM CONVERSATION\]\n([\s\S]*?)\n\[END QUOTE\]\n\n?([\s\S]*)/);
-                
+
                 if (quoteMatch) {
                   const quotedContent = quoteMatch[1]
                     .split('\n')
@@ -757,7 +758,7 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
                     .filter(Boolean)
                     .join('\n');
                   const userQuestion = quoteMatch[2]?.trim() || '';
-                  
+
                   return (
                     <div className="space-y-2 max-w-full">
                       {/* Quoted text block */}
@@ -783,7 +784,7 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
                     </div>
                   );
                 }
-                
+
                 // Regular message without quotes
                 return (
                   <div
@@ -950,6 +951,15 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
 
   finalContent = preprocessLaTeX(finalContent);
   thinkContent = preprocessLaTeX(thinkContent);
+
+  // Apply smooth text animation during streaming
+  // This creates a word-by-word reveal effect using Framer Motion
+  const animatedFinalContent = useAnimatedText(finalContent, {
+    delimiter: ' ',  // Word by word animation
+    duration: 4,     // 4 seconds to animate full text (catches up naturally)
+    ease: 'circOut', // Fast start, smooth end
+    enabled: isStreaming && !!finalContent.trim(), // Only animate during streaming
+  });
 
   // If we have finalContent, we're done thinking regardless of what isThinking prop says
   // This handles fast models where SDK status lags behind actual content
@@ -1148,7 +1158,7 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
                   rehypePlugins={REHYPE_PLUGINS}
                   components={markdownComponents}
                 >
-                  {finalContent}
+                  {isStreaming ? animatedFinalContent : finalContent}
                 </ReactMarkdown>
               </div>
             </div>
