@@ -147,6 +147,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
       userGender: userGenderRef.current,
       learningMode: learningModeRef.current,
       customInstructions: customInstructionsRef.current,
+      accentColor: getAccentColorFromStorage(),
     }),
   }), []);
 

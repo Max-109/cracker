@@ -50,7 +50,8 @@ const vertex = createVertex({
 });
 
 // Generate system prompt with user settings
-function generateSystemPrompt(responseLength: number, userName: string, userGender: string, learningMode: boolean, customInstructions?: string): string {
+function generateSystemPrompt(responseLength: number, userName: string, userGender: string, learningMode: boolean, customInstructions?: string, accentColor?: string): string {
+  const latexAccentColor = accentColor || '#af8787';
   // User personalization section
   let userPersonalization = '';
   if (userName || (userGender && userGender !== 'not-specified')) {
@@ -135,6 +136,11 @@ Never perform a step without establishing the **Need**. Use this structure for e
 **Math** - Use LaTeX for formulas, Unicode in backticks for simple text math:
 - LaTeX: $x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}$
 - Inline: \`Δ = 5\`, \`√25\`
+- **LaTeX Colors**: Use \\textcolor{${latexAccentColor}}{...} to highlight key elements:
+  - Final answers: $x = \\textcolor{${latexAccentColor}}{5}$
+  - Important variables: $\\textcolor{${latexAccentColor}}{\\Delta} = b^2 - 4ac$
+  - Key coefficients: $y = \\textcolor{${latexAccentColor}}{2}x + 3$
+  - Use sparingly (1-2 colored elements per equation for impact)
 
 ## Honesty
 - If you don't know, admit it.
@@ -212,6 +218,11 @@ Never perform a step without establishing the **Need**. Use this structure for e
 - LaTeX: $E = mc^2$, $\\frac{a}{b}$, $\\sqrt{x}$
 - Block equations: use $$ on separate lines
 - In backticks use Unicode: \`Δ = -112\`, \`x² + 1\`, \`√7\` (NOT \\Delta or \\sqrt)
+- **LaTeX Colors**: Use \\textcolor{${latexAccentColor}}{...} to highlight important parts in equations:
+  - Key results: $x = \\textcolor{${latexAccentColor}}{42}$
+  - Important terms: $\\textcolor{${latexAccentColor}}{F} = ma$
+  - Emphasis in complex equations: $E = \\textcolor{${latexAccentColor}}{mc^2}$
+  - Use sparingly for maximum impact (1-2 elements per equation)
 
 **Code Blocks** - Use syntax-highlighted blocks:
 \`\`\`javascript
@@ -257,7 +268,7 @@ When a user's message contains text wrapped in [QUOTED FROM CONVERSATION] and [E
 
 export async function POST(req: Request) {
   try {
-    const { messages, model, reasoningEffort, chatId, responseLength, userName, userGender, learningMode, customInstructions } = await req.json();
+    const { messages, model, reasoningEffort, chatId, responseLength, userName, userGender, learningMode, customInstructions, accentColor } = await req.json();
     
     const modelId = model || "gemini-3-pro-preview";
     const effort = reasoningEffort || "medium";
@@ -266,6 +277,7 @@ export async function POST(req: Request) {
     const uGender = userGender || 'not-specified';
     const isLearningMode = learningMode === true;
     const userCustomInstructions = customInstructions || '';
+    const userAccentColor = accentColor || '#af8787';
 
     if (!Array.isArray(messages)) {
       throw new Error("Messages must be an array");
@@ -310,7 +322,7 @@ export async function POST(req: Request) {
     console.log('[API] Processed messages:', processedMessages.length);
 
     // Generate system prompt
-    const systemPrompt = generateSystemPrompt(respLength, uName, uGender, isLearningMode, isLearningMode ? undefined : userCustomInstructions);
+    const systemPrompt = generateSystemPrompt(respLength, uName, uGender, isLearningMode, isLearningMode ? undefined : userCustomInstructions, userAccentColor);
 
     // Configure Google provider options for thinking
     const googleProviderOpts = {
