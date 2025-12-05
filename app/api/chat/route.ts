@@ -271,6 +271,44 @@ export async function POST(req: Request) {
       throw new Error("Messages must be an array");
     }
 
+    // Debug log incoming messages
+    console.log('[API] Incoming messages:', JSON.stringify(messages.map((m: { role: string; parts?: unknown[]; content?: unknown }) => ({
+      role: m.role,
+      hasParts: !!m.parts,
+      partsCount: Array.isArray(m.parts) ? m.parts.length : 0,
+      partTypes: Array.isArray(m.parts) ? m.parts.map((p) => (p as { type?: string })?.type) : [],
+      hasContent: !!m.content,
+      contentType: typeof m.content,
+      contentIsArray: Array.isArray(m.content),
+    })), null, 2));
+
+    // Preprocess messages: convert content arrays to parts format for convertToModelMessages
+    const processedMessages = messages.map((msg: { id?: string; role: string; content?: unknown; parts?: unknown[] }) => {
+      // If content is an array (multimodal), move it to parts
+      if (Array.isArray(msg.content)) {
+        return {
+          ...msg,
+          parts: msg.content,
+          content: undefined,
+        };
+      }
+      // If content is an object but not array, it might be malformed - try to handle
+      if (msg.content && typeof msg.content === 'object' && !Array.isArray(msg.content)) {
+        // Check if it looks like parts array wrapped in object
+        const contentObj = msg.content as Record<string, unknown>;
+        if (contentObj.type === 'text' || contentObj.type === 'image' || contentObj.type === 'file') {
+          return {
+            ...msg,
+            parts: [msg.content],
+            content: undefined,
+          };
+        }
+      }
+      return msg;
+    });
+
+    console.log('[API] Processed messages:', processedMessages.length);
+
     // Generate system prompt
     const systemPrompt = generateSystemPrompt(respLength, uName, uGender, isLearningMode, isLearningMode ? undefined : userCustomInstructions);
 
@@ -295,7 +333,7 @@ export async function POST(req: Request) {
     const result = streamText({
       model: vertex(cleanModelId),
       system: systemPrompt,
-      messages: convertToModelMessages(messages as UIMessage[]),
+      messages: convertToModelMessages(processedMessages as UIMessage[]),
       providerOptions: {
         google: googleProviderOpts,
       },

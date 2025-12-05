@@ -602,9 +602,36 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
     }
     
     // Use direct streaming - the transport body() provides model, chatId, etc.
-    // sendMessage accepts { text: string } or { parts: MessagePart[] }
-    const textContent = (editedContent as { type: string; text?: string }[]).find(p => p.type === 'text')?.text || '';
-    await sendMessage({ text: textContent });
+    // For multimodal content (with attachments), use AI SDK's expected format:
+    // - file: { type: 'file', filename, mediaType, url (data URL) }
+    // - image: { type: 'image', image (data URL) }
+    if (editAttachments && editAttachments.length > 0) {
+      const aiParts = editedContent.map(part => {
+        const p = part as { type: string; text?: string; image?: string; data?: string; mediaType?: string; mimeType?: string; name?: string };
+        if (p.type === 'text') {
+          return { type: 'text' as const, text: p.text || '' };
+        }
+        if (p.type === 'image') {
+          // AI SDK expects: { type: 'image', image: dataUrl }
+          return { type: 'image' as const, image: p.image || '' };
+        }
+        if (p.type === 'file') {
+          // AI SDK expects: { type: 'file', filename, mediaType, url }
+          // The 'data' or 'image' property contains the data URL
+          return { 
+            type: 'file' as const, 
+            filename: p.name || 'file',
+            mediaType: p.mediaType || p.mimeType || 'application/octet-stream',
+            url: p.data || p.image || '' // data URL
+          };
+        }
+        return { type: 'text' as const, text: '' };
+      });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await sendMessage({ role: 'user', parts: aiParts } as any);
+    } else {
+      await sendMessage({ text: newContent });
+    }
   }, [handleEditMessage, sendMessage]);
 
   // Handle send message
@@ -739,11 +766,36 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
       }
 
       // Use direct streaming via sendMessage - transport body() provides model, chatId, etc.
-      // sendMessage accepts { text: string } for simple text messages
-      const textContent = Array.isArray(finalContent) 
-        ? (finalContent as { type: string; text?: string }[]).find(p => p.type === 'text')?.text || ''
-        : finalContent as string;
-      await sendMessage({ text: textContent });
+      // For multimodal content (with attachments), use AI SDK's expected format:
+      // - file: { type: 'file', filename, mediaType, url (data URL) }
+      // - image: { type: 'image', image (data URL) }
+      if (Array.isArray(finalContent)) {
+        // Convert to AI SDK UIMessage format for multimodal content
+        const aiParts = finalContent.map(part => {
+          if (part.type === 'text') {
+            return { type: 'text' as const, text: part.text };
+          }
+          if (part.type === 'image') {
+            // AI SDK expects: { type: 'image', image: dataUrl }
+            return { type: 'image' as const, image: part.image };
+          }
+          if (part.type === 'file') {
+            // AI SDK expects: { type: 'file', filename, mediaType, url }
+            // Our 'data' property contains the full data URL
+            return { 
+              type: 'file' as const, 
+              filename: part.filename || part.name || 'file',
+              mediaType: part.mediaType || part.mimeType || 'application/octet-stream',
+              url: part.data // 'data' contains the data URL from FileReader
+            };
+          }
+          return { type: 'text' as const, text: '' };
+        });
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await sendMessage({ role: 'user', parts: aiParts } as any);
+      } else {
+        await sendMessage({ text: finalContent });
+      }
       
       setIsSending(false);
     } catch (err) {
