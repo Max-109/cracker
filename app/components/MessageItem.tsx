@@ -1140,7 +1140,7 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
             <div className="min-h-[20px] space-y-3">
               <div
                 ref={messageContentRef}
-                className={cn("prose dark:prose-invert max-w-none break-words overflow-wrap-anywhere prose-pre:bg-transparent prose-pre:p-0", isStreaming && "streaming-prose")}
+                className={cn("prose dark:prose-invert max-w-none break-words overflow-wrap-anywhere prose-pre:bg-transparent prose-pre:p-0", isStreaming && "streaming-active")}
                 style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}
               >
                 <ReactMarkdown

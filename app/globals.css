@@ -486,67 +486,57 @@ select {
   animation: thinking-glow 2s ease-in-out infinite;
 }
 
-/* Streaming Message - Smooth text appearance effect */
-.streaming-prose {
+/* ============================================
+   STREAMING EFFECT - Bottom edge glow reveal
+   ============================================ */
+
+.streaming-active {
   position: relative;
 }
 
-/* Smooth character-level animation feel via word spacing transition */
-.streaming-prose > *:last-child {
-  animation: content-appear 0.15s ease-out;
-}
-
-/* Last paragraph/element gets subtle materialize effect */
-.streaming-prose p:last-of-type,
-.streaming-prose li:last-of-type,
-.streaming-prose h1:last-of-type,
-.streaming-prose h2:last-of-type,
-.streaming-prose h3:last-of-type,
-.streaming-prose h4:last-of-type,
-.streaming-prose pre:last-of-type,
-.streaming-prose blockquote:last-of-type,
-.streaming-prose code:last-of-type {
-  animation: text-materialize 0.2s ease-out forwards;
-}
-
-/* Smooth content appearance */
-@keyframes content-appear {
-  0% {
-    opacity: 0.85;
-  }
-  100% {
-    opacity: 1;
-  }
-}
-
-@keyframes text-materialize {
-  0% {
-    opacity: 0.7;
-    filter: blur(1px);
-    transform: translateY(1px);
-  }
-  100% {
-    opacity: 1;
-    filter: blur(0);
-    transform: translateY(0);
-  }
-}
-
-/* Typing cursor effect at the end of streaming content */
-.streaming-prose::after {
+/* Glowing gradient at the bottom where new text appears */
+.streaming-active::after {
   content: '';
-  display: inline-block;
-  width: 2px;
-  height: 1.1em;
-  background-color: var(--text-accent);
-  margin-left: 2px;
-  vertical-align: text-bottom;
-  animation: cursor-blink 0.6s ease-in-out infinite;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 60px;
+  background: linear-gradient(
+    to top,
+    rgba(var(--text-accent-rgb), 0.12) 0%,
+    rgba(var(--text-accent-rgb), 0.06) 30%,
+    transparent 100%
+  );
+  pointer-events: none;
+  animation: glow-pulse 1.5s ease-in-out infinite;
 }
 
-@keyframes cursor-blink {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.3; }
+@keyframes glow-pulse {
+  0%, 100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* Accent line on left during streaming */
+.streaming-active::before {
+  content: '';
+  position: absolute;
+  left: -8px;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--text-accent);
+  opacity: 0.4;
+  animation: line-pulse 1s ease-in-out infinite;
+}
+
+@keyframes line-pulse {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 0.6; }
 }
 
 /* Generated Image Reveal Animations */

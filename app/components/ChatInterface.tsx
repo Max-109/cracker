@@ -153,7 +153,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
   // useChat hook
   const chatHelpers = useChat({
     transport,
-    experimental_throttle: 50,
+    experimental_throttle: 16, // ~60fps for smoother streaming
     onError: (err: Error) => console.error("Chat Error:", err),
     onFinish: async () => {
       const activeId = chatIdRef.current;

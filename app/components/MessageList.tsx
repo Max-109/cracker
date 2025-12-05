@@ -242,7 +242,7 @@ const ThrottledMessageItem = memo(function ThrottledMessageItem({
   };
 
   const combinedContent = extractContent();
-  const throttledContent = useThrottledValue(combinedContent, 50);
+  const throttledContent = useThrottledValue(combinedContent, 16); // ~60fps for smoother streaming
 
   const handleEdit = React.useCallback((newContent: string, attachments?: EditAttachment[]) => {
     onEdit(index, newContent, attachments);
