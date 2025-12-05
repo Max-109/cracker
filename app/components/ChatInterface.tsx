@@ -602,9 +602,8 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
     }
     
     // Use direct streaming - the transport body() provides model, chatId, etc.
-    // For multimodal content (with attachments), use AI SDK's expected format:
-    // - file: { type: 'file', filename, mediaType, url (data URL) }
-    // - image: { type: 'image', image (data URL) }
+    // For multimodal content (with attachments), use AI SDK's file format for BOTH images and files
+    // Vertex AI only accepts the 'file' type format: { type: 'file', filename, mediaType, url }
     if (editAttachments && editAttachments.length > 0) {
       const aiParts = editedContent.map(part => {
         const p = part as { type: string; text?: string; image?: string; data?: string; mediaType?: string; mimeType?: string; name?: string };
@@ -612,12 +611,16 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
           return { type: 'text' as const, text: p.text || '' };
         }
         if (p.type === 'image') {
-          // AI SDK expects: { type: 'image', image: dataUrl }
-          return { type: 'image' as const, image: p.image || '' };
+          // Vertex AI requires 'file' format even for images!
+          return { 
+            type: 'file' as const, 
+            filename: p.name || 'image.png',
+            mediaType: p.mediaType || 'image/png',
+            url: p.image || '' // 'image' contains the data URL
+          };
         }
         if (p.type === 'file') {
           // AI SDK expects: { type: 'file', filename, mediaType, url }
-          // The 'data' or 'image' property contains the data URL
           return { 
             type: 'file' as const, 
             filename: p.name || 'file',
@@ -766,9 +769,8 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
       }
 
       // Use direct streaming via sendMessage - transport body() provides model, chatId, etc.
-      // For multimodal content (with attachments), use AI SDK's expected format:
-      // - file: { type: 'file', filename, mediaType, url (data URL) }
-      // - image: { type: 'image', image (data URL) }
+      // For multimodal content (with attachments), use AI SDK's file format for BOTH images and files
+      // Vertex AI only accepts the 'file' type format: { type: 'file', filename, mediaType, url }
       if (Array.isArray(finalContent)) {
         // Convert to AI SDK UIMessage format for multimodal content
         const aiParts = finalContent.map(part => {
@@ -776,8 +778,14 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
             return { type: 'text' as const, text: part.text };
           }
           if (part.type === 'image') {
-            // AI SDK expects: { type: 'image', image: dataUrl }
-            return { type: 'image' as const, image: part.image };
+            // Vertex AI requires 'file' format even for images!
+            // { type: 'image', image: dataUrl } does NOT work with Vertex AI
+            return { 
+              type: 'file' as const, 
+              filename: part.name || 'image.png',
+              mediaType: part.mediaType || 'image/png',
+              url: part.image // 'image' contains the data URL
+            };
           }
           if (part.type === 'file') {
             // AI SDK expects: { type: 'file', filename, mediaType, url }

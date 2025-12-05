@@ -264,7 +264,131 @@ const { accentColor, setAccentColor, isHydrated } = useAccentColor();
 - Drag & drop or click to upload
 - Paste images from clipboard
 - Progress tracking with circular indicator
-- Support for images and documents
+- Support for images and documents (PDF, images, text files)
+
+#### Supported File Types
+
+| Type | MIME Types | Notes |
+|------|-----------|-------|
+| **Images** | `image/png`, `image/jpeg`, `image/gif`, `image/webp` | Displayed inline, sent as base64 data URLs |
+| **PDFs** | `application/pdf` | Full document understanding via Gemini |
+| **Text** | `text/plain`, `text/markdown`, `text/csv` | Parsed and sent as file content |
+| **Code** | `application/javascript`, `text/typescript`, etc. | Syntax-aware processing |
+
+#### Message Format for Attachments
+
+The Vercel AI SDK with **Vertex AI** requires a specific format for multimodal messages. This is **critical** for attachments to work.
+
+> **IMPORTANT**: Vertex AI requires the `type: 'file'` format for **BOTH images and documents**. The `type: 'image'` format does NOT work with Vertex AI!
+
+**For ALL attachments (images AND files):**
+```typescript
+{
+  type: 'file',                  // Always 'file', even for images!
+  filename: 'image.png',         // Required!
+  mediaType: 'image/png',        // Required! (NOT mimeType)
+  url: 'data:image/png;base64,iVBORw0KGgo...' // Full data URL (NOT data)
+}
+```
+
+**Examples:**
+```typescript
+// Image attachment
+{ type: 'file', filename: 'photo.jpg', mediaType: 'image/jpeg', url: dataUrl }
+
+// PDF attachment  
+{ type: 'file', filename: 'document.pdf', mediaType: 'application/pdf', url: dataUrl }
+
+// Text file attachment
+{ type: 'file', filename: 'notes.txt', mediaType: 'text/plain', url: dataUrl }
+```
+
+**Complete Message Structure:**
+```typescript
+// Frontend sends to API
+{
+  id: 'msg-123',
+  role: 'user',
+  parts: [  // Must use 'parts', not 'content' for multimodal
+    { type: 'text', text: 'What is in this document?' },
+    { type: 'file', filename: 'doc.pdf', mediaType: 'application/pdf', url: dataUrl }
+  ]
+}
+```
+
+#### Frontend Implementation (ChatInterface.tsx)
+
+```typescript
+// 1. useAttachments hook provides file data
+const { attachments, handleFileSelect, clearAttachments } = useAttachments();
+
+// 2. When sending, convert ALL attachments to 'file' type format
+// Vertex AI requires 'file' type even for images!
+const aiParts = finalContent.map(part => {
+  if (part.type === 'text') {
+    return { type: 'text', text: part.text };
+  }
+  if (part.type === 'image') {
+    // IMPORTANT: Use 'file' type, not 'image' - Vertex AI requirement!
+    return { 
+      type: 'file', 
+      filename: part.name || 'image.png',
+      mediaType: part.mediaType || 'image/png',
+      url: part.image  // 'image' property contains the data URL
+    };
+  }
+  if (part.type === 'file') {
+    return { 
+      type: 'file', 
+      filename: part.filename || part.name || 'file',
+      mediaType: part.mediaType || 'application/octet-stream',
+      url: part.data  // 'data' property contains the data URL
+    };
+  }
+});
+
+// 3. Send with parts (not content)
+await sendMessage({ role: 'user', parts: aiParts });
+```
+
+#### Backend Processing (app/api/chat/route.ts)
+
+```typescript
+// Messages arrive with 'parts' array
+// convertToModelMessages handles the conversion to Vertex AI format
+const result = streamText({
+  model: vertex(modelId),
+  messages: convertToModelMessages(processedMessages as UIMessage[]),
+});
+```
+
+#### Common Pitfalls
+
+| Issue | Wrong | Correct |
+|-------|-------|---------|
+| **Image type** | `type: 'image'` | `type: 'file'` (Vertex AI requirement!) |
+| Property name | `data: base64` | `url: dataUrl` |
+| MIME type key | `mimeType: 'application/pdf'` | `mediaType: 'application/pdf'` |
+| Missing filename | `{ type: 'file', url: ... }` | `{ type: 'file', filename: 'doc.pdf', url: ... }` |
+| Parts vs Content | `content: [...]` | `parts: [...]` |
+| Base64 vs Data URL | `data: 'JVBERi0...'` | `url: 'data:application/pdf;base64,JVBERi0...'` |
+
+> **Note**: The `type: 'image'` format works with some providers (like OpenAI) but **does NOT work with Google Vertex AI**. Always use `type: 'file'` with the appropriate `mediaType` for Vertex AI.
+
+#### Testing Attachments
+
+Run the test scripts to verify attachment handling:
+
+```bash
+# Test all attachment types (images + PDFs)
+bun scripts/test-all-attachments.ts
+
+# Test PDF specifically
+bun scripts/test-attachment.ts
+
+# Test image formats (debugging)
+bun scripts/test-image.ts
+```
 
 ### Real-time Streaming
 - Token-by-token streaming display
