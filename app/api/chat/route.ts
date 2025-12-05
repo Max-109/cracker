@@ -11,11 +11,11 @@ export const maxDuration = 300; // 5 minutes max for responses
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const chatId = searchParams.get("chatId");
-  
+
   if (!chatId) {
     return NextResponse.json({ error: "chatId required" }, { status: 400 });
   }
-  
+
   try {
     const [lastMessage] = await db
       .select({
@@ -26,7 +26,7 @@ export async function GET(req: Request) {
       .where(and(eq(messagesTable.chatId, chatId), eq(messagesTable.role, "assistant")))
       .orderBy(desc(messagesTable.createdAt))
       .limit(1);
-    
+
     return NextResponse.json({
       tokensPerSecond: lastMessage?.tokensPerSecond ? parseFloat(lastMessage.tokensPerSecond) : null,
       modelId: lastMessage?.model || null,
@@ -57,7 +57,7 @@ function generateSystemPrompt(responseLength: number, userName: string, userGend
   if (userName || (userGender && userGender !== 'not-specified')) {
     const genderText = userGender === 'male' ? 'male' : userGender === 'female' ? 'female' : null;
     const possessive = userGender === 'male' ? 'his' : userGender === 'female' ? 'her' : 'their';
-    
+
     userPersonalization = `
 ## User`;
     if (userName) userPersonalization += `
@@ -70,7 +70,7 @@ function generateSystemPrompt(responseLength: number, userName: string, userGend
 
   // Response style instructions with length indicator
   let styleInstructions = '';
-  
+
   // Learning mode overrides response length with educational style
   if (learningMode) {
     // In learning mode, we return a completely different system prompt
@@ -136,11 +136,15 @@ Never perform a step without establishing the **Need**. Use this structure for e
 **Math** - Use LaTeX for formulas, Unicode in backticks for simple text math:
 - LaTeX: $x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}$
 - Inline: \`Δ = 5\`, \`√25\`
-- **LaTeX Colors**: Use \\textcolor{${latexAccentColor}}{...} to highlight key elements:
-  - Final answers: $x = \\textcolor{${latexAccentColor}}{5}$
-  - Important variables: $\\textcolor{${latexAccentColor}}{\\Delta} = b^2 - 4ac$
-  - Key coefficients: $y = \\textcolor{${latexAccentColor}}{2}x + 3$
-  - Use sparingly (1-2 colored elements per equation for impact)
+- **LaTeX Colors**: Use \\textcolor{${latexAccentColor}}{...} AGGRESSIVELY to color individual elements:
+  - **Variables/Unknowns**: $\\textcolor{${latexAccentColor}}{x} = 5$, $\\textcolor{${latexAccentColor}}{y} = mx + b$
+  - **Coefficients**: $\\textcolor{${latexAccentColor}}{2}x^2 + \\textcolor{${latexAccentColor}}{3}x - \\textcolor{${latexAccentColor}}{5} = 0$
+  - **Important symbols**: $\\textcolor{${latexAccentColor}}{\\Delta} = b^2 - 4ac$, $\\textcolor{${latexAccentColor}}{\\pm}$
+  - **Operators in key steps**: $= \\textcolor{${latexAccentColor}}{\\frac{-b}{2a}}$
+  - **Results/Answers**: $x = \\textcolor{${latexAccentColor}}{1 \\pm i\\sqrt{7}}$
+  - **Subscripts/Indices**: $x_{\\textcolor{${latexAccentColor}}{1}}$, $a_{\\textcolor{${latexAccentColor}}{n}}$
+  - Color 3-5 elements per equation for visual guidance, NOT just the final answer
+  - Example: $\\textcolor{${latexAccentColor}}{x} = \\frac{\\textcolor{${latexAccentColor}}{2} \\pm \\sqrt{\\textcolor{${latexAccentColor}}{4} - 32}}{2}$
 
 ## Honesty
 - If you don't know, admit it.
@@ -218,11 +222,13 @@ Never perform a step without establishing the **Need**. Use this structure for e
 - LaTeX: $E = mc^2$, $\\frac{a}{b}$, $\\sqrt{x}$
 - Block equations: use $$ on separate lines
 - In backticks use Unicode: \`Δ = -112\`, \`x² + 1\`, \`√7\` (NOT \\Delta or \\sqrt)
-- **LaTeX Colors**: Use \\textcolor{${latexAccentColor}}{...} to highlight important parts in equations:
-  - Key results: $x = \\textcolor{${latexAccentColor}}{42}$
-  - Important terms: $\\textcolor{${latexAccentColor}}{F} = ma$
-  - Emphasis in complex equations: $E = \\textcolor{${latexAccentColor}}{mc^2}$
-  - Use sparingly for maximum impact (1-2 elements per equation)
+- **LaTeX Colors**: Use \\textcolor{${latexAccentColor}}{...} AGGRESSIVELY to color individual elements:
+  - **Variables**: $\\textcolor{${latexAccentColor}}{x}$, $\\textcolor{${latexAccentColor}}{F}$, $\\textcolor{${latexAccentColor}}{E}$
+  - **Coefficients/Numbers**: $\\textcolor{${latexAccentColor}}{2}x + \\textcolor{${latexAccentColor}}{3}$
+  - **Key symbols**: $\\textcolor{${latexAccentColor}}{\\Delta}$, $\\textcolor{${latexAccentColor}}{\\pm}$, $\\textcolor{${latexAccentColor}}{\\sqrt{}}$
+  - **Subscripts**: $x_{\\textcolor{${latexAccentColor}}{1}}$, $a_{\\textcolor{${latexAccentColor}}{n}}$
+  - Color 3-5 elements per equation, NOT just final answers
+  - Example: $\\textcolor{${latexAccentColor}}{E} = \\textcolor{${latexAccentColor}}{m}c^{\\textcolor{${latexAccentColor}}{2}}$
 
 **Code Blocks** - Use syntax-highlighted blocks:
 \`\`\`javascript
@@ -269,7 +275,7 @@ When a user's message contains text wrapped in [QUOTED FROM CONVERSATION] and [E
 export async function POST(req: Request) {
   try {
     const { messages, model, reasoningEffort, chatId, responseLength, userName, userGender, learningMode, customInstructions, accentColor } = await req.json();
-    
+
     const modelId = model || "gemini-3-pro-preview";
     const effort = reasoningEffort || "medium";
     const respLength = typeof responseLength === 'number' ? responseLength : 50;
@@ -328,7 +334,7 @@ export async function POST(req: Request) {
     const googleProviderOpts = {
       thinkingConfig: {
         includeThoughts: true,
-        ...(modelId.includes('gemini-3') 
+        ...(modelId.includes('gemini-3')
           ? { thinkingLevel: effort === 'low' ? 'low' : 'high' }
           : { thinkingBudget: effort === 'high' ? 24576 : effort === 'medium' ? 8192 : 2048 }
         ),
@@ -337,7 +343,7 @@ export async function POST(req: Request) {
 
     // Clean model ID (remove google/ prefix if present)
     const cleanModelId = modelId.replace('google/', '');
-    
+
     // Track timing for TPS calculation
     const requestStartTime = Date.now();
     let firstChunkTime: number | null = null;
@@ -358,7 +364,7 @@ export async function POST(req: Request) {
       onFinish: async ({ text, reasoning, usage }) => {
         const endTime = Date.now();
         let tps = 0;
-        
+
         // DEBUG: Log all available data
         console.log(`\n========== TPS DEBUG [${modelId}] ==========`);
         console.log(`requestStartTime: ${requestStartTime}`);
@@ -367,26 +373,26 @@ export async function POST(req: Request) {
         console.log(`usage object:`, JSON.stringify(usage, null, 2));
         console.log(`text length: ${text?.length || 0} chars`);
         console.log(`reasoning:`, reasoning ? 'present' : 'none');
-        
+
         // Calculate TPS: outputTokens / generation time (first token to last token)
         // This excludes TTFT (thinking time) and measures actual generation speed
         const outputTokens = usage?.outputTokens || 0;
         const inputTokens = usage?.inputTokens || 0;
         const totalTokens = (usage as { totalTokens?: number })?.totalTokens || 0;
-        
+
         console.log(`inputTokens: ${inputTokens}`);
         console.log(`outputTokens: ${outputTokens}`);
         console.log(`totalTokens: ${totalTokens}`);
-        
+
         if (firstChunkTime) {
           const ttft = (firstChunkTime - requestStartTime) / 1000;
           const generationSeconds = (endTime - firstChunkTime) / 1000;
           const totalSeconds = (endTime - requestStartTime) / 1000;
-          
+
           console.log(`TTFT: ${ttft.toFixed(3)}s`);
           console.log(`Generation time (first->last): ${generationSeconds.toFixed(3)}s`);
           console.log(`Total time (request->end): ${totalSeconds.toFixed(3)}s`);
-          
+
           // Use totalTokens (includes reasoning + output) for TPS calculation
           const tokensGenerated = totalTokens > 0 ? totalTokens - inputTokens : outputTokens;
           if (tokensGenerated > 0 && generationSeconds > 0) {
@@ -399,11 +405,11 @@ export async function POST(req: Request) {
           console.log(`ERROR: firstChunkTime is null - onChunk never fired?`);
         }
         console.log(`==========================================\n`);
-        
+
         if (chatId) {
           try {
             const contentParts: Array<{ type: string; text?: string; reasoning?: string }> = [];
-            
+
             // reasoning is now ReasoningPart[] - extract text from it
             if (reasoning && typeof reasoning === 'string') {
               contentParts.push({ type: 'reasoning', text: reasoning, reasoning });
@@ -413,11 +419,11 @@ export async function POST(req: Request) {
                 contentParts.push({ type: 'reasoning', text: reasoningText, reasoning: reasoningText });
               }
             }
-            
+
             if (text) {
               contentParts.push({ type: 'text', text });
             }
-            
+
             if (contentParts.length > 0) {
               await db.insert(messagesTable).values({
                 chatId,
