@@ -1,9 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { ChatContext } from './ChatContext';
 import { Sidebar } from './Sidebar';
+import { VisualEffects } from './VisualEffects';
+import { CommandPalette } from './CommandPalette';
+import { MobileControlCenter } from './MobileControlCenter';
 import { cn } from '@/lib/utils';
 
 interface Chat {
@@ -16,16 +19,21 @@ interface Chat {
 export default function AppLayout({ children }: { children: React.ReactNode }) {
     const [chats, setChats] = useState<Chat[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-    const [remountKey, setRemountKey] = useState(0);
+    const [sidebarOpen, setSidebarOpen] = useState(true); // Changed from isSidebarOpen, initial true
+    // const [remountKey, setRemountKey] = useState(0); // Removed
 
     const router = useRouter();
-    const params = useParams();
-    // Safely access id, handling potential array/undefined
-    const rawId = params?.id;
-    const currentChatId = Array.isArray(rawId) ? rawId[0] : rawId || null;
+    const { id: chatId } = useParams(); // Destructure id as chatId
 
-    const refreshChats = () => {
+    // Resizable Sidebar State
+    const [sidebarWidth, setSidebarWidth] = useState(260);
+    const [isResizing, setIsResizing] = useState(false);
+    const sidebarRef = useRef<HTMLDivElement>(null);
+
+    // Safely access id, handling potential array/undefined
+    const currentChatId = Array.isArray(chatId) ? chatId[0] : chatId || null;
+
+    const fetchChats = () => { // Renamed from refreshChats
         // Don't set loading to true on refresh to avoid flickering skeleton on every new chat
         fetch('/api/chats')
             .then(res => res.json())
@@ -39,49 +47,95 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     useEffect(() => {
         // eslint-disable-next-line react-hooks/set-state-in-effect
         setIsLoading(true);
-        refreshChats();
+        fetchChats(); // Call fetchChats
     }, []);
 
+    // Load saved width
+    useEffect(() => {
+        const savedWidth = localStorage.getItem('sidebarWidth');
+        if (savedWidth) setSidebarWidth(parseInt(savedWidth));
+    }, []);
+
+    const startResizing = useCallback((mouseDownEvent: React.MouseEvent) => {
+        setIsResizing(true);
+        mouseDownEvent.preventDefault();
+    }, []);
+
+    const stopResizing = useCallback(() => {
+        setIsResizing(false);
+        localStorage.setItem('sidebarWidth', sidebarWidth.toString());
+    }, [sidebarWidth]);
+
+    const resize = useCallback((mouseMoveEvent: MouseEvent) => {
+        if (isResizing) {
+            const newWidth = mouseMoveEvent.clientX;
+            if (newWidth >= 200 && newWidth <= 480) {
+                setSidebarWidth(newWidth);
+            }
+        }
+    }, [isResizing]);
+
+    useEffect(() => {
+        window.addEventListener("mousemove", resize);
+        window.addEventListener("mouseup", stopResizing);
+        return () => {
+            window.removeEventListener("mousemove", resize);
+            window.removeEventListener("mouseup", stopResizing);
+        };
+    }, [resize, stopResizing]);
+
     const handleNewChat = () => {
-        setIsSidebarOpen(false);
-        setRemountKey(prev => prev + 1);
+        setSidebarOpen(false); // Changed from setIsSidebarOpen
+        // setRemountKey(prev => prev + 1); // Removed
         router.push('/');
     };
 
     const handleSelectChat = (id: string) => {
-        setIsSidebarOpen(false);
+        setSidebarOpen(false); // Changed from setIsSidebarOpen
         if (id !== currentChatId) router.push(`/chat/${id}`);
     };
 
-    const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
-    const closeSidebar = () => setIsSidebarOpen(false);
+    const toggleSidebar = () => setSidebarOpen(!sidebarOpen); // Updated to use sidebarOpen
+    const closeSidebar = () => setSidebarOpen(false); // Updated to use setSidebarOpen
 
     return (
         <ChatContext.Provider value={{
             chats,
             isLoading,
-            refreshChats,
-            isSidebarOpen,
+            refreshChats: fetchChats, // Provide fetchChats as refreshChats
+            isSidebarOpen: sidebarOpen, // Provide sidebarOpen as isSidebarOpen
             toggleSidebar,
             closeSidebar
         }}>
-            <div className="flex h-[100dvh] w-full bg-[var(--bg-main)] text-[var(--text-primary)]">
+            <div className="flex h-[100dvh] w-full bg-[var(--bg-main)] text-[var(--text-primary)] relative">
+                {/* Visual Effects Overlay */}
+                <VisualEffects />
+
+                {/* Command Palette */}
+                <CommandPalette />
+
+                {/* Mobile Control Center */}
+                <MobileControlCenter />
+
                 {/* Sidebar */}
                 {/* Desktop: always visible, w-[260px] */}
                 {/* Mobile: fixed, z-40, transform based on state */}
 
                 {/* Mobile Overlay */}
-                {isSidebarOpen && (
+                {sidebarOpen && ( // Changed from isSidebarOpen
                     <div
-                        className="fixed inset-0 bg-black/50 z-[55] md:hidden fade-in duration-200"
+                        className="fixed inset-0 bg-black/50 z-[55] md:hidden fade-in duration-200 backdrop-blur-sm"
                         onClick={closeSidebar}
                     />
                 )}
 
-                <div className={cn(
-                    "fixed inset-y-0 left-0 z-[60] w-[240px] transition-transform duration-300 md:relative md:translate-x-0",
-                    isSidebarOpen ? "translate-x-0" : "-translate-x-full"
-                )}>
+                {/* Desktop Sidebar (Fixed Toggle) */}
+                <div
+                    className={cn(
+                        "hidden md:flex flex-col h-full z-30 transition-all duration-300 ease-in-out relative flex-shrink-0 border-r border-[var(--border-color)]",
+                        sidebarOpen ? "w-[260px] translate-x-0" : "w-0 -translate-x-full opacity-0 overflow-hidden"
+                    )}
+                >
                     <Sidebar
                         onNewChat={handleNewChat}
                         chats={chats}
@@ -89,13 +143,32 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                         onSelectChat={handleSelectChat}
                         onClose={closeSidebar}
                         isLoading={isLoading}
-                        onRefresh={refreshChats}
-                        className="w-full"
+                        onRefresh={fetchChats}
+                        className="w-full h-full"
                     />
                 </div>
 
-                <div className="flex-1 flex flex-col h-full relative min-w-0">
-                    <div key={remountKey} className="h-full w-full">
+                {/* Mobile Sidebar (Fixed) */}
+                <div className={cn(
+                    "fixed inset-y-0 left-0 w-[280px] z-50 transform transition-transform duration-300 ease-in-out md:hidden",
+                    sidebarOpen ? "translate-x-0" : "-translate-x-full"
+                )}>
+                    <Sidebar
+                        onNewChat={handleNewChat}
+                        chats={chats}
+                        currentChatId={currentChatId}
+                        onSelectChat={(id) => {
+                            router.push(`/chat/${id}`);
+                            setSidebarOpen(false);
+                        }}
+                        onClose={() => setSidebarOpen(false)}
+                        isLoading={isLoading}
+                        onRefresh={fetchChats}
+                    />
+                </div>
+
+                <div className="flex-1 flex flex-col h-full relative min-w-0 z-10">
+                    <div key={0} className="h-full w-full"> {/* remountKey removed, using 0 */}
                         {children}
                     </div>
                 </div>

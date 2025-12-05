@@ -317,7 +317,11 @@ export function ChatInput({
                 onChange={(e) => onInputChange(e.target.value)}
                 onKeyDown={handleKeyDown}
                 onPaste={onPaste}
-                onFocus={handleFocus}
+                onFocus={() => {
+                  handleFocus();
+                  document.body.classList.add('focus-mode');
+                }}
+                onBlur={() => document.body.classList.remove('focus-mode')}
                 placeholder="Let's crack..."
                 autoResize
                 maxHeight={200}

@@ -16,6 +16,7 @@ import {
   Loader2,
   AlertTriangle
 } from 'lucide-react';
+import { ThoughtStream } from './ThoughtStream';
 
 export type ResearchPhase = 'clarify' | 'planning' | 'searching' | 'analyzing' | 'deep-dive' | 'writing' | 'complete';
 
@@ -53,26 +54,31 @@ const PHASE_CONFIG: Record<ResearchPhase | 'error', { icon: typeof Microscope; l
   error: { icon: AlertTriangle, label: 'Error', color: 'text-red-400' },
 };
 
-export function DeepResearchProgress({ 
-  progress, 
+export function DeepResearchProgress({
+  progress,
   clarifyQuestions,
   onClarifySubmit,
-  onSkipClarify 
+  onSkipClarify
 }: DeepResearchProgressProps) {
   const [isSourcesExpanded, setIsSourcesExpanded] = useState(false);
   const [isSearchesExpanded, setIsSearchesExpanded] = useState(false);
   const [clarifyAnswers, setClarifyAnswers] = useState<string[]>([]);
-  
+
   const phaseConfig = PHASE_CONFIG[progress.phase as ResearchPhase] || PHASE_CONFIG.searching;
   const PhaseIcon = phaseConfig.icon;
 
   // Handle error state
   const isErrorState = (progress as any).isError;
-  
+
   // Handle clarifying questions mode
   if (clarifyQuestions && clarifyQuestions.length > 0 && !progress.isComplete) {
+    // ... (keep clarify logic as is - user input required)
     return (
       <div className="border border-[var(--text-accent)]/30 bg-[#141414] p-4 space-y-4">
+        {/* ... Clarify UI ... */}
+        {/* Reusing existing code via copy-paste is risky in replace_file if block is huge. 
+            Better to keep the structure and just swap the main render. 
+        */}
         <div className="flex items-center gap-3">
           <div className="relative">
             <Brain size={20} className="text-[var(--text-accent)]" />
@@ -89,7 +95,7 @@ export function DeepResearchProgress({
             </div>
           </div>
         </div>
-        
+
         <div className="space-y-3">
           {clarifyQuestions.map((question, idx) => (
             <div key={idx} className="space-y-2">
@@ -110,7 +116,7 @@ export function DeepResearchProgress({
             </div>
           ))}
         </div>
-        
+
         <div className="flex items-center justify-between pt-2 border-t border-[var(--border-color)]">
           <button
             onClick={onSkipClarify}
@@ -140,147 +146,43 @@ export function DeepResearchProgress({
       </div>
     );
   }
-  
+
   return (
-    <div className="border border-[var(--text-accent)]/30 bg-[#141414] p-4 space-y-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="relative">
-            <PhaseIcon size={20} className={cn(phaseConfig.color, !progress.isComplete && "animate-pulse")} />
-            {!progress.isComplete && (
-              <div className="absolute inset-0 animate-ping opacity-20">
-                <PhaseIcon size={20} className={phaseConfig.color} />
+    <div className="border border-[var(--text-accent)]/30 bg-[#141414]/90 backdrop-blur-sm p-4 animate-in fade-in zoom-in-95 duration-300">
+      {/* New Visualizer */}
+      <ThoughtStream progress={progress} />
+
+      {/* Sources (Keep them collapsible at the bottom) */}
+      {progress.sources.length > 0 && (
+        <div className="mt-6 pt-4 border-t border-[#2a2a2a]">
+          <div className="space-y-2">
+            <button
+              onClick={() => setIsSourcesExpanded(!isSourcesExpanded)}
+              className="flex items-center gap-2 text-[10px] uppercase tracking-[0.12em] text-[var(--text-secondary)] hover:text-[var(--text-accent)] transition-colors w-full"
+            >
+              <Globe size={12} className="text-[var(--text-accent)]" />
+              <span>Sources Found ({progress.sources.length})</span>
+              {isSourcesExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+            </button>
+
+            {isSourcesExpanded && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+                {progress.sources.map((source, idx) => (
+                  <a
+                    key={idx}
+                    href={source.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 p-2 bg-[#1a1a1a] border border-[#333] hover:border-[var(--text-accent)]/50 transition-all group"
+                  >
+                    <span className="text-[var(--text-accent)] font-mono text-[10px]">[{idx + 1}]</span>
+                    <span className="truncate flex-1 text-[10px] text-[#ccc]">{source.title}</span>
+                    <ExternalLink size={10} className="opacity-0 group-hover:opacity-100 flex-shrink-0 text-[var(--text-secondary)]" />
+                  </a>
+                ))}
               </div>
             )}
           </div>
-          <div>
-            <div className={cn("text-xs uppercase tracking-[0.12em] font-semibold", phaseConfig.color)}>
-              {isErrorState ? 'Research Error' : progress.isComplete ? 'Research Complete' : phaseConfig.label}
-            </div>
-            <div className={cn("text-[10px] mt-0.5", isErrorState ? "text-red-400" : "text-[var(--text-secondary)]")}>
-              {isErrorState ? progress.message || 'An error occurred during research' : progress.phaseDescription || progress.message}
-            </div>
-          </div>
-        </div>
-
-        {progress.elapsed && progress.isComplete && (
-          <div className="text-[10px] text-[var(--text-secondary)]">
-            {progress.elapsed.toFixed(1)}s
-          </div>
-        )}
-      </div>
-
-      {/* Progress Bar with loading animation */}
-      <div className="space-y-1">
-        <div className="h-1.5 bg-[#2a2a2a] overflow-hidden">
-          <div
-            className={cn(
-              "h-full transition-all duration-500 ease-out",
-              progress.isComplete ? "bg-[var(--text-accent)]" : "bg-gradient-to-r from-[var(--text-accent)] to-[var(--text-accent)]/50",
-              !progress.isComplete && "animate-progress-pulse"
-            )}
-            style={{ width: `${progress.percent}%` }}
-          />
-        </div>
-        <div className="flex items-center justify-between text-[9px] text-[var(--text-secondary)] uppercase tracking-wider">
-          <span>{progress.message || 'Loading...'}</span>
-          <span>{progress.percent}%</span>
-        </div>
-      </div>
-      
-      {/* Live Searches */}
-      {progress.searches.length > 0 && !progress.isComplete && (
-        <div className="space-y-2">
-          <button
-            onClick={() => setIsSearchesExpanded(!isSearchesExpanded)}
-            className="flex items-center gap-2 text-[10px] uppercase tracking-[0.12em] text-[var(--text-secondary)] hover:text-[var(--text-accent)] transition-colors w-full"
-          >
-            <Search size={12} className="text-[var(--text-accent)]" />
-            <span>Searches ({progress.searches.length})</span>
-            {isSearchesExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-          </button>
-          
-          {isSearchesExpanded && (
-            <div className="max-h-[120px] overflow-y-auto space-y-1 pl-5">
-              {progress.searches.slice(-10).map((search, idx) => (
-                <div 
-                  key={idx} 
-                  className="flex items-center gap-2 text-[10px] text-[var(--text-secondary)] animate-in slide-in-from-left-2 duration-200"
-                >
-                  {idx === progress.searches.length - 1 ? (
-                    <Loader2 size={10} className="text-[var(--text-accent)] animate-spin" />
-                  ) : (
-                    <CheckCircle2 size={10} className="text-green-500/70" />
-                  )}
-                  <span className="truncate">{search.query}</span>
-                </div>
-              ))}
-            </div>
-          )}
-          
-          {!isSearchesExpanded && progress.searches.length > 0 && (
-            <div className="flex items-center gap-2 text-[10px] text-[var(--text-secondary)] pl-5">
-              <Loader2 size={10} className="text-[var(--text-accent)] animate-spin" />
-              <span className="truncate">{progress.searches[progress.searches.length - 1]?.query}</span>
-            </div>
-          )}
-        </div>
-      )}
-      
-      {/* Sources Found */}
-      {progress.sources.length > 0 && (
-        <div className="space-y-2">
-          <button
-            onClick={() => setIsSourcesExpanded(!isSourcesExpanded)}
-            className="flex items-center gap-2 text-[10px] uppercase tracking-[0.12em] text-[var(--text-secondary)] hover:text-[var(--text-accent)] transition-colors w-full"
-          >
-            <Globe size={12} className="text-[var(--text-accent)]" />
-            <span>Sources Found ({progress.sources.length})</span>
-            {isSourcesExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
-          </button>
-          
-          {isSourcesExpanded && (
-            <div className="max-h-[200px] overflow-y-auto space-y-1 pl-5">
-              {progress.sources.map((source, idx) => (
-                <a
-                  key={idx}
-                  href={source.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 text-[10px] text-[var(--text-secondary)] hover:text-[var(--text-accent)] transition-colors group"
-                >
-                  <span className="text-[var(--text-accent)] font-mono">[{idx + 1}]</span>
-                  <span className="truncate flex-1">{source.title}</span>
-                  <ExternalLink size={10} className="opacity-0 group-hover:opacity-100 flex-shrink-0" />
-                </a>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-      
-      {/* Phase indicators */}
-      {!progress.isComplete && (
-        <div className="flex items-center gap-2 pt-2 border-t border-[var(--border-color)]">
-          {(['planning', 'searching', 'analyzing', 'deep-dive', 'writing'] as ResearchPhase[]).map((phase, idx) => {
-            const config = PHASE_CONFIG[phase];
-            const isActive = progress.phase === phase;
-            const isPast = ['planning', 'searching', 'analyzing', 'deep-dive', 'writing'].indexOf(progress.phase) > idx;
-            
-            return (
-              <div 
-                key={phase}
-                className={cn(
-                  "flex-1 h-1",
-                  isPast ? "bg-[var(--text-accent)]" :
-                  isActive ? "bg-[var(--text-accent)]/50 animate-pulse" :
-                  "bg-[#2a2a2a]"
-                )}
-                title={config.label}
-              />
-            );
-          })}
         </div>
       )}
     </div>
@@ -295,12 +197,12 @@ interface SourcesDisplayProps {
 
 export function SourcesDisplay({ sources, maxVisible = 5 }: SourcesDisplayProps) {
   const [isExpanded, setIsExpanded] = useState(false);
-  
+
   if (sources.length === 0) return null;
-  
+
   const visibleSources = isExpanded ? sources : sources.slice(0, maxVisible);
   const hiddenCount = sources.length - maxVisible;
-  
+
   return (
     <div className="border border-[var(--border-color)] bg-[#141414] p-3 space-y-2">
       <div className="flex items-center gap-2">
@@ -309,7 +211,7 @@ export function SourcesDisplay({ sources, maxVisible = 5 }: SourcesDisplayProps)
           Sources ({sources.length})
         </span>
       </div>
-      
+
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
         {visibleSources.map((source, idx) => (
           <a
@@ -325,7 +227,7 @@ export function SourcesDisplay({ sources, maxVisible = 5 }: SourcesDisplayProps)
           </a>
         ))}
       </div>
-      
+
       {hiddenCount > 0 && !isExpanded && (
         <button
           onClick={() => setIsExpanded(true)}
@@ -334,7 +236,7 @@ export function SourcesDisplay({ sources, maxVisible = 5 }: SourcesDisplayProps)
           +{hiddenCount} more sources
         </button>
       )}
-      
+
       {isExpanded && sources.length > maxVisible && (
         <button
           onClick={() => setIsExpanded(false)}

@@ -154,13 +154,13 @@ export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose
         if (!deleteId) return;
         const idToDelete = deleteId;
         setDeleteId(null);
-        
+
         // Trigger delete animation first
         setAnimatingDeleteId(idToDelete);
-        
+
         // Wait for animation to complete before actually deleting
         await new Promise(resolve => setTimeout(resolve, 500));
-        
+
         try {
             await fetch(`/api/chats/${idToDelete}`, { method: 'DELETE' });
             setAnimatingDeleteId(null);
@@ -179,9 +179,9 @@ export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose
             setShowDeleteAllDialog(false);
             return;
         }
-        
+
         setIsDeletingAll(true);
-        
+
         try {
             // Delete all chats for the current user via server-side endpoint
             const response = await fetch('/api/chats', { method: 'DELETE' });
@@ -199,7 +199,7 @@ export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose
     };
 
     return (
-        <div className={cn("bg-[var(--bg-sidebar)] h-full flex flex-col p-3 border-r border-[var(--border-color)] relative", className)}>
+        <div className={cn("bg-[var(--bg-sidebar)] backdrop-blur-md h-full flex flex-col p-3 border-r border-[var(--border-color)] relative", className)}>
 
             {/* Delete Confirmation Dialog */}
             <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
@@ -213,7 +213,7 @@ export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose
                             <span className="text-[11px] uppercase tracking-[0.14em] font-semibold text-[var(--text-primary)]">Delete Chat</span>
                         </div>
                     </div>
-                    
+
                     {/* Content */}
                     <div className="px-4 py-4">
                         <AlertDialogHeader className="gap-3">
@@ -222,7 +222,7 @@ export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose
                                 This will permanently delete this chat and all its messages. This action cannot be undone.
                             </AlertDialogDescription>
                         </AlertDialogHeader>
-                        
+
                         {/* Warning Box */}
                         <div className="mt-4 p-3 border border-red-400/20 bg-red-400/5 flex items-start gap-2">
                             <AlertTriangle size={14} className="text-red-400 flex-shrink-0 mt-0.5" />
@@ -231,7 +231,7 @@ export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose
                             </p>
                         </div>
                     </div>
-                    
+
                     {/* Footer */}
                     <AlertDialogFooter className="px-4 py-3 border-t border-[var(--border-color)] bg-[#0f0f0f] flex-row gap-2">
                         <AlertDialogCancel className="flex-1 bg-[#1a1a1a] border-[var(--border-color)] text-[var(--text-primary)] hover:border-[var(--text-accent)]/50 hover:text-[var(--text-accent)] uppercase tracking-[0.12em] text-xs font-semibold px-4 py-2.5 transition-all duration-150">
@@ -256,7 +256,7 @@ export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose
                             <span className="text-[11px] uppercase tracking-[0.14em] font-semibold text-[var(--text-primary)]">Delete All Chats</span>
                         </div>
                     </div>
-                    
+
                     {/* Content */}
                     <div className="px-4 py-4">
                         <AlertDialogHeader className="gap-3">
@@ -265,7 +265,7 @@ export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose
                                 This will permanently delete all <span className="text-[var(--text-accent)] font-semibold">{chats.length}</span> chat{chats.length !== 1 ? 's' : ''} and their entire history.
                             </AlertDialogDescription>
                         </AlertDialogHeader>
-                        
+
                         {/* Warning Box */}
                         <div className="mt-4 p-3 border border-red-400/20 bg-red-400/5 flex items-start gap-2">
                             <AlertTriangle size={14} className="text-red-400 flex-shrink-0 mt-0.5" />
@@ -274,7 +274,7 @@ export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose
                             </p>
                         </div>
                     </div>
-                    
+
                     {/* Footer */}
                     <AlertDialogFooter className="px-4 py-3 border-t border-[var(--border-color)] bg-[#0f0f0f] flex-row gap-2">
                         <AlertDialogCancel disabled={isDeletingAll} className="flex-1 bg-[#1a1a1a] border-[var(--border-color)] text-[var(--text-primary)] hover:border-[var(--text-accent)]/50 hover:text-[var(--text-accent)] uppercase tracking-[0.12em] text-xs font-semibold px-4 py-2.5 transition-all duration-150 disabled:opacity-50">
@@ -298,7 +298,7 @@ export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose
                         const rect = btn.getBoundingClientRect();
                         const x = e.clientX - rect.left;
                         const y = e.clientY - rect.top;
-                        
+
                         if (overlay) {
                             overlay.style.transition = 'none';
                             btn.style.setProperty('--x', `${x}px`);
@@ -320,11 +320,12 @@ export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose
                         btn.classList.remove('is-hovered');
                     }}
                     style={{ '--x': '50%', '--y': '50%' } as React.CSSProperties}
-                    className="group new-chat-btn relative flex-1 flex items-center gap-3 px-3 py-2.5 border border-[var(--border-color)] bg-[#141414] overflow-hidden transition-all duration-300 text-sm font-semibold text-[var(--text-primary)] uppercase tracking-[0.12em] text-left"
+                    className="group new-chat-btn relative flex-1 flex items-center gap-3 px-3 py-2.5 border border-[var(--border-color)] bg-[#141414] overflow-hidden transition-all duration-300 text-sm font-semibold text-[var(--text-primary)] uppercase tracking-[0.12em] text-left glitch-hover"
+                    data-text="New Chat"
                 >
                     {/* Base Layer */}
                     <span className="relative z-10 flex items-center gap-3 text-[var(--text-primary)]">
-                        <span className="w-7 h-7 flex items-center justify-center border border-[var(--border-color)] bg-[#1a1a1a] group-[.is-hovered]:bg-black group-[.is-hovered]:border-black transition-colors">
+                        <span className="w-7 h-7 flex items-center justify-center border border-[var(--border-color)] bg-[#1a1a1a] group-[.is-hovered]:bg-black group-[.is-hovered]:border-black transition-colors flex-shrink-0">
                             <Sparkles size={14} className="text-[var(--text-accent)] group-[.is-hovered]:text-[var(--text-accent)]" />
                         </span>
                         <span>New Chat</span>
@@ -332,7 +333,7 @@ export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose
 
                     {/* Overlay Layer */}
                     <div className="absolute inset-0 flex items-center gap-3 px-3 py-2.5 bg-[var(--text-accent)] text-[var(--accent-contrast)] z-20 pointer-events-none cursor-aware-button">
-                        <span className="w-7 h-7 flex items-center justify-center border border-black/20 bg-black/20">
+                        <span className="w-7 h-7 flex items-center justify-center border border-black/20 bg-black/20 flex-shrink-0">
                             <Sparkles size={14} />
                         </span>
                         <span>New Chat</span>
@@ -380,7 +381,7 @@ export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose
                                             <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--text-primary)]">{label}</span>
                                             <span className="text-[9px] text-[var(--text-accent)] opacity-70">({chats.length})</span>
                                         </div>
-                                        
+
                                         {/* Chat Items */}
                                         <div className="space-y-0.5">
                                             {chats.map((chat) => {
@@ -500,6 +501,7 @@ export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose
                                     <User size={14} className="text-[var(--text-secondary)]" />
                                 )}
                             </div>
+
                             <div className="flex-1 min-w-0">
                                 <div className="text-[11px] font-semibold text-[var(--text-primary)] truncate flex items-center gap-1.5">
                                     {profile.name || 'User'}
@@ -514,13 +516,14 @@ export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose
                                 </div>
                             </div>
                         </div>
-                        
+
                         {/* Action Buttons */}
                         <div className="flex gap-1">
                             {profile.isAdmin && (
                                 <button
                                     onClick={() => router.push('/admin')}
                                     className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 text-[9px] uppercase tracking-wider font-semibold border border-[var(--border-color)] text-[var(--text-secondary)] hover:border-[var(--text-accent)]/50 hover:text-[var(--text-accent)] transition-all"
+                                    title="Dashboard"
                                 >
                                     Dashboard
                                 </button>
@@ -528,6 +531,7 @@ export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose
                             <button
                                 onClick={signOut}
                                 className="flex-1 flex items-center justify-center gap-1.5 px-2 py-1.5 text-[9px] uppercase tracking-wider font-semibold border border-[var(--border-color)] text-[var(--text-secondary)] hover:border-red-400/50 hover:text-red-400 transition-all"
+                                title="Logout"
                             >
                                 <LogOut size={10} />
                                 Logout
@@ -535,21 +539,21 @@ export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose
                         </div>
                     </div>
                 )}
-                
+
                 {/* Brand Footer */}
                 <div className="flex items-center justify-between px-2 py-2 border-t border-[var(--border-color)]">
                     <div className="flex items-center gap-2">
-                        <div className="w-5 h-5 flex items-center justify-center border border-[var(--text-accent)]/30 bg-[var(--text-accent)]/10">
+                        <div className="w-5 h-5 flex items-center justify-center border border-[var(--text-accent)]/30 bg-[var(--text-accent)]/10 flex-shrink-0">
                             <Sparkles size={10} className="text-[var(--text-accent)]" />
                         </div>
                         <span className="text-[9px] font-semibold uppercase tracking-[0.14em] text-[var(--text-secondary)]">
                             Cracker
                         </span>
                     </div>
-                    
-                    <button 
+
+                    <button
                         onClick={() => setShowDeleteAllDialog(true)}
-                        className="px-1.5 py-0.5 text-[8px] uppercase tracking-wider border border-[var(--border-color)] text-[var(--text-secondary)] hover:border-red-400/50 hover:text-red-400 transition-all duration-150 cursor-pointer"
+                        className="px-1.5 py-0.5 text-[8px] uppercase tracking-wider border border-[var(--border-color)] text-[var(--text-secondary)] hover:border-red-400/50 hover:text-red-400 transition-all duration-150 cursor-pointer truncated max-w-[60px]"
                         title="Delete all chats"
                     >
                         {process.env.NODE_ENV === 'development' ? 'DEV' : 'v1.0'}

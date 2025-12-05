@@ -35,9 +35,9 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
   const { learningMode, setLearningMode, isHydrated: isLearningModeHydrated } = useLearningMode();
   const { chatMode, setChatMode, isHydrated: isChatModeHydrated } = useChatMode();
   const { customInstructions, setCustomInstructions, isHydrated: isCustomInstructionsHydrated } = useCustomInstructions();
-  
+
   const isSettingsHydrated = isModelIdHydrated && isModelNameHydrated && isColorHydrated && isResponseLengthHydrated && isProfileHydrated && isLearningModeHydrated && isChatModeHydrated && isCustomInstructionsHydrated;
-  
+
   // Settings dialog state
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const reasoningEffort = (rawReasoningEffort as ReasoningEffortLevel) ?? 'medium';
@@ -68,7 +68,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
   const learningModeRef = useRef(learningMode);
   const chatModeRef = useRef(chatMode);
   const customInstructionsRef = useRef(customInstructions);
-  
+
   useEffect(() => { currentModelIdRef.current = currentModelId; }, [currentModelId]);
   useEffect(() => { reasoningEffortRef.current = reasoningEffort; }, [reasoningEffort]);
   useEffect(() => { responseLengthRef.current = responseLength; }, [responseLength]);
@@ -167,7 +167,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
           });
           isRegeneratingRef.current = false;
         }
-        
+
         try {
           // Small delay to ensure backend has saved the message with TPS
           await new Promise(resolve => setTimeout(resolve, 50));
@@ -175,9 +175,9 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
           if (statsRes.ok) {
             const serverStats = await statsRes.json();
             if (serverStats.tokensPerSecond) {
-              setStreamingStats({ 
-                modelId: serverStats.modelId || currentModelIdRef.current, 
-                tokensPerSecond: serverStats.tokensPerSecond 
+              setStreamingStats({
+                modelId: serverStats.modelId || currentModelIdRef.current,
+                tokensPerSecond: serverStats.tokensPerSecond
               });
             }
           }
@@ -201,8 +201,8 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
 
   // Deep search function with SSE streaming
   const startDeepSearch = useCallback(async (
-    query: string, 
-    chatId: string, 
+    query: string,
+    chatId: string,
     placeholderId: string,
     skipClarify: boolean,
     clarifyAnswers?: { q: string; a: string }[]
@@ -219,11 +219,11 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
       const response = await fetch('/api/deep-search', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          query, 
-          chatId, 
+        body: JSON.stringify({
+          query,
+          chatId,
           skipClarify,
-          clarifyAnswers 
+          clarifyAnswers
         })
       });
 
@@ -237,7 +237,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
 
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
-      
+
       let streamedText = '';
       let sources: { url: string; title: string }[] = [];
       const searches: { query: string; index: number; total: number }[] = [];
@@ -253,88 +253,92 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
 
       if (reader) {
         let buffer = '';
-        
+
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
-          
+
           buffer += decoder.decode(value, { stream: true });
           const lines = buffer.split('\n\n');
           buffer = lines.pop() || '';
-          
+
           for (const line of lines) {
             if (line.startsWith('data: ')) {
               try {
                 const data = JSON.parse(line.slice(6));
-                
+
                 if (data.type === 'clarify') {
                   // Show clarifying questions
                   setDeepResearchState(prev => ({
                     ...prev,
                     clarifyQuestions: data.questions,
                   }));
-                  setMessages(prev => prev.map(m => 
-                    m.id === placeholderId 
+                  setMessages(prev => prev.map(m =>
+                    m.id === placeholderId
                       ? { ...m, parts: [{ type: 'clarify-questions', questions: data.questions }] as unknown as typeof m.parts }
                       : m
                   ));
                   setIsSending(false);
                   return; // Wait for user input
                 }
-                
+
                 if (data.type === 'phase') {
                   currentProgress = { ...currentProgress, phase: data.phase, phaseDescription: data.description };
                 }
-                
+
                 if (data.type === 'progress') {
                   currentProgress = { ...currentProgress, percent: data.percent, message: data.message };
                 }
-                
+
                 if (data.type === 'search') {
                   searches.push({ query: data.query, index: data.index, total: data.total });
                   currentProgress = { ...currentProgress, searches: [...searches] };
                 }
-                
+
                 if (data.type === 'source') {
                   sources.push({ url: data.url, title: data.title });
                   currentProgress = { ...currentProgress, sources: [...sources] };
                 }
-                
+
                 if (data.type === 'report_start') {
                   // Switch from progress view to text streaming
                 }
-                
+
                 if (data.type === 'text') {
                   streamedText += data.text;
                   // Update with both progress and text
-                  setMessages(prev => prev.map(m => 
-                    m.id === placeholderId 
-                      ? { ...m, parts: [
+                  setMessages(prev => prev.map(m =>
+                    m.id === placeholderId
+                      ? {
+                        ...m, parts: [
                           { type: 'deep-research-progress', progress: currentProgress },
                           { type: 'text', text: streamedText }
-                        ] as unknown as typeof m.parts}
+                        ] as unknown as typeof m.parts
+                      }
                       : m
                   ));
                   continue;
                 }
-                
+
                 if (data.type === 'complete') {
                   currentProgress = { ...currentProgress, isComplete: true, elapsed: data.elapsed } as typeof currentProgress;
                   sources = data.sources;
                 }
-                
+
                 // Update progress in message
                 if (data.type !== 'text') {
-                  setMessages(prev => prev.map(m => 
-                    m.id === placeholderId 
-                      ? { ...m, parts: (streamedText 
+                  setMessages(prev => prev.map(m =>
+                    m.id === placeholderId
+                      ? {
+                        ...m, parts: (streamedText
                           ? [{ type: 'deep-research-progress', progress: currentProgress }, { type: 'text', text: streamedText }]
                           : [{ type: 'deep-research-progress', progress: currentProgress }]
-                        ) as unknown as typeof m.parts}
+                        ) as unknown as typeof m.parts
+                      }
                       : m
                   ));
                 }
-                
+
               } catch {
                 // Ignore parse errors
               }
@@ -342,9 +346,9 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
           }
         }
       }
-      
+
       console.log(`[CLIENT DEBUG] Deep search complete`);
-      
+
       // After completion, reload from DB to get properly saved message with sources
       setTimeout(async () => {
         try {
@@ -379,7 +383,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
         setIsSending(false);
         setDeepResearchState({ isActive: false, placeholderId: null, clarifyQuestions: null, query: null, chatId: null });
       }, 300);
-      
+
     } catch (err) {
       console.error('Deep search error:', err);
       // Add error message to UI
@@ -387,12 +391,12 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
         const updated = prev.map(m =>
           m.id === placeholderId
             ? {
-                ...m,
-                parts: [{
-                  type: 'text' as const,
-                  text: `Deep research failed: ${err instanceof Error ? err.message : String(err)}`
-                }]
-              }
+              ...m,
+              parts: [{
+                type: 'text' as const,
+                text: `Deep research failed: ${err instanceof Error ? err.message : String(err)}`
+              }]
+            }
             : m
         );
         return updated;
@@ -405,27 +409,31 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
   // Handle clarify answers submission
   const handleClarifySubmit = useCallback((answers: { q: string; a: string }[]) => {
     if (!deepResearchState.query || !deepResearchState.chatId || !deepResearchState.placeholderId) return;
-    
+
     // Update UI to show research starting
-    setMessages(prev => prev.map(m => 
-      m.id === deepResearchState.placeholderId 
-        ? { ...m, parts: [{ type: 'deep-research-progress', progress: { 
-            phase: 'planning', 
-            phaseDescription: 'Starting research with your input...',
-            percent: 0,
-            message: 'Initializing',
-            searches: [],
-            sources: [],
-            isComplete: false
-          }}] as unknown as typeof m.parts}
+    setMessages(prev => prev.map(m =>
+      m.id === deepResearchState.placeholderId
+        ? {
+          ...m, parts: [{
+            type: 'deep-research-progress', progress: {
+              phase: 'planning',
+              phaseDescription: 'Starting research with your input...',
+              percent: 0,
+              message: 'Initializing',
+              searches: [],
+              sources: [],
+              isComplete: false
+            }
+          }] as unknown as typeof m.parts
+        }
         : m
     ));
-    
+
     setIsSending(true);
     startDeepSearch(
-      deepResearchState.query, 
-      deepResearchState.chatId, 
-      deepResearchState.placeholderId, 
+      deepResearchState.query,
+      deepResearchState.chatId,
+      deepResearchState.placeholderId,
       true,
       answers
     );
@@ -434,26 +442,30 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
   // Handle skip clarify
   const handleSkipClarify = useCallback(() => {
     if (!deepResearchState.query || !deepResearchState.chatId || !deepResearchState.placeholderId) return;
-    
-    setMessages(prev => prev.map(m => 
-      m.id === deepResearchState.placeholderId 
-        ? { ...m, parts: [{ type: 'deep-research-progress', progress: { 
-            phase: 'planning', 
-            phaseDescription: 'Starting research...',
-            percent: 0,
-            message: 'Initializing',
-            searches: [],
-            sources: [],
-            isComplete: false
-          }}] as unknown as typeof m.parts}
+
+    setMessages(prev => prev.map(m =>
+      m.id === deepResearchState.placeholderId
+        ? {
+          ...m, parts: [{
+            type: 'deep-research-progress', progress: {
+              phase: 'planning',
+              phaseDescription: 'Starting research...',
+              percent: 0,
+              message: 'Initializing',
+              searches: [],
+              sources: [],
+              isComplete: false
+            }
+          }] as unknown as typeof m.parts
+        }
         : m
     ));
-    
+
     setIsSending(true);
     startDeepSearch(
-      deepResearchState.query, 
-      deepResearchState.chatId, 
-      deepResearchState.placeholderId, 
+      deepResearchState.query,
+      deepResearchState.chatId,
+      deepResearchState.placeholderId,
       true
     );
   }, [deepResearchState, setMessages, startDeepSearch]);
@@ -499,7 +511,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
             const uiMessages = data.map((msg: any) => {
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               let parts: Array<any>;
-              
+
               if (Array.isArray(msg.content)) {
                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 parts = msg.content.map((p: any) => {
@@ -520,7 +532,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
               } else {
                 parts = [{ type: 'text', text: '' }];
               }
-              
+
               return { id: msg.id, role: msg.role, parts, model: msg.model, tokensPerSecond: msg.tokensPerSecond };
             });
             setMessages(uiMessages as Parameters<typeof setMessages>[0]);
@@ -582,10 +594,10 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
 
   const stableHandleEdit = useCallback(async (index: number, newContent: string, editAttachments?: EditAttachment[]) => {
     await handleEditMessage(index, newContent, editAttachments);
-    
+
     const chatId = chatIdRef.current;
     if (!chatId) return;
-    
+
     // Build the edited message content
     let editedContent: unknown[];
     if (editAttachments && editAttachments.length > 0) {
@@ -601,7 +613,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
     } else {
       editedContent = [{ type: 'text', text: newContent }];
     }
-    
+
     // Use direct streaming - the transport body() provides model, chatId, etc.
     // For multimodal content (with attachments), use AI SDK's file format for BOTH images and files
     // Vertex AI only accepts the 'file' type format: { type: 'file', filename, mediaType, url }
@@ -613,8 +625,8 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
         }
         if (p.type === 'image') {
           // Vertex AI requires 'file' format even for images!
-          return { 
-            type: 'file' as const, 
+          return {
+            type: 'file' as const,
             filename: p.name || 'image.png',
             mediaType: p.mediaType || 'image/png',
             url: p.image || '' // 'image' contains the data URL
@@ -622,8 +634,8 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
         }
         if (p.type === 'file') {
           // AI SDK expects: { type: 'file', filename, mediaType, url }
-          return { 
-            type: 'file' as const, 
+          return {
+            type: 'file' as const,
             filename: p.name || 'file',
             mediaType: p.mediaType || p.mimeType || 'application/octet-stream',
             url: p.data || p.image || '' // data URL
@@ -648,14 +660,14 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
 
     // Show immediate loading feedback
     setIsSending(true);
-    
+
     // Format message with quotes if any
     let userMessage = input;
     if (quotes && quotes.length > 0) {
       const quotedSection = quotes.map(q => `> "${q.text}"`).join('\n\n');
       userMessage = `[QUOTED FROM CONVERSATION]\n${quotedSection}\n[END QUOTE]\n\n${input}`;
     }
-    
+
     type PreparedAttachment =
       | { type: 'image'; name: string; image: string; mediaType: string }
       | { type: 'file'; name: string; data: string; mediaType: string; mimeType: string; filename?: string };
@@ -678,10 +690,10 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
       let isNewChat = false;
 
       if (!activeChatId) {
-        const res = await fetch('/api/chats', { 
-          method: 'POST', 
+        const res = await fetch('/api/chats', {
+          method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ title: null, mode: chatModeRef.current }) 
+          body: JSON.stringify({ title: null, mode: chatModeRef.current })
         });
         const newChat = await res.json();
         if (newChat?.id) {
@@ -735,35 +747,37 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
       if (chatModeRef.current === 'deep-search') {
         console.log(`[CLIENT DEBUG] ${new Date().toISOString()} === CALLING DEEP SEARCH ===`);
         console.log(`[CLIENT DEBUG] ChatId: ${activeChatId}`);
-        
+
         // First, add the user message to UI immediately (fix: query not showing)
         const userMsgId = `user-${Date.now()}`;
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         setMessages((prev: any) => [...prev, {
           id: userMsgId,
           role: 'user',
-          parts: Array.isArray(finalContent) 
-            ? finalContent 
+          parts: Array.isArray(finalContent)
+            ? finalContent
             : [{ type: 'text', text: finalContent as string }],
         }]);
-        
+
         // Add a placeholder assistant message with research indicator
         const placeholderId = `deep-search-${Date.now()}`;
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         setMessages((prev: any) => [...prev, {
           id: placeholderId,
           role: 'assistant',
-          parts: [{ type: 'deep-research-progress', progress: { 
-            phase: 'planning', 
-            phaseDescription: 'Starting research...',
-            percent: 0,
-            message: 'Initializing',
-            searches: [],
-            sources: [],
-            isComplete: false
-          }}],
+          parts: [{
+            type: 'deep-research-progress', progress: {
+              phase: 'planning',
+              phaseDescription: 'Starting research...',
+              percent: 0,
+              message: 'Initializing',
+              searches: [],
+              sources: [],
+              isComplete: false
+            }
+          }],
         }]);
-        
+
         // Start deep search
         await startDeepSearch(userMessage, activeChatId, placeholderId, false);
         return;
@@ -781,8 +795,8 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
           if (part.type === 'image') {
             // Vertex AI requires 'file' format even for images!
             // { type: 'image', image: dataUrl } does NOT work with Vertex AI
-            return { 
-              type: 'file' as const, 
+            return {
+              type: 'file' as const,
               filename: part.name || 'image.png',
               mediaType: part.mediaType || 'image/png',
               url: part.image // 'image' contains the data URL
@@ -791,8 +805,8 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
           if (part.type === 'file') {
             // AI SDK expects: { type: 'file', filename, mediaType, url }
             // Our 'data' property contains the full data URL
-            return { 
-              type: 'file' as const, 
+            return {
+              type: 'file' as const,
               filename: part.filename || part.name || 'file',
               mediaType: part.mediaType || part.mimeType || 'application/octet-stream',
               url: part.data // 'data' contains the data URL from FileReader
@@ -805,7 +819,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
       } else {
         await sendMessage({ text: finalContent });
       }
-      
+
       setIsSending(false);
     } catch (err) {
       console.error("[CLIENT DEBUG] Failed to send message:", err);
@@ -852,8 +866,17 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
             </button>
           </div>
 
-          {/* Right on mobile, Left on desktop: Model Selector */}
-          <div className="flex-1 flex justify-end md:justify-start">
+          {/* Right on mobile, Left on desktop: Toggle + Model Selector */}
+          <div className="flex-1 flex justify-end md:justify-start items-center gap-3">
+            {/* Desktop Sidebar Toggle - Prominent */}
+            <button
+              onClick={toggleSidebar}
+              className="hidden md:flex w-9 h-9 items-center justify-center border border-[var(--border-color)] bg-[#1a1a1a] text-[var(--text-secondary)] hover:border-[var(--text-accent)] hover:text-[var(--text-accent)] transition-all duration-200 shadow-sm active:scale-95"
+              title="Toggle Sidebar (Cmd+B)"
+            >
+              <PanelLeft size={18} />
+            </button>
+
             <ModelSelector
               currentModelId={currentModelId}
               currentModelName={currentModelName}

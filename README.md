@@ -266,6 +266,14 @@ const { accentColor, setAccentColor, isHydrated } = useAccentColor();
 - Progress tracking with circular indicator
 - Support for images and documents (PDF, images, text files)
 
+### Enhanced UI & Visual Effects
+- **Visual Overhaul**: Premium "Living Interface" aesthetic with subtle noise textures and vignettes.
+- **Glassmorphism**: Sidebar and mobile menus feature frosted glass effects (`backdrop-blur`).
+- **Command Palette** (`Cmd+K`): Global keyboard navigation to quickly switch chats, models, or modes.
+- **Mobile Control Center**: Swipeable bottom sheet for easy access to settings on mobile devices.
+- **Thought Stream**: Circuit-board style visualization for Deep Research progress.
+- **Micro-Interactions**: Glitch hover effects, magnetic buttons, and "Focus Mode" that dims the UI when typing.
+
 #### Supported File Types
 
 | Type | MIME Types | Notes |
