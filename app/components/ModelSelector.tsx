@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { HexColorPicker } from "react-colorful";
 import { cn } from '@/lib/utils';
 import { ChevronDown, Cpu, Brain, Sparkles, Zap } from 'lucide-react';
@@ -45,6 +45,22 @@ export function ModelSelector({
 }: ModelSelectorProps) {
   const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
   const [isColorMenuOpen, setIsColorMenuOpen] = useState(false);
+
+  // Local state for color picker - prevents flickering during interaction
+  const [localColor, setLocalColor] = useState(accentColor);
+  const prevOpenRef = useRef(false);
+
+  // Sync local color when menu opens, save to global when menu closes
+  useEffect(() => {
+    if (isColorMenuOpen && !prevOpenRef.current) {
+      // Menu just opened - sync from global
+      setLocalColor(accentColor);
+    } else if (!isColorMenuOpen && prevOpenRef.current) {
+      // Menu just closed - save to global
+      onAccentColorChange(localColor);
+    }
+    prevOpenRef.current = isColorMenuOpen;
+  }, [isColorMenuOpen, accentColor, localColor, onAccentColorChange]);
 
   return (
     <>
@@ -184,7 +200,7 @@ export function ModelSelector({
                   <div className="flex items-center gap-2">
                     <div
                       className="w-3 h-3 border border-white/20"
-                      style={{ backgroundColor: isHydrated ? accentColor : undefined }}
+                      style={{ backgroundColor: isHydrated ? localColor : undefined }}
                     />
                     <span className="text-[10px] uppercase tracking-[0.16em] font-semibold text-[var(--text-secondary)]">
                       Accent Color
@@ -194,7 +210,7 @@ export function ModelSelector({
 
                 {/* Color Picker */}
                 <div className="p-3">
-                  <HexColorPicker color={accentColor || '#af8787'} onChange={onAccentColorChange} />
+                  <HexColorPicker color={localColor || '#af8787'} onChange={setLocalColor} />
                 </div>
 
                 {/* Preset Colors */}
@@ -212,10 +228,10 @@ export function ModelSelector({
                     ].map((color) => (
                       <button
                         key={color}
-                        onClick={() => onAccentColorChange(color)}
+                        onClick={() => setLocalColor(color)}
                         className={cn(
                           "w-6 h-6 border transition-all duration-150 hover:scale-110",
-                          (accentColor || '').toLowerCase() === color.toLowerCase()
+                          (localColor || '').toLowerCase() === color.toLowerCase()
                             ? "border-white scale-110 ring-1 ring-white/50"
                             : "border-[var(--border-color)] hover:border-white/50"
                         )}
@@ -231,14 +247,14 @@ export function ModelSelector({
                   <div className="flex items-center gap-2">
                     <div
                       className="w-8 h-8 border border-[var(--border-color)] flex-shrink-0"
-                      style={{ backgroundColor: isHydrated ? accentColor : undefined }}
+                      style={{ backgroundColor: isHydrated ? localColor : undefined }}
                     />
                     <div className="flex-1">
                       <div className="text-[9px] uppercase tracking-wider text-[var(--text-secondary)] mb-1">Hex Code</div>
                       <input
                         type="text"
-                        value={accentColor || '#af8787'}
-                        onChange={(e) => onAccentColorChange(e.target.value)}
+                        value={localColor || '#af8787'}
+                        onChange={(e) => setLocalColor(e.target.value)}
                         className="w-full bg-[var(--bg-input)] border border-[var(--border-color)] text-[11px] px-2 py-1.5 text-[var(--text-primary)] font-mono uppercase focus:border-[var(--border-active)] outline-none"
                       />
                     </div>
@@ -248,7 +264,7 @@ export function ModelSelector({
                 {/* Footer */}
                 <div className="px-3 py-2 border-t border-[var(--border-color)] bg-[#0f0f0f]">
                   <button
-                    onClick={() => onAccentColorChange('#af8787')}
+                    onClick={() => setLocalColor('#af8787')}
                     className="w-full flex items-center justify-center gap-2 py-1.5 text-[10px] uppercase tracking-[0.12em] font-semibold text-[var(--text-secondary)] border border-[var(--border-color)] hover:text-[var(--text-accent)] hover:border-[var(--text-accent)] transition-all duration-150"
                   >
                     Reset to Default
