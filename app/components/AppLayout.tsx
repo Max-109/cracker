@@ -18,7 +18,7 @@ interface Chat {
 export default function AppLayout({ children }: { children: React.ReactNode }) {
     const [chats, setChats] = useState<Chat[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [sidebarOpen, setSidebarOpen] = useState(true); // Changed from isSidebarOpen, initial true
+    const [sidebarOpen, setSidebarOpen] = useState(true);
     const [remountKey, setRemountKey] = useState(0);
 
     const router = useRouter();
@@ -49,10 +49,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         fetchChats(); // Call fetchChats
     }, []);
 
-    // Load saved width
+    // Load saved sidebar width and state
     useEffect(() => {
         const savedWidth = localStorage.getItem('sidebarWidth');
         if (savedWidth) setSidebarWidth(parseInt(savedWidth));
+
+        const savedSidebarState = localStorage.getItem('sidebarOpen');
+        if (savedSidebarState !== null) {
+            setSidebarOpen(savedSidebarState === 'true');
+        }
     }, []);
 
     const startResizing = useCallback((mouseDownEvent: React.MouseEvent) => {
@@ -96,8 +101,15 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         if (id !== currentChatId) router.push(`/chat/${id}`);
     };
 
-    const toggleSidebar = () => setSidebarOpen(!sidebarOpen); // Updated to use sidebarOpen
-    const closeSidebar = () => setSidebarOpen(false); // Updated to use setSidebarOpen
+    const toggleSidebar = () => {
+        const newState = !sidebarOpen;
+        setSidebarOpen(newState);
+        localStorage.setItem('sidebarOpen', String(newState));
+    };
+    const closeSidebar = () => {
+        setSidebarOpen(false);
+        localStorage.setItem('sidebarOpen', 'false');
+    };
 
     return (
         <ChatContext.Provider value={{
