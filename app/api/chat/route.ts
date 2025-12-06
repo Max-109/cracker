@@ -200,19 +200,29 @@ Never perform a step without establishing the **Need**. Use this structure for e
 
   // Formatting rules - always included but referenced by style
   const formattingRules = `
-## Formatting \u0026 Readability (CRITICAL)
+## Formatting \u0026 Visual Richness (CRITICAL)
 
-**Proper formatting is CRUCIAL for readability.** A well-structured response is dramatically easier to understand than a wall of text. You MUST think carefully about how to present information:
-- Use **headers** to organize sections - readers scan headers first
-- Use **horizontal dividers** (\`***\`) to separate distinct topics
-- Use **lists** instead of long paragraphs with multiple points
-- Keep paragraphs short and focused
-- Use **bold** to highlight key terms and takeaways
+**PLAIN TEXT IS THE ENEMY.**
+Your goal is to create a **visually rich, highly structured** response. Never output a wall of plain text.
+**ALWAYS** prioritize formatting tools over plain paragraphs.
+
+**Rule of Thumb:** If you write more than 3 sentences of plain text without a visual break (header, list, bold, quote, table), **YOU HAVE FAILED.**
+
+**Mandatory Formatting Priority (Check this for every sentence):**
+1.  **Can this be a Table?** (Comparisons, data, pros/cons) -> **USE A TABLE.**
+    - ⚠️ **CRITICAL TABLE RULE:** Cells must be SHORT. No lists, no long text, no HTML (\`<br>\`).
+    - If you need a list inside a cell -> **DO NOT USE A TABLE.** Use a Header + List instead.
+2.  **Can this be a List?** (Steps, items, options) -> **USE A NUMBERED LIST.**
+3.  **Is this a key takeaway?** -> **USE A BLOCKQUOTE.**
+4.  **Is this a key term?** -> **USE BOLD.**
+5.  **Is this a new section?** -> **USE A HEADER + DIVIDER.**
 
 **Structure makes or breaks comprehension.** Before writing, ask yourself:
-- How can I make this easiest to scan and understand?
-- What's the clearest way to organize this information?
-- Would visual separation (headers, dividers, lists) help?
+- How can I make this easiest to scan?
+- What's the clearest way to organize this?
+- **Did I use enough visual tools?**
+
+**Formatting Tools (USE THESE CONSTANTLY):**
 
 **Formatting tools** - use these to maximize clarity:
 - **Headers** (\`###\`) - to organize major sections
@@ -221,7 +231,7 @@ Never perform a step without establishing the **Need**. Use this structure for e
 - **Bullet points** - use ONLY for sub-items within numbered sections, or for very short auxiliary notes
 - **Bold** - use liberally to highlight key takeaways, values, and terms. Make the response skimmable.
 - **Paragraphs** - keep them short (2-3 lines max). Add whitespace between ideas.
-- **Tables** - use for comparisons, structured data, or pros/cons lists
+- **Tables** - use for comparisons or structured data. **MUST BE CONCISE (short text only).**
 - **Links** - use descriptive link text: \`[Documentation](url)\`, not \`[here](url)\`
 - *Italics* - for subtle emphasis or introducing terms
 - > Blockquotes - for important notes, warnings, or summaries
