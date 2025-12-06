@@ -740,8 +740,14 @@ function AttachmentCard({ attachment, onRemove, onImageClick }: AttachmentCardPr
 
         {/* Upload Progress Overlay */}
         {attachment.isUploading && (
-          <div className="absolute inset-0 bg-[#0f0f0f]/90 flex flex-col items-center justify-center gap-2 backdrop-blur-sm z-20">
-            <CircularProgress progress={attachment.progress} size={24} />
+          <div className="absolute inset-0 bg-[#0f0f0f]/95 flex flex-col items-center justify-center gap-1 backdrop-blur-sm z-20 rounded-md">
+            <CircularProgress
+              progress={attachment.progress}
+              size={isImage ? 28 : 20}
+              strokeWidth={2.5}
+              showLabel={false}
+            />
+            <span className="text-[8px] text-[var(--text-accent)] font-medium">{Math.round(attachment.progress)}%</span>
           </div>
         )}
 
