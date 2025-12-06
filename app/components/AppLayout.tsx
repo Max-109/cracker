@@ -85,8 +85,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }, [resize, stopResizing]);
 
     const handleNewChat = () => {
-        setSidebarOpen(false); // Changed from setIsSidebarOpen
-        // setRemountKey(prev => prev + 1); // Removed
+        // Don't close sidebar - user can use toggle button
         router.push('/');
     };
 
@@ -124,7 +123,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 {/* Mobile Overlay */}
                 {sidebarOpen && ( // Changed from isSidebarOpen
                     <div
-                        className="fixed inset-0 bg-black/50 z-[55] md:hidden fade-in duration-200 backdrop-blur-sm"
+                        className="fixed inset-0 bg-black/50 z-[55] md:hidden fade-in duration-200"
                         onClick={closeSidebar}
                     />
                 )}
