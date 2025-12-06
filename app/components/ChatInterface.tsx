@@ -496,54 +496,56 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
 
   // Load messages when chat ID changes
   useEffect(() => {
-    if (currentChatId) {
-      if (ignoreNextChatIdChangeRef.current) {
-        ignoreNextChatIdChangeRef.current = false;
-        return;
-      }
-
-      setIsMessagesLoading(true);
-      fetch(`/api/chats/${currentChatId}`)
-        .then(res => res.json())
-        .then(data => {
-          if (Array.isArray(data)) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const uiMessages = data.map((msg: any) => {
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              let parts: Array<any>;
-
-              if (Array.isArray(msg.content)) {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                parts = msg.content.map((p: any) => {
-                  if (typeof p === 'string') return { type: 'text', text: p };
-                  if (p.type === 'text') return { type: 'text', text: p.text || '' };
-                  if (p.type === 'reasoning') return { type: 'reasoning', text: p.text || p.reasoning || '' };
-                  if (p.type === 'stopped') return { type: 'stopped', stopType: p.stopType };
-                  if (p.type === 'generated-image') return { type: 'generated-image', data: p.data, mediaType: p.mediaType };
-                  if (p.type === 'image') return { type: 'file', url: p.image || p.url, mediaType: p.mediaType || 'image/png', filename: p.name || 'image' };
-                  if (p.type === 'file') return { type: 'file', url: p.data || p.url, mediaType: p.mediaType || p.mimeType || 'application/octet-stream', filename: p.filename || p.name || 'file' };
-                  if (p.type === 'source' || p.type === 'source-url') return { type: 'source', url: p.url, title: p.title, source: p.source };
-                  if (p.type === 'tool-invocation') return p;
-                  if (typeof p === 'object' && p !== null) return { type: 'text', text: p.text || '' };
-                  return { type: 'text', text: String(p || '') };
-                });
-              } else if (typeof msg.content === 'string') {
-                parts = [{ type: 'text', text: msg.content }];
-              } else {
-                parts = [{ type: 'text', text: '' }];
-              }
-
-              return { id: msg.id, role: msg.role, parts, model: msg.model, tokensPerSecond: msg.tokensPerSecond };
-            });
-            setMessages(uiMessages as Parameters<typeof setMessages>[0]);
-          }
-        })
-        .catch(err => console.error("Failed to fetch messages:", err))
-        .finally(() => setIsMessagesLoading(false));
-    } else {
+    // Immediately clear messages when switching chats to prevent stale UI
+    if (!currentChatId) {
       setMessages([]);
       setIsMessagesLoading(false);
+      return;
     }
+
+    if (ignoreNextChatIdChangeRef.current) {
+      ignoreNextChatIdChangeRef.current = false;
+      return;
+    }
+
+    setIsMessagesLoading(true);
+    fetch(`/api/chats/${currentChatId}`)
+      .then(res => res.json())
+      .then(data => {
+        if (Array.isArray(data)) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const uiMessages = data.map((msg: any) => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            let parts: Array<any>;
+
+            if (Array.isArray(msg.content)) {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              parts = msg.content.map((p: any) => {
+                if (typeof p === 'string') return { type: 'text', text: p };
+                if (p.type === 'text') return { type: 'text', text: p.text || '' };
+                if (p.type === 'reasoning') return { type: 'reasoning', text: p.text || p.reasoning || '' };
+                if (p.type === 'stopped') return { type: 'stopped', stopType: p.stopType };
+                if (p.type === 'generated-image') return { type: 'generated-image', data: p.data, mediaType: p.mediaType };
+                if (p.type === 'image') return { type: 'file', url: p.image || p.url, mediaType: p.mediaType || 'image/png', filename: p.name || 'image' };
+                if (p.type === 'file') return { type: 'file', url: p.data || p.url, mediaType: p.mediaType || p.mimeType || 'application/octet-stream', filename: p.filename || p.name || 'file' };
+                if (p.type === 'source' || p.type === 'source-url') return { type: 'source', url: p.url, title: p.title, source: p.source };
+                if (p.type === 'tool-invocation') return p;
+                if (typeof p === 'object' && p !== null) return { type: 'text', text: p.text || '' };
+                return { type: 'text', text: String(p || '') };
+              });
+            } else if (typeof msg.content === 'string') {
+              parts = [{ type: 'text', text: msg.content }];
+            } else {
+              parts = [{ type: 'text', text: '' }];
+            }
+
+            return { id: msg.id, role: msg.role, parts, model: msg.model, tokensPerSecond: msg.tokensPerSecond };
+          });
+          setMessages(uiMessages as Parameters<typeof setMessages>[0]);
+        }
+      })
+      .catch(err => console.error("Failed to fetch messages:", err))
+      .finally(() => setIsMessagesLoading(false));
   }, [currentChatId, setMessages]);
 
   // Handle message edit

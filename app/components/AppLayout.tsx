@@ -6,7 +6,6 @@ import { ChatContext } from './ChatContext';
 import { Sidebar } from './Sidebar';
 import { VisualEffects } from './VisualEffects';
 import { CommandPalette } from './CommandPalette';
-import { MobileControlCenter } from './MobileControlCenter';
 import { cn } from '@/lib/utils';
 
 interface Chat {
@@ -90,7 +89,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     };
 
     const handleSelectChat = (id: string) => {
-        setSidebarOpen(false); // Changed from setIsSidebarOpen
+        // Don't close sidebar - user can use toggle button
         if (id !== currentChatId) router.push(`/chat/${id}`);
     };
 
@@ -112,9 +111,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
                 {/* Command Palette */}
                 <CommandPalette />
-
-                {/* Mobile Control Center */}
-                <MobileControlCenter />
 
                 {/* Sidebar */}
                 {/* Desktop: always visible, w-[260px] */}
