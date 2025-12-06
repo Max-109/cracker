@@ -635,12 +635,48 @@ interface AttachmentCardProps {
 }
 
 function AttachmentCard({ attachment, onRemove }: AttachmentCardProps) {
-  const isImage = attachment.mediaType.startsWith('image/');
-  const fileExt = attachment.mediaType.split('/')[1]?.toUpperCase() || 'FILE';
+  // Use original media type for display, but actual mediaType for logic
+  const displayMediaType = attachment.originalMediaType || attachment.mediaType;
+  const isImage = displayMediaType.startsWith('image/');
+
+  // Get file extension from original type or filename
+  const getFileExt = () => {
+    const ext = attachment.name.split('.').pop()?.toUpperCase();
+    if (ext) return ext;
+    return displayMediaType.split('/')[1]?.toUpperCase() || 'FILE';
+  };
+  const fileExt = getFileExt();
+
+  // Smart filename truncation - keeps extension visible
+  const truncateFilename = (name: string, maxLength: number = 24): string => {
+    if (name.length <= maxLength) return name;
+
+    const lastDot = name.lastIndexOf('.');
+    const ext = lastDot > 0 ? name.slice(lastDot) : '';
+    const baseName = lastDot > 0 ? name.slice(0, lastDot) : name;
+
+    // Reserve space for extension + ellipsis
+    const availableForBase = maxLength - ext.length - 3; // 3 for "..."
+
+    if (availableForBase <= 4) {
+      // Not enough space, just truncate from end
+      return name.slice(0, maxLength - 3) + '...';
+    }
+
+    // Show start of basename + ... + extension
+    const startChars = Math.ceil(availableForBase * 0.7);
+    return baseName.slice(0, startChars) + '...' + ext;
+  };
+
+  const displayName = truncateFilename(attachment.name);
+  const needsTooltip = attachment.name !== displayName;
 
   return (
     <div className="relative group flex-shrink-0">
-      <div className="bg-[#141414] border border-[var(--border-color)] rounded-md overflow-hidden hover:border-[var(--text-accent)]/50 transition-all duration-150">
+      <div
+        className="bg-[#141414] border border-[var(--border-color)] rounded-md overflow-hidden hover:border-[var(--text-accent)]/50 transition-all duration-150"
+        title={needsTooltip ? attachment.name : undefined}
+      >
         {isImage ? (
           <div className="relative !w-[40px] !h-[40px] md:!w-[64px] md:!h-[64px]">
             {attachment.previewUrl ? (
@@ -661,7 +697,7 @@ function AttachmentCard({ attachment, onRemove }: AttachmentCardProps) {
             </div>
           </div>
         ) : (
-          <div className="flex items-center gap-2 p-1.5 !h-[40px] !min-w-[100px] md:!h-[64px] md:!min-w-[120px]">
+          <div className="flex items-center gap-2 p-1.5 !h-[40px] md:!h-[64px] max-w-[180px] md:max-w-[200px]">
             {/* File Icon Box */}
             <div className="w-6 h-6 md:w-8 md:h-8 bg-[#0f0f0f] border border-[var(--border-color)] flex items-center justify-center flex-shrink-0 group-hover:border-[var(--text-accent)]/50 group-hover:text-[var(--text-accent)] transition-all duration-150 rounded-sm">
               <FileIcon className="text-[var(--text-secondary)] group-hover:text-[var(--text-accent)]" size={12} />
@@ -669,8 +705,11 @@ function AttachmentCard({ attachment, onRemove }: AttachmentCardProps) {
 
             {/* File Info */}
             <div className="flex flex-col overflow-hidden min-w-0 flex-1 justify-center">
-              <span className="text-[10px] font-medium text-[var(--text-primary)] truncate">
-                {attachment.name}
+              <span
+                className="text-[10px] font-medium text-[var(--text-primary)] truncate"
+                title={needsTooltip ? attachment.name : undefined}
+              >
+                {displayName}
               </span>
               {/* File Type Badge - Hidden on mobile */}
               <span className="hidden md:inline-flex mt-0.5">
@@ -688,6 +727,13 @@ function AttachmentCard({ attachment, onRemove }: AttachmentCardProps) {
             <CircularProgress progress={attachment.progress} size={24} />
           </div>
         )}
+
+        {/* Error Overlay */}
+        {attachment.error && (
+          <div className="absolute inset-0 bg-red-900/80 flex flex-col items-center justify-center gap-1 backdrop-blur-sm z-20 p-2">
+            <span className="text-[8px] text-red-200 text-center">{attachment.error}</span>
+          </div>
+        )}
       </div>
 
       {/* Remove button - Floating outside top-right */}
@@ -700,3 +746,5 @@ function AttachmentCard({ attachment, onRemove }: AttachmentCardProps) {
     </div>
   );
 }
+
+

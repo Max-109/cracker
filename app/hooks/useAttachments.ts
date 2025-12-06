@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useCallback } from 'react';
+import { convertFile, isSupportedMimeType, isConvertibleMimeType, createTextDataUrl } from '@/lib/file-converter';
 
-const generateId = () => 
-  typeof crypto !== 'undefined' && 'randomUUID' in crypto 
-    ? crypto.randomUUID() 
+const generateId = () =>
+  typeof crypto !== 'undefined' && 'randomUUID' in crypto
+    ? crypto.randomUUID()
     : `${Date.now()}-${Math.random()}`;
 
 export type AttachmentItem = {
@@ -17,6 +18,9 @@ export type AttachmentItem = {
   progress: number;
   isUploading: boolean;
   error?: string;
+  // Conversion tracking
+  originalMediaType?: string;
+  wasConverted?: boolean;
 };
 
 const MEDIA_TYPE_MAP: Record<string, string> = {
@@ -39,7 +43,15 @@ const MEDIA_TYPE_MAP: Record<string, string> = {
   cpp: 'text/x-c++',
   sql: 'application/sql',
   ico: 'image/x-icon',
-  svg: 'image/svg+xml'
+  svg: 'image/svg+xml',
+  // Office types
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  doc: 'application/msword',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  xls: 'application/vnd.ms-excel',
+  pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  ppt: 'application/vnd.ms-powerpoint',
+  htm: 'text/html',
 };
 
 function inferMediaType(file: File): string {
@@ -66,6 +78,76 @@ function readFileWithProgress(file: File, onProgress: (percent: number) => void)
   });
 }
 
+/**
+ * Process a file - read directly if supported, convert to text if not
+ */
+async function processFile(
+  file: File,
+  mediaType: string,
+  onProgress: (percent: number) => void
+): Promise<{
+  dataUrl: string;
+  finalMediaType: string;
+  wasConverted: boolean;
+}> {
+  // Check if the file type is directly supported by Gemini
+  if (isSupportedMimeType(mediaType)) {
+    const dataUrl = await readFileWithProgress(file, onProgress);
+    return {
+      dataUrl,
+      finalMediaType: mediaType,
+      wasConverted: false,
+    };
+  }
+
+  // Check if we can convert this file type
+  if (isConvertibleMimeType(mediaType)) {
+    onProgress(20);
+
+    try {
+      const converted = await convertFile(file);
+      onProgress(80);
+
+      if (converted.wasConverted && converted.content) {
+        const dataUrl = createTextDataUrl(converted.content);
+        onProgress(100);
+
+        return {
+          dataUrl,
+          finalMediaType: 'text/plain',
+          wasConverted: true,
+        };
+      }
+
+      // If not converted, just read the file
+      const dataUrl = await readFileWithProgress(file, onProgress);
+      return {
+        dataUrl,
+        finalMediaType: mediaType,
+        wasConverted: false,
+      };
+    } catch (error) {
+      console.error('File conversion failed:', error);
+      throw new Error(`Failed to convert ${file.name}`);
+    }
+  }
+
+  // Fallback: try to read as text
+  try {
+    onProgress(50);
+    const content = await file.text();
+    const dataUrl = createTextDataUrl(`[Content from: ${file.name}]\n\n${content}`);
+    onProgress(100);
+    return {
+      dataUrl,
+      finalMediaType: 'text/plain',
+      wasConverted: true,
+    };
+  } catch {
+    throw new Error(`Unsupported file type: ${mediaType}`);
+  }
+}
+
 export function useAttachments() {
   const [attachments, setAttachments] = useState<AttachmentItem[]>([]);
 
@@ -74,33 +156,44 @@ export function useAttachments() {
   }, []);
 
   const addFiles = useCallback((files: File[]) => {
-    const newAttachments = files.map((file) => ({
-      id: generateId(),
-      file,
-      name: file.name,
-      mediaType: inferMediaType(file),
-      progress: 0,
-      isUploading: true
-    } satisfies AttachmentItem));
+    const newAttachments = files.map((file) => {
+      const mediaType = inferMediaType(file);
+      return {
+        id: generateId(),
+        file,
+        name: file.name,
+        mediaType,
+        originalMediaType: mediaType,
+        progress: 0,
+        isUploading: true,
+        wasConverted: false,
+      } satisfies AttachmentItem;
+    });
 
     setAttachments(prev => [...prev, ...newAttachments]);
 
     newAttachments.forEach((attachment) => {
-      readFileWithProgress(attachment.file, (percent) => {
-        updateAttachment(attachment.id, (prev) => ({ ...prev, progress: percent }));
-      }).then((dataUrl) => {
+      processFile(
+        attachment.file,
+        attachment.mediaType,
+        (percent) => {
+          updateAttachment(attachment.id, (prev) => ({ ...prev, progress: percent }));
+        }
+      ).then((result) => {
         updateAttachment(attachment.id, (prev) => ({
           ...prev,
-          dataUrl,
-          previewUrl: prev.mediaType.startsWith('image/') ? dataUrl : prev.previewUrl,
+          dataUrl: result.dataUrl,
+          mediaType: result.finalMediaType,
+          wasConverted: result.wasConverted,
+          previewUrl: prev.originalMediaType?.startsWith('image/') ? result.dataUrl : prev.previewUrl,
           isUploading: false,
           progress: 100,
         }));
-      }).catch(() => {
+      }).catch((error) => {
         updateAttachment(attachment.id, (prev) => ({
           ...prev,
           isUploading: false,
-          error: 'Failed to load file'
+          error: error instanceof Error ? error.message : 'Failed to process file'
         }));
       });
     });
@@ -122,7 +215,7 @@ export function useAttachments() {
         const file = items[i].getAsFile();
         if (file) {
           const namedFile = new File(
-            [file], 
+            [file],
             `pasted-image-${Date.now()}.${file.type.split('/')[1] || 'png'}`,
             { type: file.type || 'image/png' }
           );

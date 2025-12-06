@@ -239,15 +239,46 @@ const preprocessLaTeX = (content: string) => {
   return processed;
 };
 
-// Helper to format MIME types
-const formatMimeType = (mime?: string) => {
+// Helper to format MIME types - uses filename extension when mime is generic/converted
+const formatMimeType = (mime?: string, filename?: string) => {
+  // If we have a filename, prefer getting extension from it (more accurate for converted files)
+  if (filename) {
+    const ext = filename.split('.').pop()?.toUpperCase();
+    if (ext && ext.length <= 5) return ext;
+  }
   if (!mime) return 'FILE';
   if (mime === 'application/pdf') return 'PDF';
   if (mime.startsWith('image/')) return mime.split('/')[1].toUpperCase();
+  if (mime === 'text/plain' && filename) {
+    // For converted files, get extension from filename
+    const ext = filename.split('.').pop()?.toUpperCase();
+    return ext || 'TXT';
+  }
   if (mime.includes('text/')) return 'TXT';
   if (mime.includes('word')) return 'DOC';
   if (mime.includes('excel') || mime.includes('spreadsheet')) return 'XLS';
   return mime.split('/')[1]?.toUpperCase() || 'FILE';
+};
+
+// Smart filename truncation - keeps extension visible
+const truncateFilename = (name: string, maxLength: number = 28): string => {
+  if (name.length <= maxLength) return name;
+
+  const lastDot = name.lastIndexOf('.');
+  const ext = lastDot > 0 ? name.slice(lastDot) : '';
+  const baseName = lastDot > 0 ? name.slice(0, lastDot) : name;
+
+  // Reserve space for extension + ellipsis
+  const availableForBase = maxLength - ext.length - 3; // 3 for "..."
+
+  if (availableForBase <= 4) {
+    // Not enough space, just truncate from end
+    return name.slice(0, maxLength - 3) + '...';
+  }
+
+  // Show start of basename + ... + extension
+  const startChars = Math.ceil(availableForBase * 0.7);
+  return baseName.slice(0, startChars) + '...' + ext;
 };
 
 const generateId = () => (typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`);
@@ -732,17 +763,25 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
               {/* Render Files if any */}
               {userFiles.length > 0 && (
                 <div className="flex flex-wrap gap-2 justify-end">
-                  {userFiles.map((file, idx) => (
-                    <div key={idx} className="flex items-center gap-3 bg-[#1e1e1e] border border-[var(--border-color)] px-3 py-2 min-w-[220px]">
-                      <div className="w-10 h-10 bg-[#141414] border border-[var(--border-color)] flex items-center justify-center flex-shrink-0">
-                        <FileIcon className="text-[var(--text-secondary)]" size={18} />
+                  {userFiles.map((file, idx) => {
+                    const displayName = truncateFilename(file.name, 28);
+                    const needsTooltip = file.name !== displayName;
+                    return (
+                      <div
+                        key={idx}
+                        className="flex items-center gap-3 bg-[#1e1e1e] border border-[var(--border-color)] px-3 py-2 max-w-[280px]"
+                        title={needsTooltip ? file.name : undefined}
+                      >
+                        <div className="w-10 h-10 bg-[#141414] border border-[var(--border-color)] flex items-center justify-center flex-shrink-0">
+                          <FileIcon className="text-[var(--text-secondary)]" size={18} />
+                        </div>
+                        <div className="flex flex-col overflow-hidden text-right min-w-0">
+                          <span className="text-sm font-medium text-[var(--text-primary)] truncate">{displayName}</span>
+                          <span className="text-xs text-[var(--text-secondary)]">{formatMimeType(file.mimeType, file.name)}</span>
+                        </div>
                       </div>
-                      <div className="flex flex-col overflow-hidden text-right">
-                        <span className="text-sm font-medium text-[var(--text-primary)] truncate">{file.name}</span>
-                        <span className="text-xs text-[var(--text-secondary)] truncate">{formatMimeType(file.mimeType)}</span>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
 
