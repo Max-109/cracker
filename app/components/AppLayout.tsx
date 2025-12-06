@@ -19,7 +19,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     const [chats, setChats] = useState<Chat[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [sidebarOpen, setSidebarOpen] = useState(true); // Changed from isSidebarOpen, initial true
-    // const [remountKey, setRemountKey] = useState(0); // Removed
+    const [remountKey, setRemountKey] = useState(0);
 
     const router = useRouter();
     const { id: chatId } = useParams(); // Destructure id as chatId
@@ -84,8 +84,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }, [resize, stopResizing]);
 
     const handleNewChat = () => {
-        // Don't close sidebar - user can use toggle button
-        router.push('/');
+        // Only close sidebar on mobile
+        if (window.innerWidth < 768) {
+            setSidebarOpen(false);
+        }
+        setRemountKey(prev => prev + 1);
     };
 
     const handleSelectChat = (id: string) => {
@@ -163,7 +166,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 </div>
 
                 <div className="flex-1 flex flex-col h-full relative min-w-0 z-10">
-                    <div key={0} className="h-full w-full"> {/* remountKey removed, using 0 */}
+                    <div key={remountKey} className="h-full w-full">
                         {children}
                     </div>
                 </div>
