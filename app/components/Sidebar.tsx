@@ -203,7 +203,7 @@ export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose
 
             {/* Delete Confirmation Dialog */}
             <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
-                <AlertDialogContent className="bg-[var(--bg-sidebar)] border border-[var(--border-color)] text-[var(--text-primary)] p-0 gap-0 max-w-[360px]">
+                <AlertDialogContent className="bg-[var(--bg-sidebar-solid)] border border-[var(--border-color)] text-[var(--text-primary)] p-0 gap-0 max-w-[360px]">
                     {/* Header */}
                     <div className="px-4 py-3 border-b border-[var(--border-color)] bg-[#0f0f0f]">
                         <div className="flex items-center gap-2">
@@ -246,7 +246,7 @@ export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose
 
             {/* Delete All Chats Confirmation Dialog */}
             <AlertDialog open={showDeleteAllDialog} onOpenChange={(open) => !open && !isDeletingAll && setShowDeleteAllDialog(false)}>
-                <AlertDialogContent className="bg-[var(--bg-sidebar)] border border-[var(--border-color)] text-[var(--text-primary)] p-0 gap-0 max-w-[360px]">
+                <AlertDialogContent className="bg-[var(--bg-sidebar-solid)] border border-[var(--border-color)] text-[var(--text-primary)] p-0 gap-0 max-w-[360px]">
                     {/* Header */}
                     <div className="px-4 py-3 border-b border-[var(--border-color)] bg-[#0f0f0f]">
                         <div className="flex items-center gap-2">

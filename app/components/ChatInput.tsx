@@ -408,7 +408,7 @@ export function ChatInput({
                 {isVoiceMenuOpen && (
                   <>
                     <div className="fixed inset-0 z-[9998]" onClick={() => setIsVoiceMenuOpen(false)} />
-                    <div className="absolute bottom-full right-0 mb-2 w-[240px] bg-[var(--bg-sidebar)] border border-[var(--border-color)] overflow-hidden z-[9999] animate-in fade-in slide-in-from-bottom-2 duration-150 origin-bottom-right shadow-xl">
+                    <div className="absolute bottom-full right-0 mb-2 w-[240px] bg-[var(--bg-sidebar-solid)] border border-[var(--border-color)] overflow-hidden z-[9999] animate-in fade-in slide-in-from-bottom-2 duration-150 origin-bottom-right shadow-xl">
                       {/* Header */}
                       <div className="px-3 py-2.5 border-b border-[var(--border-color)] bg-[#0f0f0f]">
                         <div className="flex items-center gap-2">
@@ -519,7 +519,7 @@ export function ChatInput({
               {isEffortMenuOpen && (
                 <>
                   <div className="fixed inset-0 z-[9998]" onClick={() => setIsEffortMenuOpen(false)} />
-                  <div className="absolute bottom-full right-0 mb-2 w-[220px] bg-[var(--bg-sidebar)] border border-[var(--border-color)] overflow-hidden z-[9999] animate-in fade-in slide-in-from-bottom-2 duration-150 origin-bottom-right">
+                  <div className="absolute bottom-full right-0 mb-2 w-[220px] bg-[var(--bg-sidebar-solid)] border border-[var(--border-color)] overflow-hidden z-[9999] animate-in fade-in slide-in-from-bottom-2 duration-150 origin-bottom-right">
                     {/* Header */}
                     <div className="px-3 py-2.5 border-b border-[var(--border-color)] bg-[#0f0f0f]">
                       <div className="flex items-center gap-2">

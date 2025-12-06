@@ -35,7 +35,7 @@ function Dropdown({
     "absolute mt-1",
     position === 'top' ? "bottom-full mb-1" : "top-full",
     align === 'right' ? "right-0" : "left-0",
-    position === 'top' 
+    position === 'top'
       ? "origin-bottom-right animate-in fade-in slide-in-from-bottom-2 duration-100"
       : "origin-top-left animate-in fade-in zoom-in-95 duration-100"
   );
@@ -49,8 +49,8 @@ function Dropdown({
       {isOpen && (
         <>
           {/* Backdrop */}
-          <div 
-            className="fixed inset-0 z-[9998]" 
+          <div
+            className="fixed inset-0 z-[9998]"
             onClick={close}
             aria-hidden="true"
           />
@@ -59,7 +59,7 @@ function Dropdown({
             role="menu"
             className={cn(
               positionClasses,
-              "bg-[var(--bg-sidebar)] border border-[var(--border-color)] overflow-hidden p-1 shadow-xl z-[9999]",
+              "bg-[var(--bg-sidebar-solid)] border border-[var(--border-color)] overflow-hidden p-1 shadow-xl z-[9999]",
               contentClassName
             )}
           >

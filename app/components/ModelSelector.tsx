@@ -62,7 +62,7 @@ export function ModelSelector({
           {isModelMenuOpen && (
             <>
               <div className="fixed inset-0 z-[9998]" onClick={() => setIsModelMenuOpen(false)} />
-              <div className="absolute top-full right-0 md:left-0 md:right-auto mt-1 w-[280px] bg-[var(--bg-sidebar)] border border-[var(--border-color)] overflow-hidden z-[9999] animate-in fade-in zoom-in-95 duration-150 origin-top-right md:origin-top-left">
+              <div className="absolute top-full right-0 md:left-0 md:right-auto mt-1 w-[280px] bg-[var(--bg-sidebar-solid)] border border-[var(--border-color)] overflow-hidden z-[9999] animate-in fade-in zoom-in-95 duration-150 origin-top-right md:origin-top-left">
                 {/* Header */}
                 <div className="px-3 py-2.5 border-b border-[var(--border-color)] bg-[#0f0f0f]">
                   <div className="flex items-center gap-2">
@@ -178,7 +178,7 @@ export function ModelSelector({
           {isColorMenuOpen && (
             <>
               <div className="fixed inset-0 z-[9998]" onClick={() => setIsColorMenuOpen(false)} />
-              <div className="absolute top-full right-0 md:right-[-80px] mt-1 w-[232px] bg-[var(--bg-sidebar)] border border-[var(--border-color)] shadow-xl z-[9999] animate-in fade-in zoom-in-95 duration-150 origin-top-right overflow-hidden">
+              <div className="absolute top-full right-0 md:right-[-80px] mt-1 w-[232px] bg-[var(--bg-sidebar-solid)] border border-[var(--border-color)] shadow-xl z-[9999] animate-in fade-in zoom-in-95 duration-150 origin-top-right overflow-hidden">
                 {/* Header */}
                 <div className="px-3 py-2.5 border-b border-[var(--border-color)] bg-[#0f0f0f]">
                   <div className="flex items-center gap-2">

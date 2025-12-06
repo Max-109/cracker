@@ -38,7 +38,7 @@ function Dialog({ open, onOpenChange, children }: DialogProps) {
     >
       <div
         className={cn(
-          "bg-[var(--bg-sidebar)] border border-[var(--border-color)] w-[90%] max-w-md transition-all duration-200 transform",
+          "bg-[var(--bg-sidebar-solid)] border border-[var(--border-color)] w-[90%] max-w-md transition-all duration-200 transform",
           open ? "scale-100 opacity-100" : "scale-95 opacity-0"
         )}
         onClick={(e) => e.stopPropagation()}
@@ -123,11 +123,11 @@ function DialogFooter({ children, className }: DialogFooterProps) {
   );
 }
 
-export { 
-  Dialog, 
-  DialogHeader, 
-  DialogTitle, 
-  DialogDescription, 
-  DialogContent, 
-  DialogFooter 
+export {
+  Dialog,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogContent,
+  DialogFooter
 }
