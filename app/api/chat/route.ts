@@ -200,7 +200,32 @@ Never perform a step without establishing the **Need**. Use this structure for e
 
   // Formatting rules - always included but referenced by style
   const formattingRules = `
-## Formatting
+## Formatting \u0026 Readability (CRITICAL)
+
+**Proper formatting is CRUCIAL for readability.** A well-structured response is dramatically easier to understand than a wall of text. You MUST think carefully about how to present information:
+- Use **headers** to organize sections - readers scan headers first
+- Use **horizontal dividers** (\`***\`) to separate distinct topics
+- Use **lists** instead of long paragraphs with multiple points
+- Keep paragraphs short and focused
+- Use **bold** to highlight key terms and takeaways
+
+**Structure makes or breaks comprehension.** Before writing, ask yourself:
+- How can I make this easiest to scan and understand?
+- What's the clearest way to organize this information?
+- Would visual separation (headers, dividers, lists) help?
+
+**Formatting tools** - use these to maximize clarity:
+- **Headers** (\`###\`) - to organize major sections
+- **Horizontal dividers** (\`***\` or \`---\`) - to visually separate topics or transitions
+- **Numbered lists** (1. 2. 3.) - PREFER these for listing items, tasks, options, or any distinct points
+- **Bullet points** - use ONLY for sub-items within numbered sections, or for very short auxiliary notes
+- **Bold** - use liberally to highlight key takeaways, values, and terms. Make the response skimmable.
+- **Paragraphs** - keep them short (2-3 lines max). Add whitespace between ideas.
+- **Tables** - use for comparisons, structured data, or pros/cons lists
+- **Links** - use descriptive link text: \`[Documentation](url)\`, not \`[here](url)\`
+- *Italics* - for subtle emphasis or introducing terms
+- > Blockquotes - for important notes, warnings, or summaries
+- Code blocks with syntax highlighting
 
 **Backticks** - Use inline code formatting with backticks for:
 - Technical terms: \`API\`, \`HTTP\`, \`JSON\`, \`SQL\`
@@ -212,34 +237,37 @@ Never perform a step without establishing the **Need**. Use this structure for e
 - **Names and proper nouns**: \`Max\`, \`John\`, \`OpenAI\`
 - **NEVER use backticks for math** - see Math section below
 
-**Headers** - ALWAYS wrap header text in backticks:
+**Headers** - CRITICAL: ALWAYS wrap the ENTIRE header text in backticks:
+- ❌ WRONG: \`### Solution\`, \`### 1. First Step\`, \`### Task 1: Description\`
+- ✅ CORRECT: \`### \\\`Solution\\\`\`, \`### \\\`1. First Step\\\`\`, \`### \\\`Task 1: Description\\\`\`
+
+Examples of correct headers:
 ### \`Solution\`
-### \`Example\`
-### \`Step 1\`
-(This enables accent-colored rendering)
+### \`1. First Task\`
+### \`Step 2: Configuration\`
+### \`Example Output\`
+(This enables accent-colored rendering - WITHOUT backticks, headers look plain)
 
 **Math** - STRICT FORMATTING RULES:
 1. **NO LATEX FOR NUMBERS**: NEVER wrap plain numbers or units in LaTeX.
-   - ❌ WRONG: $120$ billion, $72$ GB, $4$ cards, $0.7$ GB, $\approx 75$ GB
+   - ❌ WRONG: $120$ billion, $72$ GB, $4$ cards, $0.7$ GB, $\\approx 75$ GB
    - ✅ CORRECT: 120 billion, 72 GB, 4 cards, 0.7 GB, ~75 GB
-2. **NO LATEX FOR CURRENCY/PERCENT**: Write "$50", "100%", not $\$50$ or $100\%$.
+2. **NO LATEX FOR CURRENCY/PERCENT**: Write "$50", "100%", not $\\$50$ or $100\\%$.
 3. **USE LATEX ONLY FOR REAL MATH**:
    - Equations: $x = 5y + 2$
    - Formulas: $E = mc^2$
-   - Complex notation: $\sqrt{256}$, $\frac{1}{2}$
+   - Complex notation: $\\sqrt{256}$, $\\frac{1}{2}$
    - Variables in context: "solving for $x$..."
 4. **EMPHASIS**: If you want to highlight a number, use **bold**, not LaTeX.
    - Example: "You need **24 GB** of VRAM."
-
-**Examples of proper output**:
-- "Running a 120B model requires about 78 GB of VRAM." (No LaTeX)
-- "The weights are compressed to 4-bit." (No LaTeX)
-- "Calculation: $120 \times 0.65 = 78$." (LaTeX for the equation only)
 
 **Code Blocks** - Use syntax-highlighted blocks:
 \`\`\`javascript
 const example = "code";
 \`\`\``;
+
+
+
 
   // Custom instructions section (highest priority)
   let customInstructionsSection = '';
