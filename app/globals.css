@@ -524,63 +524,69 @@ select {
 }
 
 /* ============================================
-   STREAMING EFFECT - Bottom edge glow reveal
+   STREAMING EFFECT - Visible accent indicator
    ============================================ */
 
 .streaming-active {
   position: relative;
 }
 
-/* Glowing gradient at the bottom where new text appears */
+/* Glowing left border during streaming */
+.streaming-active::before {
+  content: '';
+  position: absolute;
+  left: -16px;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--text-accent);
+  box-shadow: 0 0 12px var(--text-accent),
+    0 0 24px rgba(var(--text-accent-rgb), 0.4);
+  animation: streaming-glow 1.2s ease-in-out infinite;
+}
+
+/* Subtle bottom edge gradient */
 .streaming-active::after {
   content: '';
   position: absolute;
   left: 0;
   right: 0;
-  bottom: 0;
-  height: 60px;
+  bottom: -4px;
+  height: 24px;
   background: linear-gradient(to top,
-      rgba(var(--text-accent-rgb), 0.12) 0%,
-      rgba(var(--text-accent-rgb), 0.06) 30%,
+      rgba(var(--text-accent-rgb), 0.15) 0%,
       transparent 100%);
   pointer-events: none;
-  animation: glow-pulse 1.5s ease-in-out infinite;
+  animation: streaming-fade 1.5s ease-in-out infinite;
+  mask-image: linear-gradient(to right, transparent, black 20%, black 80%, transparent);
+  -webkit-mask-image: linear-gradient(to right, transparent, black 20%, black 80%, transparent);
 }
 
-@keyframes glow-pulse {
+@keyframes streaming-glow {
 
   0%,
   100% {
-    opacity: 0.6;
+    opacity: 0.7;
+    box-shadow: 0 0 8px var(--text-accent),
+      0 0 16px rgba(var(--text-accent-rgb), 0.3);
   }
 
   50% {
     opacity: 1;
+    box-shadow: 0 0 16px var(--text-accent),
+      0 0 32px rgba(var(--text-accent-rgb), 0.5);
   }
 }
 
-/* Accent line on left during streaming */
-.streaming-active::before {
-  content: '';
-  position: absolute;
-  left: -8px;
-  top: 0;
-  bottom: 0;
-  width: 2px;
-  background: var(--text-accent);
-  opacity: 0.4;
-  animation: line-pulse 1s ease-in-out infinite;
-}
-
-@keyframes line-pulse {
+@keyframes streaming-fade {
 
   0%,
   100% {
-    opacity: 0.3;
+    opacity: 0.5;
   }
 
   50% {
-    opacity: 0.6;
+    opacity: 0.8;
   }
 }
 

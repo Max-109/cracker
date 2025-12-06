@@ -95,10 +95,14 @@ function applyAccentColorCSS(color: string) {
 
   // Parse hex to RGB then to HSL for derived colors
   const hex = color.replace('#', '');
-  const r = parseInt(hex.substr(0, 2), 16) / 255;
-  const g = parseInt(hex.substr(2, 2), 16) / 255;
-  const b = parseInt(hex.substr(4, 2), 16) / 255;
-  const hsl = rgbToHsl(Math.round(r * 255), Math.round(g * 255), Math.round(b * 255));
+  const r = parseInt(hex.substr(0, 2), 16);
+  const g = parseInt(hex.substr(2, 2), 16);
+  const b = parseInt(hex.substr(4, 2), 16);
+  
+  // Set RGB values for rgba() usage in CSS
+  root.style.setProperty('--text-accent-rgb', `${r}, ${g}, ${b}`);
+  
+  const hsl = rgbToHsl(r, g, b);
 
   root.style.setProperty('--accent-h', String(hsl.h));
   root.style.setProperty('--accent-s', `${hsl.s}%`);
