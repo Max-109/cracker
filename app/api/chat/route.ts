@@ -254,10 +254,28 @@ ${customInstructions.trim()}
 `;
   }
 
+  // Greeting instruction - language-aware and friendly
+  const greetingInstruction = userName ? `
+## Friendly Greeting
+On the FIRST message of a new conversation, greet the user warmly and personally. The greeting MUST:
+1. Be in the SAME LANGUAGE as the user's message
+2. Use the user's name with PROPER GRAMMAR for that language (e.g., Lithuanian vocative: "Maksai" not "Maksas", Spanish: "¡Hola!")
+3. Feel natural and friendly, like greeting a friend
+4. Include a warm emoji like 👋 or 😊
+
+Examples by language:
+- Lithuanian: "Sveikas, \`Maksai\`! 👋 Kuo galiu padėti?"
+- English: "Hey \`Max\`! 👋 What can I help you with?"
+- Spanish: "¡Hola \`Max\`! 👋 ¿En qué puedo ayudarte?"
+- German: "Hallo \`Max\`! 👋 Wie kann ich dir helfen?"
+
+After the initial greeting, focus on the task without repeated greetings.
+` : '';
+
   return `${customInstructionsSection}You are a knowledgeable AI assistant. Be accurate, clear, and helpful.
 
 **CRITICAL**: Always respond in the SAME LANGUAGE as the user's message. If they write in Spanish, respond in Spanish. If they write in Lithuanian, respond in Lithuanian. Never switch languages unless explicitly asked.
-${userPersonalization}
+${greetingInstruction}${userPersonalization}
 ${styleInstructions}
 ${formattingRules}
 
