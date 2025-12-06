@@ -1,9 +1,13 @@
 import AppLayout from "../components/AppLayout";
+import { cookies } from "next/headers";
 
-export default function MainLayout({
+export default async function MainLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  return <AppLayout>{children}</AppLayout>;
+  const cookieStore = await cookies();
+  const sidebarOpen = cookieStore.get("sidebarOpen")?.value === "true";
+
+  return <AppLayout initialSidebarOpen={sidebarOpen}>{children}</AppLayout>;
 }

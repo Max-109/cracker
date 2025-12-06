@@ -15,25 +15,35 @@ interface Chat {
     createdAt: string;
 }
 
-export default function AppLayout({ children }: { children: React.ReactNode }) {
+import Cookies from 'js-cookie';
+
+export default function AppLayout({ children, initialSidebarOpen = true }: { children: React.ReactNode; initialSidebarOpen?: boolean }) {
     const [chats, setChats] = useState<Chat[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [sidebarOpen, setSidebarOpen] = useState(true);
+
+    // Initialize sidebar state from server cookie (passed as prop)
+    const [sidebarOpen, setSidebarOpen] = useState(initialSidebarOpen);
+
     const [remountKey, setRemountKey] = useState(0);
 
     const router = useRouter();
     const { id: chatId } = useParams(); // Destructure id as chatId
 
-    // Resizable Sidebar State
-    const [sidebarWidth, setSidebarWidth] = useState(260);
+    // Resizable Sidebar State - keep using localStorage for width as it's less critical for layout shift
+    const [sidebarWidth, setSidebarWidth] = useState(() => {
+        if (typeof window !== 'undefined') {
+            const saved = localStorage.getItem('sidebarWidth');
+            return saved ? parseInt(saved) : 260;
+        }
+        return 260;
+    });
     const [isResizing, setIsResizing] = useState(false);
     const sidebarRef = useRef<HTMLDivElement>(null);
 
     // Safely access id, handling potential array/undefined
     const currentChatId = Array.isArray(chatId) ? chatId[0] : chatId || null;
 
-    const fetchChats = () => { // Renamed from refreshChats
-        // Don't set loading to true on refresh to avoid flickering skeleton on every new chat
+    const fetchChats = () => {
         fetch('/api/chats')
             .then(res => res.json())
             .then(data => {
@@ -44,20 +54,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     };
 
     useEffect(() => {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
         setIsLoading(true);
-        fetchChats(); // Call fetchChats
-    }, []);
-
-    // Load saved sidebar width and state
-    useEffect(() => {
-        const savedWidth = localStorage.getItem('sidebarWidth');
-        if (savedWidth) setSidebarWidth(parseInt(savedWidth));
-
-        const savedSidebarState = localStorage.getItem('sidebarOpen');
-        if (savedSidebarState !== null) {
-            setSidebarOpen(savedSidebarState === 'true');
-        }
+        fetchChats();
     }, []);
 
     const startResizing = useCallback((mouseDownEvent: React.MouseEvent) => {
@@ -92,6 +90,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         // Only close sidebar on mobile
         if (window.innerWidth < 768) {
             setSidebarOpen(false);
+            Cookies.set('sidebarOpen', 'false', { expires: 365 });
         }
         setRemountKey(prev => prev + 1);
     };
@@ -104,11 +103,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     const toggleSidebar = () => {
         const newState = !sidebarOpen;
         setSidebarOpen(newState);
-        localStorage.setItem('sidebarOpen', String(newState));
+        Cookies.set('sidebarOpen', String(newState), { expires: 365 });
     };
     const closeSidebar = () => {
         setSidebarOpen(false);
-        localStorage.setItem('sidebarOpen', 'false');
+        Cookies.set('sidebarOpen', 'false', { expires: 365 });
     };
 
     return (
@@ -142,7 +141,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 {/* Desktop Sidebar (Fixed Toggle) */}
                 <div
                     className={cn(
-                        "hidden md:flex flex-col h-full z-30 transition-all duration-300 ease-in-out relative flex-shrink-0 border-r border-[var(--border-color)]",
+                        "hidden md:flex flex-col h-full z-30 relative flex-shrink-0 border-r border-[var(--border-color)] transition-all duration-300 ease-in-out",
                         sidebarOpen ? "w-[260px] translate-x-0" : "w-0 -translate-x-full opacity-0 overflow-hidden"
                     )}
                 >
@@ -159,10 +158,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 </div>
 
                 {/* Mobile Sidebar (Fixed) */}
-                <div className={cn(
-                    "fixed inset-y-0 left-0 w-[280px] z-50 transform transition-transform duration-300 ease-in-out md:hidden",
-                    sidebarOpen ? "translate-x-0" : "-translate-x-full"
-                )}>
+                <div
+                    className={cn(
+                        "fixed inset-y-0 left-0 w-[280px] z-50 transform md:hidden transition-transform duration-300 ease-in-out",
+                        sidebarOpen ? "translate-x-0" : "-translate-x-full"
+                    )}
+                >
                     <Sidebar
                         onNewChat={handleNewChat}
                         chats={chats}
