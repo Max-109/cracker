@@ -119,10 +119,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 {/* Desktop: always visible, w-[260px] */}
                 {/* Mobile: fixed, z-40, transform based on state */}
 
-                {/* Mobile Overlay */}
-                {sidebarOpen && ( // Changed from isSidebarOpen
+                {/* Mobile Overlay - must be BELOW sidebar (z-40) so clicks on sidebar work */}
+                {sidebarOpen && (
                     <div
-                        className="fixed inset-0 bg-black/50 z-[55] md:hidden fade-in duration-200"
+                        className="fixed inset-0 bg-black/50 z-40 md:hidden"
                         onClick={closeSidebar}
                     />
                 )}
