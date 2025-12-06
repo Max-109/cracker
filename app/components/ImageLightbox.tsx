@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useCallback, useRef } from 'react';
+import React, { useEffect, useCallback, useRef, useState } from 'react';
 import { X, ZoomIn, ZoomOut, RotateCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -12,27 +12,39 @@ interface ImageLightboxProps {
 }
 
 export function ImageLightbox({ src, alt, isOpen, onClose }: ImageLightboxProps) {
-    const [scale, setScale] = React.useState(1);
-    const [rotation, setRotation] = React.useState(0);
+    const [scale, setScale] = useState(1);
+    const [rotation, setRotation] = useState(0);
+    const [isVisible, setIsVisible] = useState(false);
+    const [isAnimating, setIsAnimating] = useState(false); // true = visible state, false = hidden state
+    const [isClosing, setIsClosing] = useState(false);
     const imageContainerRef = useRef<HTMLDivElement>(null);
 
-    // Reset state when opening
+    // Handle open with animation
     useEffect(() => {
-        if (isOpen) {
+        if (isOpen && !isVisible) {
+            // Mount the component first
+            setIsVisible(true);
+            setIsClosing(false);
             setScale(1);
             setRotation(0);
+            // Then trigger animation on next frame
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    setIsAnimating(true);
+                });
+            });
         }
-    }, [isOpen]);
+    }, [isOpen, isVisible]);
 
     // Handle escape key and body scroll lock
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (e.key === 'Escape') {
-                onClose();
+                handleClose();
             }
         };
 
-        if (isOpen) {
+        if (isVisible) {
             document.addEventListener('keydown', handleKeyDown);
             document.body.style.overflow = 'hidden';
         }
@@ -41,7 +53,16 @@ export function ImageLightbox({ src, alt, isOpen, onClose }: ImageLightboxProps)
             document.removeEventListener('keydown', handleKeyDown);
             document.body.style.overflow = '';
         };
-    }, [isOpen, onClose]);
+    }, [isVisible]);
+
+    const handleClose = useCallback(() => {
+        setIsAnimating(false); // Trigger exit animation
+        // Wait for animation to complete before actually closing
+        setTimeout(() => {
+            setIsVisible(false);
+            onClose();
+        }, 150);
+    }, [onClose]);
 
     const handleZoomIn = useCallback(() => {
         setScale(prev => Math.min(prev + 0.25, 3));
@@ -56,29 +77,34 @@ export function ImageLightbox({ src, alt, isOpen, onClose }: ImageLightboxProps)
     }, []);
 
     const handleBackdropClick = useCallback((e: React.MouseEvent) => {
-        // Only close if clicking the backdrop, not the image container
         if (e.target === e.currentTarget) {
-            onClose();
+            handleClose();
         }
-    }, [onClose]);
+    }, [handleClose]);
 
-    if (!isOpen) return null;
+    if (!isVisible) return null;
 
     return (
         <div
-            className="fixed inset-0 z-[9999] flex items-center justify-center overflow-hidden backdrop-blur-[2px] animate-in fade-in duration-200"
+            className={cn(
+                "fixed inset-0 z-[9999] flex items-center justify-center overflow-hidden backdrop-blur-[2px] transition-opacity duration-150",
+                isAnimating ? "opacity-100" : "opacity-0"
+            )}
             style={{ backgroundColor: 'rgba(0, 0, 0, 0.25)' }}
             onClick={handleBackdropClick}
         >
-            {/* Image container with close button positioned relative to it */}
+            {/* Image container with close button */}
             <div
                 ref={imageContainerRef}
-                className="relative animate-in zoom-in-95 duration-200"
+                className={cn(
+                    "relative transition-all duration-150",
+                    isAnimating ? "opacity-100 scale-100" : "opacity-0 scale-95"
+                )}
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* Close button - top right of the image */}
                 <button
-                    onClick={onClose}
+                    onClick={handleClose}
                     className="absolute -top-3 -right-3 w-8 h-8 bg-[#1a1a1a] hover:bg-[var(--text-accent)] border border-[var(--border-color)] hover:border-[var(--text-accent)] text-[var(--text-secondary)] hover:text-black flex items-center justify-center transition-all duration-150 z-10 rounded-full shadow-lg"
                     aria-label="Close"
                 >
@@ -90,7 +116,6 @@ export function ImageLightbox({ src, alt, isOpen, onClose }: ImageLightboxProps)
                 <img
                     src={src}
                     alt={alt || 'Preview'}
-                    className="rounded-lg shadow-2xl select-none border border-white/10"
                     style={{
                         maxWidth: '70vw',
                         maxHeight: '70vh',
@@ -100,6 +125,9 @@ export function ImageLightbox({ src, alt, isOpen, onClose }: ImageLightboxProps)
                         transform: `scale(${scale}) rotate(${rotation}deg)`,
                         transformOrigin: 'center center',
                         transition: 'transform 0.2s ease-out',
+                        borderRadius: '12px',
+                        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+                        border: '1px solid rgba(255, 255, 255, 0.1)',
                     }}
                     draggable={false}
                 />
@@ -115,7 +143,12 @@ export function ImageLightbox({ src, alt, isOpen, onClose }: ImageLightboxProps)
             </div>
 
             {/* Controls - bottom center */}
-            <div className="fixed bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-[#1a1a1a]/90 border border-[var(--border-color)] px-4 py-2 backdrop-blur-sm z-[10000] rounded-full">
+            <div
+                className={cn(
+                    "fixed bottom-6 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-[#1a1a1a]/90 border border-[var(--border-color)] px-4 py-2 backdrop-blur-sm z-[10000] rounded-full transition-all duration-150",
+                    isAnimating ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2"
+                )}
+            >
                 <button
                     onClick={handleZoomOut}
                     disabled={scale <= 0.5}
@@ -164,7 +197,7 @@ export function ImageLightbox({ src, alt, isOpen, onClose }: ImageLightboxProps)
 
 // Hook to manage lightbox state
 export function useLightbox() {
-    const [lightboxState, setLightboxState] = React.useState<{
+    const [lightboxState, setLightboxState] = useState<{
         isOpen: boolean;
         src: string;
         alt?: string;
