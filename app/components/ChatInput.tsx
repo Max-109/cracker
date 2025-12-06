@@ -7,6 +7,7 @@ import type { AttachmentItem } from '@/app/hooks/useAttachments';
 import type { ReasoningEffortLevel } from '@/app/hooks/usePersistedSettings';
 import { useVoiceRecording } from '@/app/hooks/useVoiceRecording';
 import { ModeSelector, ChatMode } from './ModeSelector';
+import { ImageLightbox, useLightbox } from './ImageLightbox';
 import {
   Textarea,
   CircularProgress,
@@ -62,6 +63,9 @@ export function ChatInput({
   });
   const [isVoiceMenuOpen, setIsVoiceMenuOpen] = useState(false);
   const [, setVoiceError] = useState<string | null>(null);
+
+  // Image lightbox
+  const { isOpen: isLightboxOpen, src: lightboxSrc, alt: lightboxAlt, openLightbox, closeLightbox } = useLightbox();
 
   // Persist voice model to localStorage
   useEffect(() => {
@@ -275,6 +279,7 @@ export function ChatInput({
                   key={attachment.id}
                   attachment={attachment}
                   onRemove={() => onRemoveAttachment(attachment.id)}
+                  onImageClick={openLightbox}
                 />
               ))}
             </div>
@@ -624,6 +629,14 @@ export function ChatInput({
           </div>
         </div>
       </div>
+
+      {/* Image Lightbox */}
+      <ImageLightbox
+        src={lightboxSrc}
+        alt={lightboxAlt}
+        isOpen={isLightboxOpen}
+        onClose={closeLightbox}
+      />
     </div>
   );
 }
@@ -632,9 +645,10 @@ export function ChatInput({
 interface AttachmentCardProps {
   attachment: AttachmentItem;
   onRemove: () => void;
+  onImageClick?: (src: string, alt?: string) => void;
 }
 
-function AttachmentCard({ attachment, onRemove }: AttachmentCardProps) {
+function AttachmentCard({ attachment, onRemove, onImageClick }: AttachmentCardProps) {
   // Use original media type for display, but actual mediaType for logic
   const displayMediaType = attachment.originalMediaType || attachment.mediaType;
   const isImage = displayMediaType.startsWith('image/');
@@ -678,13 +692,16 @@ function AttachmentCard({ attachment, onRemove }: AttachmentCardProps) {
         title={needsTooltip ? attachment.name : undefined}
       >
         {isImage ? (
-          <div className="relative !w-[40px] !h-[40px] md:!w-[64px] md:!h-[64px]">
+          <div
+            className="relative !w-[40px] !h-[40px] md:!w-[64px] md:!h-[64px] cursor-pointer"
+            onClick={() => attachment.previewUrl && onImageClick?.(attachment.previewUrl, attachment.name)}
+          >
             {attachment.previewUrl ? (
               /* eslint-disable-next-line @next/next/no-img-element */
               <img
                 src={attachment.previewUrl}
                 alt={attachment.name}
-                className="w-full h-full object-cover"
+                className="w-full h-full object-cover hover:opacity-80 transition-opacity"
               />
             ) : (
               <div className="w-full h-full bg-[#0f0f0f] flex items-center justify-center">

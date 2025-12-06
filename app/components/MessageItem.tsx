@@ -13,6 +13,7 @@ import type { MessagePart } from '@/lib/chat-types';
 import { DeepResearchProgress, SourcesDisplay, type ResearchProgress } from './DeepResearchProgress';
 import { LearningModeIndicator, LearningModeBadge } from './LearningModeIndicator';
 import { LoadingIndicator } from './LoadingIndicator';
+import { ImageLightbox, useLightbox } from './ImageLightbox';
 import type { ChatMode } from '@/app/hooks/usePersistedSettings';
 import { useQuoteContext } from './QuoteContext';
 import { useAnimatedText } from '@/app/hooks/useAnimatedText';
@@ -334,6 +335,9 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
   const editFileInputRef = useRef<HTMLInputElement>(null);
   const messageContentRef = useRef<HTMLDivElement>(null);
   const { addQuote } = useQuoteContext();
+
+  // Image lightbox
+  const { isOpen: isLightboxOpen, src: lightboxSrc, alt: lightboxAlt, openLightbox, closeLightbox } = useLightbox();
 
   // Text selection detection for quote functionality
   useEffect(() => {
@@ -752,9 +756,13 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
               {userImages.length > 0 && (
                 <div className="flex flex-wrap gap-2 justify-end">
                   {userImages.map((img, idx) => (
-                    <div key={idx} className="relative border border-[var(--border-color)] bg-[#141414] overflow-hidden">
+                    <div
+                      key={idx}
+                      className="relative border border-[var(--border-color)] bg-[#141414] overflow-hidden cursor-pointer hover:border-[var(--text-accent)]/50 transition-colors"
+                      onClick={() => openLightbox(img.url, img.name || `Attachment ${idx + 1}`)}
+                    >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={img.url} alt={img.name || `Attachment ${idx + 1}`} className="max-w-[200px] max-h-[200px] object-cover" />
+                      <img src={img.url} alt={img.name || `Attachment ${idx + 1}`} className="max-w-[200px] max-h-[200px] object-cover hover:opacity-80 transition-opacity" />
                     </div>
                   ))}
                 </div>
@@ -881,6 +889,14 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
             </div>
           </div>
         </div>
+
+        {/* Image Lightbox */}
+        <ImageLightbox
+          src={lightboxSrc}
+          alt={lightboxAlt}
+          isOpen={isLightboxOpen}
+          onClose={closeLightbox}
+        />
       </div>
     );
   }
