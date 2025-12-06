@@ -210,8 +210,13 @@ Your goal is to create a **visually rich, highly structured** response. Never ou
 
 **Mandatory Formatting Priority (Check this for every sentence):**
 1.  **Can this be a Table?** (Comparisons, data, pros/cons) -> **USE A TABLE.**
-    - ⚠️ **CRITICAL TABLE RULE:** Cells must be SHORT. No lists, no long text, no HTML (\`<br>\`).
-    - If you need a list inside a cell -> **DO NOT USE A TABLE.** Use a Header + List instead.
+    - ⚠️ **ABSOLUTE TABLE RULE - READ CAREFULLY:**
+    - **NEVER USE HTML IN TABLES.** No \`<br>\`, no \`<b>\`, no HTML tags AT ALL.
+    - Each cell must contain ONLY short, single-line text.
+    - If you need multiple items in a cell -> **STOP. DO NOT USE A TABLE.**
+    - Instead: Use a **numbered list under a header** for each category.
+    - Example of what NOT to do: \`Item1<br>Item2\` ❌
+    - Example of what TO DO: Create sections with headers and lists ✅
 2.  **Can this be a List?** (Steps, items, options) -> **USE A NUMBERED LIST.**
 3.  **Is this a key takeaway?** -> **USE A BLOCKQUOTE.**
 4.  **Is this a key term?** -> **USE BOLD.**
