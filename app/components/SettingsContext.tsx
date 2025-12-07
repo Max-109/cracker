@@ -28,7 +28,7 @@ const DEFAULT_ACCOUNT_SETTINGS: AccountSettings = {
   currentModelId: 'gemini-3-pro-preview',
   currentModelName: 'Expert',
   reasoningEffort: 'medium',
-  responseLength: 50,
+  responseLength: 30,
   learningMode: false,
   chatMode: 'chat',
   customInstructions: null,
@@ -63,7 +63,7 @@ function saveAccentColor(color: string) {
 // Update favicon with accent color (exported for use in other components)
 export function updateFavicon(color: string) {
   if (typeof window === 'undefined') return;
-  
+
   const svg = `<svg width="32" height="32" viewBox="0 0 291 291" xmlns="http://www.w3.org/2000/svg">
     <rect x="3.252" y="3.252" width="283.465" height="283.465" rx="60" ry="60" fill="#262626" stroke="#7c7c7c" stroke-width="6.5"/>
     <circle cx="144.985" cy="144.985" r="70.866" fill="${color}" stroke="#7c7c7c" stroke-width="6.5"/>
@@ -98,10 +98,10 @@ function applyAccentColorCSS(color: string) {
   const r = parseInt(hex.substr(0, 2), 16);
   const g = parseInt(hex.substr(2, 2), 16);
   const b = parseInt(hex.substr(4, 2), 16);
-  
+
   // Set RGB values for rgba() usage in CSS
   root.style.setProperty('--text-accent-rgb', `${r}, ${g}, ${b}`);
-  
+
   const hsl = rgbToHsl(r, g, b);
 
   root.style.setProperty('--accent-h', String(hsl.h));

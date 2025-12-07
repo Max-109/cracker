@@ -45,7 +45,7 @@ export const userSettings = pgTable('user_settings', {
   currentModelName: text('current_model_name').default('Expert'),
   reasoningEffort: text('reasoning_effort').default('medium'),
   // Response settings
-  responseLength: integer('response_length').default(50),
+  responseLength: integer('response_length').default(30),
   learningMode: boolean('learning_mode').default(false), // Deprecated: use chatMode
   chatMode: text('chat_mode').default('chat'), // 'chat' | 'learning' | 'deep-search'
   customInstructions: text('custom_instructions'), // User's custom instructions (highest priority)

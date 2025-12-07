@@ -353,7 +353,7 @@ export async function POST(req: Request) {
 
     const modelId = model || "gemini-3-pro-preview";
     const effort = reasoningEffort || "medium";
-    const respLength = typeof responseLength === 'number' ? responseLength : 50;
+    const respLength = typeof responseLength === 'number' ? responseLength : 30;
     const uName = userName || '';
     const uGender = userGender || 'not-specified';
     const isLearningMode = learningMode === true;
