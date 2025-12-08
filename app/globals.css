@@ -108,31 +108,26 @@ body {
    For Android WebView status bar & navigation
    ============================================ */
 
-/* Add top padding for status bar on mobile WebView */
 @media (max-width: 768px) {
 
-  /* Header area - push down to avoid status bar */
-  .capacitor-header,
-  header,
+  /* Header area - extend background behind status bar */
   [data-header="true"] {
+    position: relative;
     padding-top: calc(env(safe-area-inset-top, 0px) + 24px);
+    margin-top: calc(-1 * (env(safe-area-inset-top, 0px) + 24px));
+    background-color: var(--bg-sidebar);
   }
 
-  /* Main content area top padding */
-  main {
-    padding-top: calc(env(safe-area-inset-top, 0px) + 16px);
-  }
-
-  /* Mobile sidebar top padding */
-  .mobile-sidebar,
-  [data-mobile-sidebar="true"] {
-    padding-top: calc(env(safe-area-inset-top, 0px) + 24px);
-  }
-
-  /* Input area - make controls bigger and add bottom padding */
+  /* Input area - extend background behind navigation bar */
   .mobile-input-area,
   [data-input-area="true"] {
     padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 20px);
+    background-color: var(--bg-main);
+  }
+
+  /* Main container needs to allow header overlap */
+  main {
+    padding-top: 0;
   }
 
   /* Larger touch targets for mobile */
@@ -155,6 +150,14 @@ body {
   [data-input-area="true"] textarea {
     min-height: 52px;
     font-size: 16px;
+  }
+
+  /* Prevent placeholder text from wrapping */
+  .mobile-input-area textarea::placeholder,
+  [data-input-area="true"] textarea::placeholder {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 }
 
