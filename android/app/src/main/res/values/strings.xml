@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Cracker</string>
+    <string name="title_activity_main">Cracker</string>
+    <string name="package_name">com.cracker.chat</string>
+    <string name="custom_url_scheme">com.cracker.chat</string>
+</resources>

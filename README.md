@@ -458,6 +458,57 @@ bun db:push      # Push schema to database
 bun db:studio    # Open Drizzle Studio
 ```
 
+## Android App
+
+The app can be packaged as an Android APK using Capacitor. The APK loads the deployed website (`https://cracker.mom`) in a native WebView container.
+
+### Prerequisites
+
+```bash
+# Install Java 17 (required)
+brew install openjdk@17
+
+# Install Android SDK
+brew install --cask android-commandlinetools
+sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+```
+
+### Building the APK
+
+```bash
+# 1. Patch Capacitor for Java 17 compatibility (one-time)
+sed -i '' 's/VERSION_21/VERSION_17/g' node_modules/@capacitor/android/capacitor/build.gradle
+
+# 2. Sync web assets
+npx cap sync android
+
+# 3. Build signed release APK
+export JAVA_HOME=/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home
+cd android && ./gradlew assembleRelease
+```
+
+The APK will be at: `android/app/build/outputs/apk/release/app-release.apk`
+
+### Configuration
+
+| File | Purpose |
+|------|---------|
+| `capacitor.config.ts` | App name, ID, and website URL |
+| `android/app/build.gradle` | Signing config, version code |
+| `android/cracker-release.keystore` | Signing key (keep secure!) |
+
+### Updating the App
+
+When you deploy changes to your website, the app automatically loads the new version. To change the target URL, edit `capacitor.config.ts`:
+
+```typescript
+server: {
+  url: 'https://your-new-url.com',
+}
+```
+
+Then rebuild the APK.
+
 ## Architecture Decisions
 
 ### Why Bun?

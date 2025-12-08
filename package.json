@@ -13,6 +13,8 @@
     "@ai-sdk/google-vertex": "^3.0.86",
     "@ai-sdk/openai": "^2.0.71",
     "@ai-sdk/react": "^2.0.94",
+    "@capacitor/android": "^7.4.4",
+    "@capacitor/core": "^7.4.4",
     "@google/generative-ai": "^0.24.1",
     "@radix-ui/react-alert-dialog": "^1.1.15",
     "@radix-ui/react-label": "^2.1.8",
@@ -46,6 +48,7 @@
     "tailwind-merge": "^3.4.0"
   },
   "devDependencies": {
+    "@capacitor/cli": "^7.4.4",
     "@tailwindcss/postcss": "^4",
     "@types/js-cookie": "^3.0.6",
     "@types/node": "^20",
