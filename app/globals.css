@@ -110,24 +110,18 @@ body {
 
 @media (max-width: 768px) {
 
-  /* Header area - extend background behind status bar */
-  [data-header="true"] {
-    position: relative;
-    padding-top: calc(env(safe-area-inset-top, 0px) + 24px);
-    margin-top: calc(-1 * (env(safe-area-inset-top, 0px) + 24px));
-    background-color: var(--bg-sidebar);
-  }
-
-  /* Input area - extend background behind navigation bar */
-  .mobile-input-area,
-  [data-input-area="true"] {
-    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 20px);
+  /* Add safe area padding to the entire app body */
+  body {
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
     background-color: var(--bg-main);
   }
 
-  /* Main container needs to allow header overlap */
-  main {
-    padding-top: 0;
+  /* Input area - add extra bottom padding for navigation bar */
+  .mobile-input-area,
+  [data-input-area="true"] {
+    padding-bottom: 20px;
+    background-color: var(--bg-main);
   }
 
   /* Larger touch targets for mobile */
