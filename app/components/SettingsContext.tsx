@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { useAuth } from './AuthContext';
+import { setAppIcon } from '@/lib/capacitor/app-icon';
 
 // Chat mode type
 export type ChatMode = 'chat' | 'image' | 'learning' | 'deep-search';
@@ -92,6 +93,11 @@ function applyAccentColorCSS(color: string) {
 
   // Update favicon with new accent color
   updateFavicon(color);
+
+  // Update Android app icon (if running in Capacitor)
+  setAppIcon(color).catch(() => {
+    // Silently fail if not in Capacitor or plugin not available
+  });
 
   // Parse hex to RGB then to HSL for derived colors
   const hex = color.replace('#', '');
