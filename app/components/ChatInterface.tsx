@@ -849,7 +849,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
       <ChatBackground />
       <main className="flex-1 flex flex-col h-full min-h-0 relative z-10">
         {/* Top Bar - outside overflow to allow dropdowns */}
-        <div className="flex-shrink-0 w-full h-14 flex items-center justify-between px-4 bg-[var(--bg-sidebar)] border-b border-[var(--border-color)] relative z-50 dropdown-container">
+        <div data-header="true" className="flex-shrink-0 w-full h-14 flex items-center justify-between px-4 bg-[var(--bg-sidebar)] border-b border-[var(--border-color)] relative z-50 dropdown-container">
           {/* Left: Mobile menu button + Settings */}
           <div className="flex items-center gap-2 md:hidden">
             <button

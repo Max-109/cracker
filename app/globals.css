@@ -103,6 +103,61 @@ body {
   }
 }
 
+/* ============================================
+   CAPACITOR APP / WEBVIEW SAFE AREAS
+   For Android WebView status bar & navigation
+   ============================================ */
+
+/* Add top padding for status bar on mobile WebView */
+@media (max-width: 768px) {
+
+  /* Header area - push down to avoid status bar */
+  .capacitor-header,
+  header,
+  [data-header="true"] {
+    padding-top: calc(env(safe-area-inset-top, 0px) + 24px);
+  }
+
+  /* Main content area top padding */
+  main {
+    padding-top: calc(env(safe-area-inset-top, 0px) + 16px);
+  }
+
+  /* Mobile sidebar top padding */
+  .mobile-sidebar,
+  [data-mobile-sidebar="true"] {
+    padding-top: calc(env(safe-area-inset-top, 0px) + 24px);
+  }
+
+  /* Input area - make controls bigger and add bottom padding */
+  .mobile-input-area,
+  [data-input-area="true"] {
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 20px);
+  }
+
+  /* Larger touch targets for mobile */
+  .mobile-input-area button,
+  .mobile-input-area [role="button"],
+  [data-input-area="true"] button {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Larger icons in input area */
+  .mobile-input-area svg,
+  [data-input-area="true"] svg {
+    width: 22px;
+    height: 22px;
+  }
+
+  /* Textarea larger on mobile */
+  .mobile-input-area textarea,
+  [data-input-area="true"] textarea {
+    min-height: 52px;
+    font-size: 16px;
+  }
+}
+
 * {
   border-color: var(--border-color);
 }

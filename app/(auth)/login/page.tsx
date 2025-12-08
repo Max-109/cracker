@@ -61,7 +61,7 @@ export default function LoginPage() {
     <div className="min-h-screen bg-[var(--bg-main)] flex items-center justify-center p-4 relative overflow-hidden">
       <AuthBackground />
       <FloatingIcons />
-      
+
       <div className="flex items-center justify-center w-full relative z-10">
         <div className={cn(
           "w-full max-w-[400px] transition-all duration-500",
@@ -74,7 +74,7 @@ export default function LoginPage() {
               {/* Outer glow ring - animated */}
               <div className="absolute -inset-4 border border-[var(--text-accent)]/10 group-hover:border-[var(--text-accent)]/30 transition-colors duration-500" />
               <div className="absolute -inset-6 border border-[var(--text-accent)]/5 group-hover:border-[var(--text-accent)]/15 transition-colors duration-700" />
-              
+
               {/* Main logo */}
               <div className="w-16 h-16 border-2 border-[var(--text-accent)] bg-[var(--text-accent)]/10 flex items-center justify-center relative overflow-hidden group-hover:bg-[var(--text-accent)]/20 transition-colors">
                 <Sparkles size={26} className="text-[var(--text-accent)] relative z-10" />
@@ -82,7 +82,7 @@ export default function LoginPage() {
                 <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[var(--text-accent)]/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity animate-scanline" style={{ animationDuration: '2s' }} />
               </div>
             </div>
-            
+
             <h1 className="text-2xl font-bold text-[var(--text-primary)] tracking-tight mt-6">
               Cracker
             </h1>
@@ -118,13 +118,13 @@ export default function LoginPage() {
             <form onSubmit={handleSubmit} className="p-5 space-y-5 auth-field-stagger">
               {/* Error Message */}
               {error && (
-                <div className="p-3 border border-red-400/30 bg-red-400/5 flex items-start gap-3 auth-error-glitch">
-                  <div className="w-6 h-6 flex items-center justify-center border border-red-400/30 bg-red-400/10 flex-shrink-0">
-                    <AlertTriangle size={12} className="text-red-400" />
+                <div className="p-3 border flex items-start gap-3" style={{ borderColor: '#f87171', backgroundColor: 'rgba(248, 113, 113, 0.1)' }}>
+                  <div className="w-6 h-6 flex items-center justify-center border flex-shrink-0" style={{ borderColor: 'rgba(248, 113, 113, 0.3)', backgroundColor: 'rgba(248, 113, 113, 0.1)' }}>
+                    <AlertTriangle size={12} style={{ color: '#f87171' }} />
                   </div>
                   <div>
-                    <p className="text-[10px] uppercase tracking-wider text-red-400 font-semibold">Authentication Failed</p>
-                    <p className="text-[11px] text-red-400/80 mt-0.5">{error}</p>
+                    <p className="text-[10px] uppercase tracking-wider font-semibold" style={{ color: '#f87171' }}>Authentication Failed</p>
+                    <p className="text-[11px] mt-0.5" style={{ color: '#fca5a5' }}>{error}</p>
                   </div>
                 </div>
               )}
@@ -140,8 +140,8 @@ export default function LoginPage() {
                 </label>
                 <div className={cn(
                   "border bg-[#1a1a1a] transition-all duration-150",
-                  focusedField === 'email' 
-                    ? "border-[var(--text-accent)] input-focused" 
+                  focusedField === 'email'
+                    ? "border-[var(--text-accent)] input-focused"
                     : "border-[var(--border-color)] hover:border-[var(--text-accent)]/30"
                 )}>
                   <input
@@ -168,8 +168,8 @@ export default function LoginPage() {
                 </label>
                 <div className={cn(
                   "border bg-[#1a1a1a] transition-all duration-150",
-                  focusedField === 'password' 
-                    ? "border-[var(--text-accent)] input-focused" 
+                  focusedField === 'password'
+                    ? "border-[var(--text-accent)] input-focused"
                     : "border-[var(--border-color)] hover:border-[var(--text-accent)]/30"
                 )}>
                   <input
@@ -228,8 +228,8 @@ export default function LoginPage() {
             <div className="px-5 py-4 border-t border-[var(--border-color)] bg-[#0f0f0f]">
               <p className="text-[10px] text-[var(--text-secondary)] text-center">
                 Don&apos;t have an account?{' '}
-                <Link 
-                  href="/register" 
+                <Link
+                  href="/register"
                   onClick={handleNavigateToRegister}
                   className="text-[var(--text-accent)] hover:underline font-semibold uppercase tracking-wider inline-flex items-center gap-1 group"
                 >

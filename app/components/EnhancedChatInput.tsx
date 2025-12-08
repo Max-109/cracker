@@ -62,7 +62,7 @@ export function EnhancedChatInput({
   };
 
   return (
-    <div className="relative">
+    <div data-input-area="true" className="relative mobile-input-area">
       {/* Quote Button - appears when text is selected */}
       <QuoteButton />
 
