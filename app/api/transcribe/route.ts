@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { GoogleAuth } from "google-auth-library";
+import { GoogleGenerativeAI } from "@google/generative-ai";
+
+// Initialize Google Generative AI with API key
+const genAI = new GoogleGenerativeAI(process.env.GOOGLE_GENERATIVE_AI_API_KEY || '');
 
 export async function POST(req: NextRequest) {
   try {
@@ -13,92 +16,34 @@ export async function POST(req: NextRequest) {
     // Convert audio file to base64
     const arrayBuffer = await audioFile.arrayBuffer();
     const base64Audio = Buffer.from(arrayBuffer).toString('base64');
-
-    // Determine mime type
     const mimeType = audioFile.type || 'audio/webm';
 
-    // Get access token for Vertex AI using service account
-    const credentials = {
-      client_email: process.env.GOOGLE_CLIENT_EMAIL,
-      private_key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-    };
-
-    const auth = new GoogleAuth({
-      credentials,
-      scopes: ['https://www.googleapis.com/auth/cloud-platform'],
-    });
-
-    const client = await auth.getClient();
-    const accessToken = (await client.getAccessToken()).token;
+    console.log(`[Transcribe] Input: ${audioFile.size} bytes, type: ${mimeType}, base64 len: ${base64Audio.length}`);
 
     const modelType = formData.get('model') as string || 'fast';
 
-    const projectId = process.env.GOOGLE_VERTEX_PROJECT;
-    const location = process.env.GOOGLE_VERTEX_LOCATION || 'global';
-
     // Select model based on type
-    // fast: gemini-2.5-flash-lite (Fastest, lowest latency)
-    // expert: gemini-2.5-flash (Gemini 2.5 Flash - most accurate)
-    const modelId = modelType === 'expert' ? 'gemini-2.5-flash' : 'gemini-2.5-flash-lite';
+    // fast: gemini-2.5-flash (Fast, accurate, stable)
+    // expert: gemini-3-pro-preview (Most capable, expert model)
+    const modelId = modelType === 'expert' ? 'gemini-3-pro-preview' : 'gemini-2.5-flash';
 
     console.log(`[Transcribe] Using model: ${modelId} (type: ${modelType})`);
 
-    // Call Vertex AI API directly
-    const response = await fetch(
-      `https://aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/publishers/google/models/${modelId}:generateContent`,
+    // Use direct SDK to avoid Vercel AI SDK validation issues with audio files
+    const model = genAI.getGenerativeModel({ model: modelId });
+
+    const result = await model.generateContent([
+      "Transcribe this audio as accurately as possible. Return ONLY the transcribed text, nothing else. If the audio is unclear or empty, return an empty string.",
       {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              role: 'user',
-              parts: [
-                {
-                  text: 'Transcribe this audio as accurately as possible. Return ONLY the transcribed text, nothing else. If the audio is unclear or empty, return an empty string.',
-                },
-                {
-                  inlineData: {
-                    mimeType: mimeType,
-                    data: base64Audio,
-                  },
-                },
-              ],
-            },
-          ],
-          generationConfig: {
-            temperature: 0,
-            maxOutputTokens: 8192,
-          },
-        }),
+        inlineData: {
+          mimeType: mimeType,
+          data: base64Audio
+        }
       }
-    );
+    ]);
 
-    if (!response.ok) {
-      const errorData = await response.text();
-      console.error('[Transcribe] Vertex AI error:', {
-        status: response.status,
-        statusText: response.statusText,
-        modelId,
-        errorData,
-      });
-
-      // Return more specific error to client
-      return NextResponse.json(
-        {
-          error: `Vertex AI returned ${response.status}: ${response.statusText}`,
-          details: errorData,
-          modelId,
-        },
-        { status: response.status }
-      );
-    }
-
-    const data = await response.json();
-    const transcription = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '';
+    const response = await result.response;
+    const transcription = response.text().trim();
 
     console.log(`[Transcribe] Success with ${modelId}, transcription length: ${transcription.length}`);
 

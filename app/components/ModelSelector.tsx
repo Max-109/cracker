@@ -16,7 +16,7 @@ type ModelOption = {
 const MODEL_OPTIONS: ModelOption[] = [
   { id: "gemini-3-pro-preview", name: "Expert", description: "Gemini 3 Pro", tier: 'expert', icon: Brain },
   { id: "gemini-2.5-flash", name: "Balanced", description: "Gemini 2.5 Flash", tier: 'balanced', icon: Sparkles },
-  { id: "gemini-2.5-flash-lite", name: "Ultra Fast", description: "Gemini 2.5 Flash Lite", tier: 'fast', icon: Zap },
+  { id: "gemini-2.5-flash-lite-preview-09-2025", name: "Ultra Fast", description: "Gemini 2.5 Flash Lite", tier: 'fast', icon: Zap },
 ];
 
 // Tier config with intensity levels (3 = strongest, 1 = lightest)
