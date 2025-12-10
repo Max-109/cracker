@@ -181,12 +181,12 @@ export function ModelSelector({
             onClick={() => setIsColorMenuOpen(!isColorMenuOpen)}
             className="color-picker-btn w-9 h-9 border border-[var(--border-color)] bg-[#141414] hover-glow flex items-center justify-center"
             title="Accent Color"
-            style={{ color: accentColor || '#af8787' }}
+            style={{ color: isHydrated ? accentColor : '#444' }}
           >
             <div className="ender-eye-container">
               <div
                 className={cn("ender-eye", isColorMenuOpen && "closed")}
-                style={{ backgroundColor: accentColor || '#af8787' }}
+                style={{ backgroundColor: isHydrated ? accentColor : '#444' }}
               />
             </div>
           </button>
