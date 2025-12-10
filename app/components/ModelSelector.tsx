@@ -71,7 +71,7 @@ export function ModelSelector({
             onClick={() => setIsModelMenuOpen(!isModelMenuOpen)}
             className="flex items-center gap-2 text-sm font-semibold text-[var(--text-primary)] px-3 py-2 border border-[var(--border-color)] hover-glow uppercase tracking-[0.16em]"
           >
-            <span className={cn(!isHydrated && "opacity-0")}>{currentModelName}</span>
+            <span>{isHydrated ? currentModelName : 'Expert'}</span>
             <ChevronDown size={16} className="text-[var(--text-secondary)]" />
           </button>
 
@@ -181,12 +181,12 @@ export function ModelSelector({
             onClick={() => setIsColorMenuOpen(!isColorMenuOpen)}
             className="color-picker-btn w-9 h-9 border border-[var(--border-color)] bg-[#141414] hover-glow flex items-center justify-center"
             title="Accent Color"
-            style={{ color: isHydrated ? accentColor : undefined }}
+            style={{ color: accentColor || '#af8787' }}
           >
-            <div className={cn("ender-eye-container", !isHydrated && "opacity-0")}>
+            <div className="ender-eye-container">
               <div
                 className={cn("ender-eye", isColorMenuOpen && "closed")}
-                style={{ backgroundColor: isHydrated ? accentColor : undefined }}
+                style={{ backgroundColor: accentColor || '#af8787' }}
               />
             </div>
           </button>
@@ -200,7 +200,7 @@ export function ModelSelector({
                   <div className="flex items-center gap-2">
                     <div
                       className="w-3 h-3 border border-white/20"
-                      style={{ backgroundColor: isHydrated ? localColor : undefined }}
+                      style={{ backgroundColor: localColor || '#af8787' }}
                     />
                     <span className="text-[10px] uppercase tracking-[0.16em] font-semibold text-[var(--text-secondary)]">
                       Accent Color
