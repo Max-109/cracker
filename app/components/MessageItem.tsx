@@ -14,6 +14,7 @@ import { DeepResearchProgress, SourcesDisplay, type ResearchProgress } from './D
 import { LearningModeIndicator, LearningModeBadge } from './LearningModeIndicator';
 import { LoadingIndicator } from './LoadingIndicator';
 import { ImageLightbox, useLightbox } from './ImageLightbox';
+import { ToolCallIndicator, type ToolInvocation } from './ToolCallIndicator';
 import type { ChatMode } from '@/app/hooks/usePersistedSettings';
 import { useQuoteContext } from './QuoteContext';
 import { useAnimatedText } from '@/app/hooks/useAnimatedText';
@@ -906,6 +907,7 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
   let finalContent = '';
   const sources: { url: string; title?: string }[] = [];
   const generatedImages: { data: string; mediaType: string }[] = [];
+  const toolInvocations: ToolInvocation[] = [];
   let hasGoogleSearch = false;
   let isSearching = false;
   let isDeepResearching = false;
@@ -962,18 +964,52 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
           hasGoogleSearch = true;
         }
       } else if (part.type === 'tool-invocation') {
-        // Check for Google Search tool invocation
-        // AI SDK v5 can have flat structure (toolName directly on part) or nested (under toolInvocation)
+        // Parse tool invocation - supports both flat and nested structures
         const toolPart = part as {
           type: 'tool-invocation';
+          toolCallId?: string;
           toolName?: string;
-          state?: string;
-          toolInvocation?: { toolName: string; state: string }
+          state?: 'partial-call' | 'call' | 'result';
+          args?: Record<string, unknown>;
+          result?: unknown;
+          toolInvocation?: {
+            toolCallId: string;
+            toolName: string;
+            state: 'partial-call' | 'call' | 'result';
+            args?: Record<string, unknown>;
+            result?: unknown;
+          };
         };
-        const toolName = toolPart.toolName || toolPart.toolInvocation?.toolName;
-        const toolState = toolPart.state || toolPart.toolInvocation?.state;
-        if (toolName === 'google_search') {
-          hasGoogleSearch = true;
+
+        // Extract from flat or nested structure
+        const toolCallId = toolPart.toolCallId || toolPart.toolInvocation?.toolCallId || `tool-${toolInvocations.length}`;
+        const toolName = toolPart.toolName || toolPart.toolInvocation?.toolName || '';
+        const toolState = (toolPart.state || toolPart.toolInvocation?.state || 'call') as 'partial-call' | 'call' | 'result';
+        const toolArgs = toolPart.args || toolPart.toolInvocation?.args;
+        const toolResult = toolPart.result || toolPart.toolInvocation?.result;
+
+        // Add to tool invocations list
+        if (toolName) {
+          // Check if we already have this tool call (update if exists)
+          const existingIdx = toolInvocations.findIndex(t => t.toolCallId === toolCallId);
+          const invocation: ToolInvocation = {
+            toolCallId,
+            toolName,
+            state: toolState,
+            args: toolArgs,
+            result: toolResult,
+          };
+
+          if (existingIdx >= 0) {
+            toolInvocations[existingIdx] = invocation;
+          } else {
+            toolInvocations.push(invocation);
+          }
+
+          // Legacy flags for backward compatibility
+          if (toolName === 'google_search') {
+            hasGoogleSearch = true;
+          }
           if (toolState === 'call' || toolState === 'partial-call') {
             isSearching = true;
           }
@@ -1100,51 +1136,15 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
             <DeepResearchCompletedBadge sources={sources} />
           )}
 
-          {/* Google Search Indicator */}
-          {showSearchIndicator && (
-            <div className="border border-[var(--border-color)] bg-[#141414] p-3">
-              <button
-                onClick={() => setIsSearchOpen(!isSearchOpen)}
-                className="flex items-center gap-2 text-xs uppercase tracking-[0.12em] text-[var(--text-secondary)] hover:text-[var(--text-accent)] transition-colors w-full"
-              >
-                <SearchIcon isSearching={isActivelySearching} />
-                <span className={cn("font-semibold text-[var(--text-accent)]", isActivelySearching && "animate-pulse")}>
-                  {isActivelySearching ? randomSearchLabel : "Browsed"}
-                </span>
-                {sources.length > 0 && !isActivelySearching && (
-                  <span className="text-[var(--text-secondary)] font-normal ml-1">
-                    ({sources.length} source{sources.length !== 1 ? 's' : ''})
-                  </span>
-                )}
-              </button>
-
-              {isSearchOpen && sources.length > 0 && (
-                <div className="mt-3 space-y-2">
-                  <div className="grid gap-2">
-                    {sources.slice(0, isSearchExpanded ? sources.length : 5).map((source, idx) => (
-                      <SourceItem key={idx} url={source.url} title={source.title} index={idx} />
-                    ))}
-                  </div>
-                  {sources.length > 5 && !isSearchExpanded && (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); setIsSearchExpanded(true); }}
-                      className="text-xs text-[var(--text-accent)] pt-1 hover:underline cursor-pointer"
-                    >
-                      +{sources.length - 5} more sources
-                    </button>
-                  )}
-                  {isSearchExpanded && sources.length > 5 && (
-                    <button
-                      onClick={(e) => { e.stopPropagation(); setIsSearchExpanded(false); }}
-                      className="text-xs text-[var(--text-secondary)] pt-1 hover:text-[var(--text-accent)] cursor-pointer"
-                    >
-                      Show less
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
+          {/* Tool Call Indicator - shows all tool invocations with query and results */}
+          {toolInvocations.length > 0 && !isDeepResearchResult && (
+            <ToolCallIndicator
+              toolInvocations={toolInvocations}
+              isStreaming={isStreaming}
+            />
           )}
+
+          {/* Legacy Google Search Indicator removed - using ToolCallIndicator exclusively */}
 
           {/* Deep Research Progress/Clarify Questions */}
           {isDeepResearching && (clarifyQuestions || deepResearchProgress) && (

@@ -3,12 +3,12 @@
 import React, { useMemo, useState, useRef, useEffect, useCallback } from 'react';
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
-import { PanelLeft, Settings2 } from 'lucide-react';
+import { PanelLeft, Settings2, Plus } from 'lucide-react';
 import type { ChatMessage, MessagePart } from '@/lib/chat-types';
 import { useChatContext } from './ChatContext';
 import { updateFavicon, getAccentColorFromStorage } from './SettingsContext';
 import { useAttachments } from '@/app/hooks/useAttachments';
-import { usePersistedSetting, useAccentColor, useResponseLength, useUserProfile, useLearningMode, useChatMode, useCustomInstructions, ReasoningEffortLevel, ChatMode } from '@/app/hooks/usePersistedSettings';
+import { usePersistedSetting, useAccentColor, useResponseLength, useUserProfile, useLearningMode, useChatMode, useCustomInstructions, useEnabledMcpServers, ReasoningEffortLevel, ChatMode } from '@/app/hooks/usePersistedSettings';
 import { ModelSelector } from './ModelSelector';
 import { EnhancedChatInput } from './EnhancedChatInput';
 import { MessageList } from './MessageList';
@@ -23,7 +23,7 @@ interface ChatInterfaceProps {
 type EditAttachment = { id: string; url: string; name: string; mediaType: string };
 
 export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
-  const { refreshChats, toggleSidebar, chats } = useChatContext();
+  const { refreshChats, toggleSidebar, isSidebarOpen, chats } = useChatContext();
 
   // Settings
   const [currentModelId, setCurrentModelId, isModelIdHydrated] = usePersistedSetting('CHATGPT_MODEL_ID', "gemini-3-pro-preview");
@@ -35,8 +35,9 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
   const { learningMode, setLearningMode, isHydrated: isLearningModeHydrated } = useLearningMode();
   const { chatMode, setChatMode, isHydrated: isChatModeHydrated } = useChatMode();
   const { customInstructions, setCustomInstructions, isHydrated: isCustomInstructionsHydrated } = useCustomInstructions();
+  const { enabledMcpServers, toggleMcpServer, isHydrated: isMcpServersHydrated } = useEnabledMcpServers();
 
-  const isSettingsHydrated = isModelIdHydrated && isModelNameHydrated && isColorHydrated && isResponseLengthHydrated && isProfileHydrated && isLearningModeHydrated && isChatModeHydrated && isCustomInstructionsHydrated;
+  const isSettingsHydrated = isModelIdHydrated && isModelNameHydrated && isColorHydrated && isResponseLengthHydrated && isProfileHydrated && isLearningModeHydrated && isChatModeHydrated && isCustomInstructionsHydrated && isMcpServersHydrated;
 
   // Settings dialog state
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -77,6 +78,8 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
   useEffect(() => { learningModeRef.current = learningMode; }, [learningMode]);
   useEffect(() => { chatModeRef.current = chatMode; }, [chatMode]);
   useEffect(() => { customInstructionsRef.current = customInstructions; }, [customInstructions]);
+  const enabledMcpServersRef = useRef(enabledMcpServers);
+  useEffect(() => { enabledMcpServersRef.current = enabledMcpServers; }, [enabledMcpServers]);
 
   // Re-apply favicon on mount to handle client-side navigation between chats
   useEffect(() => {
@@ -147,6 +150,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
       userGender: userGenderRef.current,
       learningMode: learningModeRef.current,
       customInstructions: customInstructionsRef.current,
+      enabledMcpServers: enabledMcpServersRef.current,
       accentColor: getAccentColorFromStorage(),
     }),
   }), []);
@@ -879,6 +883,21 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
               <PanelLeft size={18} />
             </button>
 
+            {/* New Chat Button - Only visible when sidebar is collapsed */}
+            {!isSidebarOpen && (
+              <button
+                onClick={() => {
+                  setCurrentChatId(null);
+                  window.history.replaceState(null, '', '/');
+                  refreshChats();
+                }}
+                className="hidden md:flex w-9 h-9 items-center justify-center border border-[var(--text-accent)]/50 bg-[#1a1a1a] text-[var(--text-accent)] hover:border-[var(--text-accent)] hover:bg-[var(--text-accent)]/10 transition-all duration-200 shadow-sm active:scale-95"
+                title="New Chat"
+              >
+                <Plus size={18} />
+              </button>
+            )}
+
             <ModelSelector
               currentModelId={currentModelId}
               currentModelName={currentModelName}
@@ -915,6 +934,8 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
           onUserGenderChange={setUserGender}
           accentColor={accentColor}
           onAccentColorChange={setAccentColor}
+          enabledMcpServers={enabledMcpServers}
+          onToggleMcpServer={toggleMcpServer}
         />
 
         <QuoteProvider>

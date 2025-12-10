@@ -49,7 +49,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    
+
     // Extract only allowed fields
     const updateData: Record<string, unknown> = {
       updatedAt: new Date(),
@@ -58,7 +58,7 @@ export async function PUT(request: NextRequest) {
     // Note: accentColor is stored in browser localStorage only, not in the database
     const allowedFields = [
       'currentModelId',
-      'currentModelName', 
+      'currentModelName',
       'reasoningEffort',
       'responseLength',
       'learningMode',
@@ -66,6 +66,7 @@ export async function PUT(request: NextRequest) {
       'customInstructions',
       'userName',
       'userGender',
+      'enabledMcpServers', // MCP servers enabled for tool calling
     ];
 
     for (const field of allowedFields) {

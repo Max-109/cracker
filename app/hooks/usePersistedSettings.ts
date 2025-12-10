@@ -9,7 +9,7 @@ export type { ChatMode } from '@/app/components/SettingsContext';
 // Model settings hook - now uses SettingsContext
 export function usePersistedSetting(key: string, fallback: string) {
   const { settings, updateSettings, isHydrated } = useSettings();
-  
+
   // Map old localStorage keys to settings fields
   const keyMap: Record<string, keyof typeof settings> = {
     'CHATGPT_MODEL_ID': 'currentModelId',
@@ -17,10 +17,10 @@ export function usePersistedSetting(key: string, fallback: string) {
     'CHATGPT_REASONING_EFFORT': 'reasoningEffort',
     'CHATGPT_ACCENT_COLOR': 'accentColor',
   };
-  
+
   const settingsKey = keyMap[key];
   const value = settingsKey ? (settings[settingsKey] as string) ?? fallback : fallback;
-  
+
   const updateValue = useCallback((nextValue: React.SetStateAction<string>) => {
     if (!settingsKey) return;
     const resolved = typeof nextValue === 'function'
@@ -35,7 +35,7 @@ export function usePersistedSetting(key: string, fallback: string) {
 // Response length settings hook
 export function useResponseLength() {
   const { settings, updateSettings, isHydrated } = useSettings();
-  
+
   return {
     responseLength: settings.responseLength,
     setResponseLength: (value: number) => {
@@ -48,7 +48,7 @@ export function useResponseLength() {
 // User profile settings
 export function useUserProfile() {
   const { settings, updateSettings, isHydrated } = useSettings();
-  
+
   return {
     userName: settings.userName || '',
     setUserName: (value: string) => updateSettings({ userName: value }),
@@ -61,10 +61,10 @@ export function useUserProfile() {
 // Learning mode setting (deprecated - use useChatMode instead)
 export function useLearningMode() {
   const { settings, updateSettings, isHydrated } = useSettings();
-  
+
   return {
     learningMode: settings.learningMode,
-    setLearningMode: (value: boolean) => updateSettings({ 
+    setLearningMode: (value: boolean) => updateSettings({
       learningMode: value,
       chatMode: value ? 'learning' : 'chat',
     }),
@@ -75,10 +75,10 @@ export function useLearningMode() {
 // Chat mode setting (replaces learningMode)
 export function useChatMode() {
   const { settings, updateSettings, isHydrated } = useSettings();
-  
+
   return {
     chatMode: settings.chatMode,
-    setChatMode: (mode: ChatMode) => updateSettings({ 
+    setChatMode: (mode: ChatMode) => updateSettings({
       chatMode: mode,
       learningMode: mode === 'learning', // Keep learningMode in sync
     }),
@@ -89,7 +89,7 @@ export function useChatMode() {
 // Custom instructions hook
 export function useCustomInstructions() {
   const { settings, updateSettings, isHydrated } = useSettings();
-  
+
   return {
     customInstructions: settings.customInstructions || '',
     setCustomInstructions: (value: string) => updateSettings({ customInstructions: value || null }),
@@ -140,10 +140,35 @@ export function hexToHSL(hex: string): { h: number; s: number; l: number } | nul
 // Accent color hook - uses SettingsContext (CSS vars applied in SettingsContext)
 export function useAccentColor() {
   const { settings, updateSettings, isHydrated } = useSettings();
-  
+
   const setAccentColor = useCallback((color: string) => {
     updateSettings({ accentColor: color });
   }, [updateSettings]);
 
   return { accentColor: settings.accentColor, setAccentColor, isHydrated };
+}
+
+// MCP servers hook - manages which MCP servers are enabled for tool calling
+export function useEnabledMcpServers() {
+  const { settings, updateSettings, isHydrated } = useSettings();
+
+  const setEnabledMcpServers = useCallback((servers: string[]) => {
+    updateSettings({ enabledMcpServers: servers });
+  }, [updateSettings]);
+
+  const toggleMcpServer = useCallback((serverSlug: string, enabled: boolean) => {
+    const current = settings.enabledMcpServers || [];
+    if (enabled && !current.includes(serverSlug)) {
+      updateSettings({ enabledMcpServers: [...current, serverSlug] });
+    } else if (!enabled && current.includes(serverSlug)) {
+      updateSettings({ enabledMcpServers: current.filter(s => s !== serverSlug) });
+    }
+  }, [settings.enabledMcpServers, updateSettings]);
+
+  return {
+    enabledMcpServers: settings.enabledMcpServers || [],
+    setEnabledMcpServers,
+    toggleMcpServer,
+    isHydrated
+  };
 }

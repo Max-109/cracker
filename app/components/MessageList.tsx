@@ -40,22 +40,22 @@ function useAutoScroll(
 
     const handleScroll = () => {
       if (isAutoScrollingRef.current) return;
-      
+
       const currentScrollTop = container.scrollTop;
       const delta = currentScrollTop - lastScrollTopRef.current;
       const { scrollHeight, clientHeight } = container;
       const distanceFromBottom = scrollHeight - currentScrollTop - clientHeight;
-      
+
       // User scrolled UP - pause (no auto-resume)
       if (delta < -30) {
         setUserPaused(true);
       }
-      
+
       // User scrolled DOWN and is near bottom - resume
       if (delta > 20 && distanceFromBottom < 100) {
         setUserPaused(false);
       }
-      
+
       lastScrollTopRef.current = currentScrollTop;
     };
 
@@ -143,36 +143,44 @@ function useThrottledValue<T>(value: T, limit: number): T {
 
 type EditAttachment = { id: string; url: string; name: string; mediaType: string };
 
-const ThrottledMessageItem = memo(function ThrottledMessageItem({ 
-  message, 
-  index, 
-  isThinking, 
-  isStreaming, 
-  onEdit, 
-  onRetry, 
-  modelName, 
-  fullModelName, 
+const ThrottledMessageItem = memo(function ThrottledMessageItem({
+  message,
+  index,
+  isThinking,
+  isStreaming,
+  onEdit,
+  onRetry,
+  modelName,
+  fullModelName,
   tokensPerSecond,
   onClarifySubmit,
   onSkipClarify,
   chatMode,
-}: { 
-  message: ChatMessage; 
-  index: number; 
-  isThinking: boolean; 
-  isStreaming?: boolean; 
-  onEdit: (index: number, content: string, attachments?: EditAttachment[]) => void; 
-  onRetry: () => void; 
-  modelName?: string; 
-  fullModelName?: string; 
+}: {
+  message: ChatMessage;
+  index: number;
+  isThinking: boolean;
+  isStreaming?: boolean;
+  onEdit: (index: number, content: string, attachments?: EditAttachment[]) => void;
+  onRetry: () => void;
+  modelName?: string;
+  fullModelName?: string;
   tokensPerSecond?: number;
   onClarifySubmit?: (answers: { q: string; a: string }[]) => void;
   onSkipClarify?: () => void;
   chatMode?: ChatMode;
 }) {
   const extractContent = (): string | MessagePart[] => {
+    // DEBUG: Log message structure to trace toolInvocations
+    const msgToolInvocationsRaw = (message as { toolInvocations?: unknown[] }).toolInvocations;
+    if (msgToolInvocationsRaw) {
+      // Debug removed
+    }
+
     const msgParts = (message as { parts?: unknown[] }).parts;
     if (Array.isArray(msgParts) && msgParts.length > 0) {
+      const partTypes = msgParts.map((p: unknown) => (p as { type?: string })?.type || 'unknown');
+      // Debug removed
       const converted: MessagePart[] = [];
       for (const part of msgParts) {
         if (typeof part === 'object' && part !== null) {
@@ -197,25 +205,42 @@ const ThrottledMessageItem = memo(function ThrottledMessageItem({
             const title = (p.title || (p.source as { title?: string })?.title) as string | undefined;
             const id = (p.id || (p.source as { id?: string })?.id || url) as string | undefined;
             if (url) {
-              converted.push({ 
-                type: 'source', 
-                source: { sourceType: 'url', id: id || url, url: url, title: title } 
+              converted.push({
+                type: 'source',
+                source: { sourceType: 'url', id: id || url, url: url, title: title }
               } as MessagePart);
             }
-          } else if (p.type === 'tool-invocation') {
+          } else if (p.type === 'tool-invocation' || (typeof p.type === 'string' && p.type.startsWith('tool-') && p.type !== 'tool-invocation')) {
+            // AI SDK v5 uses 'tool-TOOLNAME' format (e.g., 'tool-brave_web_search')
+            // Also support legacy 'tool-invocation' format
+            const isNewFormat = typeof p.type === 'string' && p.type.startsWith('tool-') && p.type !== 'tool-invocation';
             const nested = p.toolInvocation as { toolCallId?: string; toolName?: string; state?: string; args?: unknown; result?: unknown } | undefined;
-            const toolCallId = (p.toolCallId as string) || nested?.toolCallId || '';
-            const toolName = (p.toolName as string) || nested?.toolName || '';
-            const state = (p.state as string) || nested?.state || 'call';
-            const args = (p.args as Record<string, unknown>) || nested?.args;
-            const result = p.result || nested?.result;
+
+            // Extract toolName from type for new format, or from nested object for old format
+            const toolNameFromType = isNewFormat ? (p.type as string).replace('tool-', '') : '';
+            const toolCallId = (p.toolCallId as string) || nested?.toolCallId || (p.id as string) || `tool-${Date.now()}`;
+            const toolName = (p.toolName as string) || nested?.toolName || toolNameFromType || '';
+
+            // AI SDK v5 uses different state names: input-streaming, input-available, output-available, output-error
+            const rawState = (p.state as string) || nested?.state || 'call';
+            let normalizedState: 'call' | 'result' | 'partial-call' = 'call';
+            if (rawState === 'output-available' || rawState === 'result') {
+              normalizedState = 'result';
+            } else if (rawState === 'input-streaming' || rawState === 'partial-call') {
+              normalizedState = 'partial-call';
+            }
+
+            const args = (p.args as Record<string, unknown>) || (p.input as Record<string, unknown>) || nested?.args;
+            const result = p.result || (p.output as unknown) || nested?.result;
+
             if (toolName) {
+              // Debug removed
               converted.push({
                 type: 'tool-invocation',
                 toolInvocation: {
                   toolCallId,
                   toolName,
-                  state: state as 'call' | 'result' | 'partial-call',
+                  state: normalizedState,
                   args: args as Record<string, unknown>,
                   result
                 }
@@ -233,9 +258,81 @@ const ThrottledMessageItem = memo(function ThrottledMessageItem({
           }
         }
       }
+
+      // Also check for toolInvocations property directly on message (AI SDK v5 useChat streaming format)
+      // and merge them into the converted array
+      const msgToolInvocations = (message as {
+        toolInvocations?: Array<{
+          toolCallId: string;
+          toolName: string;
+          state: 'call' | 'result' | 'partial-call';
+          args?: Record<string, unknown>;
+          result?: unknown;
+        }>
+      }).toolInvocations;
+
+      if (msgToolInvocations && msgToolInvocations.length > 0) {
+        for (const ti of msgToolInvocations) {
+          // Check if already in converted (from parts)
+          const existsInParts = converted.some(
+            (p): p is MessagePart & { toolInvocation?: { toolCallId: string } } =>
+              p.type === 'tool-invocation' &&
+              (p as { toolInvocation?: { toolCallId: string } }).toolInvocation?.toolCallId === ti.toolCallId
+          );
+          if (!existsInParts) {
+            converted.push({
+              type: 'tool-invocation',
+              toolInvocation: {
+                toolCallId: ti.toolCallId,
+                toolName: ti.toolName,
+                state: ti.state,
+                args: ti.args,
+                result: ti.result
+              }
+            } as MessagePart);
+          }
+        }
+      }
+
+      // Debug: Log final converted content with tool invocations
+      const toolCount = converted.filter(p => p.type === 'tool-invocation').length;
+      // Debug removed
+
       if (converted.length > 0) return converted;
     }
-    
+
+    // Fallback: Check for toolInvocations property when parts is empty
+    const msgToolInvocations = (message as {
+      toolInvocations?: Array<{
+        toolCallId: string;
+        toolName: string;
+        state: 'call' | 'result' | 'partial-call';
+        args?: Record<string, unknown>;
+        result?: unknown;
+      }>
+    }).toolInvocations;
+
+    if (msgToolInvocations && msgToolInvocations.length > 0) {
+      const converted: MessagePart[] = [];
+      for (const ti of msgToolInvocations) {
+        converted.push({
+          type: 'tool-invocation',
+          toolInvocation: {
+            toolCallId: ti.toolCallId,
+            toolName: ti.toolName,
+            state: ti.state,
+            args: ti.args,
+            result: ti.result
+          }
+        } as MessagePart);
+      }
+      // Also add text content if present
+      if (typeof message.content === 'string' && message.content) {
+        converted.push({ type: 'text', text: message.content });
+      }
+      if (converted.length > 0) return converted;
+    }
+
     if (Array.isArray(message.content)) return message.content;
     if (typeof message.content === 'string') return message.content;
     return '';
@@ -249,15 +346,15 @@ const ThrottledMessageItem = memo(function ThrottledMessageItem({
   }, [onEdit, index]);
 
   return (
-    <MessageItem 
-      role={message.role} 
-      content={throttledContent} 
-      isThinking={isThinking} 
-      isStreaming={isStreaming} 
-      onEdit={handleEdit} 
-      onRetry={onRetry} 
-      modelName={modelName} 
-      fullModelName={fullModelName} 
+    <MessageItem
+      role={message.role}
+      content={throttledContent}
+      isThinking={isThinking}
+      isStreaming={isStreaming}
+      onEdit={handleEdit}
+      onRetry={onRetry}
+      modelName={modelName}
+      fullModelName={fullModelName}
       tokensPerSecond={tokensPerSecond}
       onClarifySubmit={onClarifySubmit}
       onSkipClarify={onSkipClarify}
@@ -395,7 +492,7 @@ export function MessageList({
                       <div className="w-10 h-10 flex items-center justify-center border border-[var(--border-color)] bg-[#141414] group-hover:border-[var(--text-accent)]/50 group-hover:bg-[var(--text-accent)] group-hover:text-black transition-all duration-150 flex-shrink-0">
                         <Icon size={18} className="text-[var(--text-secondary)] group-hover:text-black transition-colors" />
                       </div>
-                      
+
                       {/* Text */}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
@@ -432,17 +529,17 @@ export function MessageList({
               const isLastAssistant = index === messages.length - 1 && m.role === 'assistant';
               const messageModel = (m as { model?: string }).model;
               const messageTps = (m as { tokensPerSecond?: string }).tokensPerSecond;
-              const displayModelId = m.role === 'assistant' 
+              const displayModelId = m.role === 'assistant'
                 ? (messageModel || (isLastAssistant ? streamingStats.modelId : null) || null)
                 : null;
               const displayTps = m.role === 'assistant'
                 ? (messageTps ? parseFloat(messageTps) : (isLastAssistant ? streamingStats.tokensPerSecond : undefined))
                 : undefined;
               const modelShortName = displayModelId ? (displayModelId.split('/').pop()?.split(':')[0] || displayModelId) : undefined;
-              
+
               // isThinking = true if this is the last assistant message and we're streaming
               const isThinkingForMessage = isStreaming && isLastAssistant;
-              
+
               return (
                 <ThrottledMessageItem
                   key={m.id}
@@ -468,7 +565,7 @@ export function MessageList({
                 <LoadingIndicator />
               </div>
             )}
-            
+
             {/* Error Display */}
             {error && !dismissedError && (
               <ErrorAlert

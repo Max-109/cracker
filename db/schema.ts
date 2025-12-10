@@ -49,6 +49,8 @@ export const userSettings = pgTable('user_settings', {
   learningMode: boolean('learning_mode').default(false), // Deprecated: use chatMode
   chatMode: text('chat_mode').default('chat'), // 'chat' | 'learning' | 'deep-search'
   customInstructions: text('custom_instructions'), // User's custom instructions (highest priority)
+  // MCP settings - which servers are enabled for this user
+  enabledMcpServers: jsonb('enabled_mcp_servers').default(['brave-search']), // Array of MCP server slugs
   // Profile settings
   userName: text('user_name'),
   userGender: text('user_gender').default('not-specified'),
@@ -70,3 +72,41 @@ export const messages = pgTable('messages', {
   tokensPerSecond: text('tokens_per_second'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 });
+
+// MCP Server registry - built-in and custom MCP servers
+export const mcpServers = pgTable('mcp_servers', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  slug: text('slug').notNull().unique(), // e.g., "brave-search"
+  name: text('name').notNull(), // e.g., "Brave Search"
+  description: text('description'), // User-facing description
+  serverUrl: text('server_url'), // HTTP endpoint for remote MCP server (optional)
+  apiKeyEnvVar: text('api_key_env_var'), // e.g., "BRAVE_API_KEY" - which env var holds the key
+  isBuiltIn: boolean('is_built_in').default(true).notNull(), // System-provided vs user-added
+  enabled: boolean('enabled').default(true).notNull(), // Globally enabled/disabled
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => [
+  index('mcp_servers_slug_idx').on(table.slug),
+]);
+
+// Active generations - tracks streaming responses for reconnection
+export const activeGenerations = pgTable('active_generations', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  chatId: uuid('chat_id').references(() => chats.id).notNull(),
+  modelId: text('model_id').notNull(),
+  reasoningEffort: text('reasoning_effort').default('medium'),
+  status: text('status').default('streaming').notNull(), // 'streaming' | 'completed' | 'error'
+  startedAt: timestamp('started_at').defaultNow().notNull(),
+  firstChunkAt: timestamp('first_chunk_at'),
+  completedAt: timestamp('completed_at'),
+  lastUpdateAt: timestamp('last_update_at').defaultNow().notNull(),
+  partialText: text('partial_text').default(''),
+  partialReasoning: text('partial_reasoning').default(''),
+  responseContent: jsonb('response_content'),
+  tokensPerSecond: text('tokens_per_second'),
+  totalTokens: integer('total_tokens'),
+  error: text('error'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => [
+  index('active_gen_chat_idx').on(table.chatId),
+  index('active_gen_status_idx').on(table.status),
+]);

@@ -60,8 +60,12 @@ GOOGLE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\
 # Google AI SDK (optional, for non-Vertex models)
 GOOGLE_GENERATIVE_AI_API_KEY=...
 
-# Deep Search (optional)
+# Deep Search (optional, uses Tavily for research)
 TAVILY_API_KEY=...
+
+# Web Search Tool (optional, uses Brave Search API)
+# Get a free API key at https://brave.com/search/api/
+BRAVE_API_KEY=...
 ```
 
 ## Project Structure
@@ -105,8 +109,286 @@ TAVILY_API_KEY=...
 │   └── index.ts                # Database connection
 ├── lib/
 │   ├── utils.ts                # Utility functions (cn, etc.)
-│   └── chat-types.ts           # TypeScript types
+│   ├── chat-types.ts           # TypeScript types
+│   ├── mcp/                    # MCP (Model Context Protocol) client
+│   │   └── mcp-client.ts       # Remote MCP server connections
+│   └── tools/                  # AI SDK Tool definitions
+│       └── brave-tools.ts      # Web search tools (Brave API)
 └── drizzle/                    # Database migrations
+```
+
+## Tool Servers (MCP Integration)
+
+The application supports AI tool calling through the Vercel AI SDK. Currently, web search is implemented via Brave Search API.
+
+### Architecture Overview
+
+```
+User Query → Chat API → Gemini Model → Tool Call → Brave API → Response
+```
+
+**Key Files:**
+- `lib/tools/brave-tools.ts` - Tool definitions using AI SDK `tool()` helper
+- `lib/mcp/mcp-client.ts` - MCP client for remote server connections (future use)
+- `app/api/chat/route.ts` - Integrates tools into `streamText()` call
+- `app/components/SettingsDialog.tsx` - UI for enabling/disabling tools
+- `app/hooks/usePersistedSettings.ts` - `useEnabledMcpServers()` hook
+- `db/schema.ts` - `enabledMcpServers` field in `userSettings` table
+
+### Adding a New Tool Server
+
+To add a new tool (e.g., image generation, code execution):
+
+#### 1. Create Tool Definition
+
+> [!CAUTION]
+> **CRITICAL FOR VERTEX AI:** You MUST use `inputSchema` with `zodSchema()` wrapper (NOT `parameters` with raw Zod).
+> The AI SDK internally reads `tool.inputSchema`, NOT `tool.parameters`. Using `parameters` or raw `z.object()` 
+> will cause: `functionDeclaration parameters schema should be of type OBJECT` error.
+> 
+> **DO NOT USE:**
+> - `parameters: z.object({...})` ❌
+> - `tool({ parameters: z.object({...}) })` ❌
+> 
+> **CORRECT FORMAT:**
+> - `inputSchema: zodSchema(z.object({...}))` ✅
+
+Create a new file in `lib/tools/`:
+
+```typescript
+// lib/tools/my-new-tool.ts
+import { z } from 'zod';
+import { zodSchema } from 'ai';  // CRITICAL: Import zodSchema wrapper
+
+// Define Zod schema separately for type inference
+const myToolSchema = z.object({
+  query: z.string().describe('What the parameter is for'),
+});
+
+type MyToolInput = z.infer<typeof myToolSchema>;
+
+interface MyToolOutput {
+  result: string;
+}
+
+// CRITICAL: Use inputSchema with zodSchema() wrapper, NOT parameters
+export const myNewTool = {
+  description: 'Description for the AI to understand when to use this tool',
+  inputSchema: zodSchema(myToolSchema),  // ✅ CORRECT for Vertex AI
+  execute: async (args: MyToolInput): Promise<MyToolOutput> => {
+    const { query } = args;
+    const apiKey = process.env.MY_TOOL_API_KEY;
+    if (!apiKey) {
+      return { result: 'API key not configured' };
+    }
+    // Call external API
+    const response = await fetch('https://api.example.com/...', { ... });
+    return { result: await response.json() };
+  },
+};
+
+export const myTools = {
+  my_new_tool: myNewTool,
+};
+
+export function getEnabledMyTools(enabledServers: string[]) {
+  if (enabledServers.includes('my-tool-slug') && process.env.MY_TOOL_API_KEY) {
+    return myTools;
+  }
+  return {};
+}
+```
+
+**Why this matters:** The Vercel AI SDK's `tool()` helper incorrectly sets `parameters` with raw Zod 
+but leaves `inputSchema` undefined. The `@ai-sdk/google` provider reads `tool.inputSchema` (line 558 
+in internal code), so custom tools fail silently. The `zodSchema()` wrapper creates the correct 
+internal format with JSON schema conversion that Vertex AI accepts.
+
+> [!IMPORTANT]
+> **MULTI-STEP TOOL CALLING (AI SDK v5):** For tools to work properly with Vertex AI, you must:
+> 1. Use `stopWhen: stepCountIs(N)` in `streamText()` instead of `maxSteps`
+> 2. Import `stepCountIs` from `'ai'`
+> 3. Save tool results in `onFinish` callback as `type: 'tool-invocation'` message parts
+>
+> **Why this matters:** When the model calls a tool, it needs to continue generating after receiving 
+> results. Without `stopWhen: stepCountIs(5)`, the model stops after the first tool call with 
+> `finishReason: 'tool-calls'` and never produces the final text response.
+>
+> ```typescript
+> import { streamText, stepCountIs } from 'ai';
+> 
+> const result = streamText({
+>   model: vertex(modelId),
+>   messages,
+>   tools,
+>   stopWhen: stepCountIs(5),  // ✅ Enables multi-step: tool call → result → final text
+>   onFinish: async ({ text, toolCalls, toolResults }) => {
+>     // Save tool invocations to DB for persistence
+>     const parts = [];
+>     if (toolCalls?.length) {
+>       for (let i = 0; i < toolCalls.length; i++) {
+>         parts.push({
+>           type: 'tool-invocation',
+>           toolCallId: toolCalls[i].toolCallId,
+>           toolName: toolCalls[i].toolName,
+>           args: toolCalls[i].args,
+>           result: toolResults?.[i]?.result,
+>         });
+>       }
+>     }
+>     if (text) parts.push({ type: 'text', text });
+>     // Save parts to database...
+>   },
+> });
+> ```
+
+
+#### 2. Register in Chat Route
+
+Update `app/api/chat/route.ts`:
+
+```typescript
+import { getEnabledBraveTools } from '@/lib/tools/brave-tools';
+import { getEnabledMyTools } from '@/lib/tools/my-new-tool'; // Add import
+
+// In POST handler, combine tools:
+const braveTools = getEnabledBraveTools(mcpServers);
+const myTools = getEnabledMyTools(mcpServers); // Add this
+const tools = { ...braveTools, ...myTools };   // Merge tools
+```
+
+#### 3. Add UI Toggle in Settings
+
+Update `AVAILABLE_SERVERS` in `app/components/SettingsDialog.tsx`:
+
+```typescript
+const AVAILABLE_SERVERS = [
+  { 
+    slug: 'brave-search',
+    name: 'Web Search',
+    description: 'Search the web for current information',
+    icon: Search,
+  },
+  { 
+    slug: 'my-tool-slug',  // Must match the slug in getEnabledMyTools
+    name: 'My New Tool',
+    description: 'What this tool does',
+    icon: SomeIcon,        // Import from lucide-react
+  },
+];
+```
+
+#### 4. Add Environment Variable
+
+Add to `.env`:
+```
+MY_TOOL_API_KEY=...
+```
+
+### Current Tool Servers
+
+| Slug | Name | Description | API Key |
+|------|------|-------------|--------|
+| `brave-search` | Web Search | Search web for current info | `BRAVE_API_KEY` |
+
+### User Settings
+
+Enabled tools are stored per-user in the `enabledMcpServers` JSONB field in `user_settings` table. Default: `['brave-search']`.
+
+The settings flow:
+1. User toggles tool in Settings → Tools tab
+2. `useEnabledMcpServers()` hook updates settings via API
+3. `ChatInterface` passes `enabledMcpServers` to chat transport
+4. Chat API receives it and loads appropriate tools
+5. Gemini model can now call those tools during response generation
+
+### Tool Call Indicator UI
+
+Tool invocations are displayed in the chat UI via `ToolCallIndicator.tsx`. This component:
+- Shows the tool name and search query during execution (with loading spinner)
+- Displays results with clickable links after completion
+- Expands/collapses to show detailed results
+- Persists to database so it shows correctly on page refresh
+
+**Key files for UI:**
+- `app/components/ToolCallIndicator.tsx` - Main indicator component
+- `app/components/MessageItem.tsx` - Parses tool invocations from message parts
+
+#### How Tool Invocations are Parsed
+
+In `MessageItem.tsx`, tool invocations are extracted from message parts:
+
+```typescript
+// Tool invocation structure from AI SDK
+interface ToolInvocation {
+  toolCallId: string;
+  toolName: string;
+  state: 'partial-call' | 'call' | 'result';
+  args?: Record<string, unknown>;  // Contains query, etc.
+  result?: unknown;                 // Contains search results
+}
+
+// Parsing in MessageItem
+if (part.type === 'tool-invocation') {
+  const toolCallId = toolPart.toolCallId || toolPart.toolInvocation?.toolCallId;
+  const toolName = toolPart.toolName || toolPart.toolInvocation?.toolName;
+  const toolState = toolPart.state || toolPart.toolInvocation?.state;
+  const toolArgs = toolPart.args || toolPart.toolInvocation?.args;
+  const toolResult = toolPart.result || toolPart.toolInvocation?.result;
+  
+  toolInvocations.push({ toolCallId, toolName, state: toolState, args: toolArgs, result: toolResult });
+}
+```
+
+#### Adding Custom Tool Display Names/Icons
+
+To customize how your tool appears in the indicator, update `ToolCallIndicator.tsx`:
+
+```typescript
+// Add icon mapping
+function getToolIcon(toolName: string) {
+  switch (toolName) {
+    case 'brave_news_search':
+      return Newspaper;
+    case 'my_custom_tool':
+      return MyIcon;  // Your custom icon
+    default:
+      return Search;
+  }
+}
+
+// Add display name mapping
+function getToolDisplayName(toolName: string): string {
+  switch (toolName) {
+    case 'brave_web_search':
+      return 'Web Search';
+    case 'my_custom_tool':
+      return 'My Custom Tool';
+    default:
+      return toolName.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+  }
+}
+```
+
+#### Result Extraction
+
+The `extractSearchResults` function in `ToolCallIndicator.tsx` parses tool results. Update it for custom result formats:
+
+```typescript
+function extractSearchResults(result: unknown): SearchResult[] {
+  if (!result || typeof result !== 'object') return [];
+  const resultObj = result as Record<string, unknown>;
+  
+  // Handle your tool's result format
+  if (Array.isArray(resultObj.results)) {
+    return resultObj.results.map((r) => ({
+      title: r.title || 'Untitled',
+      url: r.url || '',
+      description: r.description || undefined,
+    }));
+  }
+  return [];
+}
 ```
 
 ## UI Component Library

@@ -1,9 +1,10 @@
 import { createVertex } from "@ai-sdk/google-vertex";
-import { streamText, convertToModelMessages, UIMessage } from "ai";
+import { streamText, convertToModelMessages, UIMessage, stepCountIs } from "ai";
 import { db } from "@/db";
-import { messages as messagesTable } from "@/db/schema";
+import { messages as messagesTable, userSettings } from "@/db/schema";
 import { eq, desc, and } from "drizzle-orm";
 import { NextResponse } from "next/server";
+import { getEnabledBraveTools } from "@/lib/tools/brave-tools";
 
 export const maxDuration = 300; // 5 minutes max for responses
 
@@ -51,6 +52,15 @@ const vertex = createVertex({
 
 // Generate system prompt with user settings
 function generateSystemPrompt(responseLength: number, userName: string, userGender: string, learningMode: boolean, customInstructions?: string): string {
+  // Current date/time context - prevents AI from having outdated knowledge cutoff
+  const now = new Date();
+  const dateContext = `## Current Date & Time
+Today is ${now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}.
+Current time: ${now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZoneName: 'short' })}.
+Use this information when answering questions about current events, "today", "now", etc.
+
+`;
+
   // User personalization section
   let userPersonalization = '';
   if (userName || (userGender && userGender !== 'not-specified')) {
@@ -78,7 +88,7 @@ function generateSystemPrompt(responseLength: number, userName: string, userGend
 - Name: ${userName}${userGender && userGender !== 'not-specified' ? `\n- Gender: ${userGender}` : ''}
 - Address the user by his name when appropriate (use backticks: \`${userName}\`)` : '';
 
-    return `You are a Master Tutor in "Deep Learning Mode." Your goal is not just to provide the correct answer, but to build a robust mental model in the user's mind that applies to *all* similar problems, not just the current one.
+    return `${dateContext}You are a Master Tutor in "Deep Learning Mode." Your goal is not just to provide the correct answer, but to build a robust mental model in the user's mind that applies to *all* similar problems, not just the current one.
 
 **CRITICAL**: Always respond in the SAME LANGUAGE as the user's message.
 ${learningUserInfo}
@@ -251,7 +261,9 @@ Your goal is to create a **visually rich, highly structured** response. Never ou
 - Commands: \`npm install\`, \`git commit\`
 - Technologies: \`React\`, \`PostgreSQL\`, \`Node.js\`
 - Values and constants: \`null\`, \`undefined\`, \`true\`, \`false\`, \`42\`
+- **Dates and times**: \`December 2025\`, \`January 15\`, \`2024\`, \`3:00 PM\`
 - **Names and proper nouns**: \`Max\`, \`John\`, \`OpenAI\`
+- **Important info worth highlighting**: key answers, conclusions, significant values
 - **NEVER use backticks for math** - see Math section below
 
 **Headers** - CRITICAL: ALWAYS wrap the ENTIRE header text in backticks:
@@ -269,7 +281,14 @@ Examples of correct headers:
 1. **NO LATEX FOR NUMBERS**: NEVER wrap plain numbers or units in LaTeX.
    - ❌ WRONG: $120$ billion, $72$ GB, $4$ cards, $0.7$ GB, $\\approx 75$ GB
    - ✅ CORRECT: 120 billion, 72 GB, 4 cards, 0.7 GB, ~75 GB
-2. **NO LATEX FOR CURRENCY/PERCENT**: Write "$50", "100%", not $\\$50$ or $100\\%$.
+2. **ESCAPING CURRENCY (FIRST PRIORITY - DO THIS BEFORE ANYTHING ELSE)**:
+   - ⚠️ **CRITICAL BUG**: Unescaped "$" triggers LaTeX math mode, breaking formatting!
+   - **EVERY SINGLE DOLLAR SIGN MUST BE ESCAPED**: \\$50, \\$100, \\$340B, \\$475B
+   - **RANGES ESPECIALLY**: "\\$368 - \\$475B" NOT "$368 - $475B" (this breaks!)
+   - **IN TABLES**: | \\$368B | NOT | $368B |
+   - **Check EVERY $ before sending** - if you miss even one, the text will be corrupted
+   - ❌ WRONG: "$340 billion", "$368 - $475B", "~$200B+"
+   - ✅ CORRECT: "\\$340 billion", "\\$368 - \\$475B", "~\\$200B+"
 3. **USE LATEX ONLY FOR REAL MATH**:
    - Equations: $x = 5y + 2$
    - Formulas: $E = mc^2$
@@ -281,7 +300,15 @@ Examples of correct headers:
 **Code Blocks** - Use syntax-highlighted blocks:
 \`\`\`javascript
 const example = "code";
-\`\`\``;
+\`\`\`
+
+**SPACING VERIFICATION (CRITICAL)** - Before responding, verify:
+1. **All words are properly separated** - Never produce "340billionand", must be "340 billion and"
+2. **Numbers have spaces around them** - "$340 billion and" NOT "$340billionand"  
+3. **Bold/italic markers have proper spacing** - "**text** and more" NOT "**text**and"
+4. **Currency symbols correct** - Use "$340" or "340 dollars", proper spacing after
+5. **Double-check ranges** - "between $340 billion and $370 billion" all spaced correctly`;
+
 
 
 
@@ -317,7 +344,7 @@ Examples by language:
 After the initial greeting, focus on the task without repeated greetings.
 ` : '';
 
-  return `${customInstructionsSection}You are a knowledgeable AI assistant. Be accurate, clear, and helpful.
+  return `${customInstructionsSection}${dateContext}You are a knowledgeable AI assistant. Be accurate, clear, and helpful.
 
 **CRITICAL**: Always respond in the SAME LANGUAGE as the user's message. If they write in Spanish, respond in Spanish. If they write in Lithuanian, respond in Lithuanian. Never switch languages unless explicitly asked.
 ${greetingInstruction}${userPersonalization}
@@ -349,7 +376,7 @@ When a user's message contains text wrapped in [QUOTED FROM CONVERSATION] and [E
 
 export async function POST(req: Request) {
   try {
-    const { messages, model, reasoningEffort, chatId, responseLength, userName, userGender, learningMode, customInstructions } = await req.json();
+    const { messages, model, reasoningEffort, chatId, responseLength, userName, userGender, learningMode, customInstructions, enabledMcpServers } = await req.json();
 
     const modelId = model || "gemini-3-pro-preview";
     const effort = reasoningEffort || "medium";
@@ -358,6 +385,10 @@ export async function POST(req: Request) {
     const uGender = userGender || 'not-specified';
     const isLearningMode = learningMode === true;
     const userCustomInstructions = customInstructions || '';
+
+    // MCP servers enabled by default: brave-search
+    const mcpServers: string[] = Array.isArray(enabledMcpServers) ? enabledMcpServers : ['brave-search'];
+    console.log('[API] Received enabledMcpServers:', enabledMcpServers, '-> mcpServers:', mcpServers);
 
     if (!Array.isArray(messages)) {
       throw new Error("Messages must be an array");
@@ -418,6 +449,14 @@ export async function POST(req: Request) {
     // Clean model ID (remove google/ prefix if present)
     const cleanModelId = modelId.replace('google/', '');
 
+    // Get enabled tools (Brave Search replaces Google grounding)
+    const tools = getEnabledBraveTools(mcpServers);
+    const hasTools = Object.keys(tools).length > 0;
+
+    if (hasTools) {
+      console.log('[API] Tools enabled:', Object.keys(tools).join(', '));
+    }
+
     // Track timing for TPS calculation
     const requestStartTime = Date.now();
     let firstChunkTime: number | null = null;
@@ -427,8 +466,16 @@ export async function POST(req: Request) {
       model: vertex(cleanModelId),
       system: systemPrompt,
       messages: convertToModelMessages(processedMessages as UIMessage[]),
+      ...(hasTools && { tools, stopWhen: stepCountIs(5), toolCallStreaming: true }), // Enable tool call streaming to send tool parts to client
       providerOptions: {
         google: googleProviderOpts,
+      },
+      onStepFinish: ({ text, toolCalls, toolResults, finishReason }) => {
+        console.log(`[Step Finished] finishReason: ${finishReason}`);
+        console.log(`  text length: ${text?.length || 0}, toolCalls: ${toolCalls?.length || 0}, toolResults: ${toolResults?.length || 0}`);
+        if (toolCalls && toolCalls.length > 0) {
+          console.log(`  Tool called: ${toolCalls.map((tc: { toolName: string }) => tc.toolName).join(', ')}`);
+        }
       },
       onChunk: ({ chunk }) => {
         // Record when first chunk of any type arrives
@@ -441,7 +488,7 @@ export async function POST(req: Request) {
           firstReasoningTime = now;
         }
       },
-      onFinish: async ({ text, reasoning, usage }) => {
+      onFinish: async ({ text, reasoning, usage, steps }) => {
         const endTime = Date.now();
         let tps = 0;
 
@@ -454,6 +501,44 @@ export async function POST(req: Request) {
         console.log(`usage object:`, JSON.stringify(usage, null, 2));
         console.log(`text length: ${text?.length || 0} chars`);
         console.log(`reasoning:`, reasoning ? 'present' : 'none');
+        console.log(`steps count:`, steps?.length || 0);
+
+        // Collect all tool calls and results from all steps
+        const allToolCalls: Array<{ toolCallId: string; toolName: string; args?: unknown }> = [];
+        const allToolResults: Array<unknown> = []; // The actual result data from each tool
+
+        if (steps && steps.length > 0) {
+          for (const step of steps) {
+            // AI SDK v5: toolCalls have { toolCallId, toolName, input } (not args)
+            const stepToolCalls = (step as { toolCalls?: Array<{ toolCallId: string; toolName: string; input?: unknown }> }).toolCalls;
+            // AI SDK v5: toolResults have { toolCallId, toolName, output } (not result)
+            const stepToolResults = (step as { toolResults?: Array<{ toolCallId?: string; toolName?: string; output?: unknown }> }).toolResults;
+            if (stepToolCalls) {
+              for (let i = 0; i < stepToolCalls.length; i++) {
+                // Convert 'input' to 'args' for our storage format
+                const call = stepToolCalls[i];
+                allToolCalls.push({
+                  toolCallId: call.toolCallId,
+                  toolName: call.toolName,
+                  args: call.input, // AI SDK v5 uses 'input' not 'args'
+                });
+                // Extract the actual result from the toolResult object using 'output' property
+                if (stepToolResults && i < stepToolResults.length && stepToolResults[i]) {
+                  const toolResultObj = stepToolResults[i];
+                  console.log(`[DEBUG] Saving tool output for ${toolResultObj.toolName}:`, JSON.stringify(toolResultObj.output).slice(0, 100));
+                  allToolResults.push(toolResultObj.output); // AI SDK v5 uses 'output' not 'result'
+                } else {
+                  allToolResults.push(undefined);
+                }
+              }
+            }
+          }
+        }
+        console.log(`Total tool calls across all steps: ${allToolCalls.length}`);
+        console.log(`Total tool results collected: ${allToolResults.length}`);
+        if (allToolResults.length > 0 && allToolResults[0]) {
+          console.log(`First result sample:`, JSON.stringify(allToolResults[0]).slice(0, 200));
+        }
 
         // Calculate TPS: total generated tokens / generation time
         // Generation time = from FIRST token (reasoning or text) to LAST token
@@ -501,7 +586,32 @@ export async function POST(req: Request) {
 
         if (chatId) {
           try {
-            const contentParts: Array<{ type: string; text?: string; reasoning?: string }> = [];
+            const contentParts: Array<{
+              type: string;
+              text?: string;
+              reasoning?: string;
+              toolCallId?: string;
+              toolName?: string;
+              state?: string;
+              args?: unknown;
+              result?: unknown;
+            }> = [];
+
+            // Add tool invocations first (with results) - from ALL steps
+            if (allToolCalls.length > 0) {
+              for (let i = 0; i < allToolCalls.length; i++) {
+                const call = allToolCalls[i];
+                const resultItem = allToolResults[i];
+                contentParts.push({
+                  type: 'tool-invocation',
+                  toolCallId: call.toolCallId,
+                  toolName: call.toolName,
+                  state: 'result',
+                  args: call.args,
+                  result: resultItem, // Direct value, not nested
+                });
+              }
+            }
 
             // reasoning is now ReasoningPart[] - extract text from it
             if (reasoning && typeof reasoning === 'string') {

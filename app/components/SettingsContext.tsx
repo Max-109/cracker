@@ -18,6 +18,7 @@ interface AccountSettings {
   customInstructions: string | null;
   userName: string | null;
   userGender: string;
+  enabledMcpServers: string[]; // MCP servers enabled for tool calling
 }
 
 // Combined settings (account + browser-only)
@@ -35,6 +36,7 @@ const DEFAULT_ACCOUNT_SETTINGS: AccountSettings = {
   customInstructions: null,
   userName: null,
   userGender: 'not-specified',
+  enabledMcpServers: ['brave-search'], // Brave Search enabled by default
 };
 
 const DEFAULT_ACCENT_COLOR = '#af8787';
@@ -184,6 +186,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
           customInstructions: data.customInstructions || null,
           userName: data.userName,
           userGender: data.userGender || DEFAULT_ACCOUNT_SETTINGS.userGender,
+          enabledMcpServers: Array.isArray(data.enabledMcpServers) ? data.enabledMcpServers : DEFAULT_ACCOUNT_SETTINGS.enabledMcpServers,
           accentColor: getAccentColorFromStorage(), // Always use fresh localStorage value
         });
       }

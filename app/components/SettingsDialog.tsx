@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { HexColorPicker } from "react-colorful";
-import { Settings2, User, Pencil, Palette, Sparkles, GaugeCircle, MessageSquareText } from 'lucide-react';
+import { Settings2, User, Pencil, Palette, Sparkles, GaugeCircle, MessageSquareText, Search, Globe } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Dialog } from '@/components/ui';
 
@@ -51,6 +51,9 @@ interface SettingsDialogProps {
   // Accent color
   accentColor: string;
   onAccentColorChange: (color: string) => void;
+  // MCP Servers
+  enabledMcpServers: string[];
+  onToggleMcpServer: (serverSlug: string, enabled: boolean) => void;
 }
 
 export function SettingsDialog({
@@ -66,8 +69,10 @@ export function SettingsDialog({
   onUserGenderChange,
   accentColor,
   onAccentColorChange,
+  enabledMcpServers,
+  onToggleMcpServer,
 }: SettingsDialogProps) {
-  const [activeSection, setActiveSection] = useState<'response' | 'profile' | 'appearance'>('response');
+  const [activeSection, setActiveSection] = useState<'response' | 'profile' | 'appearance' | 'tools'>('response');
   // Initialize local state from props
   const [localResponseLength, setLocalResponseLength] = useState(responseLength);
   const [localCustomInstructions, setLocalCustomInstructions] = useState(customInstructions);
@@ -96,18 +101,18 @@ export function SettingsDialog({
     console.log('[Settings] responseLength:', localResponseLength);
     console.log('[Settings] customInstructions:', localCustomInstructions?.length || 0, 'chars');
     console.log('[Settings] userName:', localUserName);
-    
+
     onResponseLengthChange(localResponseLength);
     onCustomInstructionsChange(localCustomInstructions);
     onUserNameChange(localUserName);
     onUserGenderChange(localUserGender);
     onAccentColorChange(localAccentColor);
-    
+
     onOpenChange(false);
   };
 
   // Find current level info
-  const currentLevel = RESPONSE_LEVELS.reduce((prev, curr) => 
+  const currentLevel = RESPONSE_LEVELS.reduce((prev, curr) =>
     Math.abs(curr.value - localResponseLength) < Math.abs(prev.value - localResponseLength) ? curr : prev
   );
 
@@ -131,6 +136,7 @@ export function SettingsDialog({
           {[
             { id: 'response' as const, icon: GaugeCircle, label: 'Response' },
             { id: 'profile' as const, icon: User, label: 'Profile' },
+            { id: 'tools' as const, icon: Globe, label: 'Tools' },
             { id: 'appearance' as const, icon: Palette, label: 'Appearance' },
           ].map(({ id, icon: Icon, label }) => (
             <button
@@ -138,8 +144,8 @@ export function SettingsDialog({
               onClick={() => setActiveSection(id)}
               className={cn(
                 "flex items-center gap-2 w-full text-left px-3 py-2.5 text-xs transition-all duration-150 group",
-                activeSection === id 
-                  ? "bg-[var(--text-accent)]/10 border-l-2 border-l-[var(--text-accent)] text-[var(--text-accent)]" 
+                activeSection === id
+                  ? "bg-[var(--text-accent)]/10 border-l-2 border-l-[var(--text-accent)] text-[var(--text-accent)]"
                   : "hover:bg-[#1e1e1e] border-l-2 border-l-transparent text-[var(--text-secondary)]"
               )}
             >
@@ -152,8 +158,8 @@ export function SettingsDialog({
         {/* Content Area */}
         <div className="flex-1 p-4">
           {activeSection === 'response' && (
-            <ResponseLengthSection 
-              value={localResponseLength} 
+            <ResponseLengthSection
+              value={localResponseLength}
               onChange={setLocalResponseLength}
               currentLevel={currentLevel}
               customInstructions={localCustomInstructions}
@@ -168,6 +174,12 @@ export function SettingsDialog({
               onUserGenderChange={setLocalUserGender}
             />
           )}
+          {activeSection === 'tools' && (
+            <ToolsSection
+              enabledServers={enabledMcpServers}
+              onToggleServer={onToggleMcpServer}
+            />
+          )}
           {activeSection === 'appearance' && (
             <AppearanceSection
               accentColor={localAccentColor}
@@ -179,14 +191,14 @@ export function SettingsDialog({
 
       {/* Footer */}
       <div className="px-4 py-3 border-t border-[var(--border-color)] bg-[#0f0f0f] flex justify-end gap-2">
-        <button 
-          onClick={() => onOpenChange(false)} 
+        <button
+          onClick={() => onOpenChange(false)}
           className="px-4 py-2 text-[var(--text-primary)] border border-[var(--border-color)] hover:border-[var(--text-accent)]/50 hover:text-[var(--text-accent)] transition-colors uppercase tracking-[0.12em] text-xs"
         >
           Cancel
         </button>
-        <button 
-          onClick={handleSave} 
+        <button
+          onClick={handleSave}
           className="px-4 py-2 bg-[var(--text-accent)] text-black border border-[var(--text-accent)] hover:bg-black hover:text-[var(--text-accent)] font-semibold transition-colors uppercase tracking-[0.12em] text-xs"
         >
           Save
@@ -211,21 +223,21 @@ function ResponseLengthSection({ value, onChange, currentLevel, customInstructio
 
   const handleDialInteraction = useCallback((clientX: number, clientY: number) => {
     if (!dialRef.current) return;
-    
+
     const rect = dialRef.current.getBoundingClientRect();
     const centerX = rect.left + rect.width / 2;
     const centerY = rect.top + 90; // Arc center is at 90px from top (viewBox center y=0 maps to 90px)
-    
+
     // Calculate angle from center (standard math: 0° is right, counter-clockwise positive)
     const dx = clientX - centerX;
     const dy = centerY - clientY; // Invert Y for standard math coords
     const angleRad = Math.atan2(dy, dx);
     const angleDeg = (angleRad * 180) / Math.PI;
-    
+
     // Map angle to percentage
     // Arc goes from 225° (0%) to -45° (100%), sweeping 270° counter-clockwise through top
     // Dead zone is the bottom 90°: from -135° (225° normalized) to -45°
-    
+
     // Check if in dead zone (bottom of circle)
     if (angleDeg >= -135 && angleDeg <= -45) {
       // In dead zone - clamp to nearest end
@@ -238,14 +250,14 @@ function ResponseLengthSection({ value, onChange, currentLevel, customInstructio
       }
       return;
     }
-    
+
     // Normal calculation for valid arc range
     let adjustedAngle = angleDeg;
     if (adjustedAngle < -135) adjustedAngle += 360; // Normalize angles past the 0% point
-    
+
     const rawPercentage = (225 - adjustedAngle) / 270 * 100;
     const percentage = Math.max(0, Math.min(100, rawPercentage));
-    
+
     onChange(Math.round(percentage));
   }, [onChange]);
 
@@ -276,10 +288,10 @@ function ResponseLengthSection({ value, onChange, currentLevel, customInstructio
   // Arc parameters
   const arcRadius = 70;
   const arcSweep = 270; // Total degrees (from bottom-left to bottom-right through top)
-  
+
   // Calculate arc length for strokeDasharray (circumference * fraction)
   const arcLength = 2 * Math.PI * arcRadius * (arcSweep / 360);
-  
+
   // Calculate knob position
   // SVG coordinate system: 0° is right, positive is clockwise
   // We want: 0% at bottom-left (-135° from right = 225° standard), 100% at bottom-right (135° from right = -45° standard)
@@ -301,7 +313,7 @@ function ResponseLengthSection({ value, onChange, currentLevel, customInstructio
 
       {/* Arc Dial */}
       <div className="flex flex-col items-center">
-        <div 
+        <div
           ref={dialRef}
           className="relative w-[180px] h-[160px] cursor-pointer select-none"
           onMouseDown={handleMouseDown}
@@ -350,7 +362,7 @@ function ResponseLengthSection({ value, onChange, currentLevel, customInstructio
                 />
               );
             })}
-            
+
             {/* Knob - rendered in SVG for proper layering */}
             <circle
               cx={knobX}
@@ -363,7 +375,7 @@ function ResponseLengthSection({ value, onChange, currentLevel, customInstructio
               style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.3))' }}
             />
           </svg>
-          
+
           {/* Center Value */}
           <div className="absolute bottom-2 left-1/2 -translate-x-1/2 text-center">
             <div className="text-3xl font-bold text-[var(--text-accent)] tabular-nums">
@@ -418,7 +430,7 @@ function ResponseLengthSection({ value, onChange, currentLevel, customInstructio
           </span>
         </div>
         <p className="text-[9px] text-[var(--text-secondary)] leading-relaxed">
-          These instructions have the <span className="text-[var(--text-accent)] font-semibold">highest priority</span>. 
+          These instructions have the <span className="text-[var(--text-accent)] font-semibold">highest priority</span>.
           The AI will follow them above all other guidelines.
         </p>
         <textarea
@@ -530,17 +542,17 @@ function AppearanceSection({ accentColor, onAccentColorChange }: AppearanceSecti
           <Sparkles size={10} />
           Accent Color
         </label>
-        
+
         {/* Color Picker - Full Width */}
         <div className="flex justify-center">
           <HexColorPicker color={accentColor} onChange={onAccentColorChange} />
         </div>
-        
+
         {/* Current Color Preview */}
         <div className="space-y-2">
           <div className="text-[9px] uppercase tracking-wider text-[var(--text-secondary)]">Hex Code</div>
           <div className="flex items-center gap-2">
-            <div 
+            <div
               className="w-10 h-10 border border-[var(--border-color)] flex-shrink-0"
               style={{ backgroundColor: accentColor }}
             />
@@ -582,6 +594,104 @@ function AppearanceSection({ accentColor, onAccentColorChange }: AppearanceSecti
           Reset to Default
         </button>
       </div>
+    </div>
+  );
+}
+
+// Tools Section - MCP Servers for tool calling
+interface ToolsSectionProps {
+  enabledServers: string[];
+  onToggleServer: (serverSlug: string, enabled: boolean) => void;
+}
+
+// Available tool servers configuration
+const AVAILABLE_SERVERS = [
+  {
+    slug: 'brave-search', // Internal identifier
+    name: 'Web Search', // User-facing name (generic)
+    description: 'Search the web for current information',
+    icon: Search,
+  },
+  // Future: add more tool servers here
+] as const;
+
+function ToolsSection({ enabledServers, onToggleServer }: ToolsSectionProps) {
+  return (
+    <div className="space-y-6">
+      {/* Section Header */}
+      <div className="flex items-center gap-2 mb-4">
+        <Globe size={12} className="text-[var(--text-accent)]" />
+        <span className="text-[10px] uppercase tracking-[0.16em] font-semibold text-[var(--text-secondary)]">
+          AI Tools
+        </span>
+      </div>
+
+      <p className="text-[10px] text-[var(--text-secondary)] leading-relaxed">
+        Enable tools that the AI can use to search the web and access current information.
+      </p>
+
+      {/* Server List */}
+      <div className="space-y-2">
+        {AVAILABLE_SERVERS.map(server => {
+          const isEnabled = enabledServers.includes(server.slug);
+          const Icon = server.icon;
+
+          return (
+            <button
+              key={server.slug}
+              onClick={() => onToggleServer(server.slug, !isEnabled)}
+              className={cn(
+                "flex items-center w-full gap-3 p-3 transition-all duration-150 border",
+                isEnabled
+                  ? "bg-[var(--text-accent)]/10 border-[var(--text-accent)]/50"
+                  : "bg-[#1a1a1a] border-[var(--border-color)] hover:border-[var(--text-accent)]/30"
+              )}
+            >
+              {/* Icon */}
+              <div className={cn(
+                "w-8 h-8 flex items-center justify-center border",
+                isEnabled
+                  ? "border-[var(--text-accent)] bg-[var(--text-accent)]/20"
+                  : "border-[var(--border-color)] bg-[#0f0f0f]"
+              )}>
+                <Icon size={14} className={isEnabled ? "text-[var(--text-accent)]" : "text-[var(--text-secondary)]"} />
+              </div>
+
+              {/* Text */}
+              <div className="flex-1 text-left">
+                <div className={cn(
+                  "text-xs font-semibold uppercase tracking-wider",
+                  isEnabled ? "text-[var(--text-accent)]" : "text-[var(--text-primary)]"
+                )}>
+                  {server.name}
+                </div>
+                <div className="text-[9px] text-[var(--text-secondary)] mt-0.5">
+                  {server.description}
+                </div>
+              </div>
+
+              {/* Toggle Switch */}
+              <div className={cn(
+                "w-10 h-5 rounded-full transition-all duration-200 relative",
+                isEnabled
+                  ? "bg-[var(--text-accent)]"
+                  : "bg-[#2a2a2a]"
+              )}>
+                <div className={cn(
+                  "absolute top-0.5 w-4 h-4 rounded-full transition-all duration-200",
+                  isEnabled
+                    ? "left-[22px] bg-black"
+                    : "left-0.5 bg-[#4a4a4a]"
+                )} />
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
+      <p className="text-[9px] text-[var(--text-secondary)]/60 leading-relaxed">
+        When enabled, the AI can search the web to find current information and answer questions about recent events.
+      </p>
     </div>
   );
 }
