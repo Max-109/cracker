@@ -7,7 +7,7 @@
  */
 
 import { createVertex } from '@ai-sdk/google-vertex';
-import { generateText, zodSchema } from 'ai';
+import { generateText, zodSchema, stepCountIs } from 'ai';
 import { z } from 'zod';
 
 const GOOGLE_CLOUD_PROJECT = process.env.GOOGLE_CLOUD_PROJECT || 'project-1972ed27-e546-4aa5-8fd';
@@ -57,7 +57,7 @@ async function testToolCalling() {
             tools: {
                 web_search: myTool as any,
             },
-            maxSteps: 3,
+            stopWhen: stepCountIs(3),
         });
 
         console.log('SUCCESS! Response:', result.text);

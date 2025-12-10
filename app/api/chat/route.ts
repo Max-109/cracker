@@ -5,6 +5,7 @@ import { messages as messagesTable, userSettings } from "@/db/schema";
 import { eq, desc, and } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { getEnabledBraveTools } from "@/lib/tools/brave-tools";
+import { getEnabledYouTubeTools } from "@/lib/tools/youtube-tools";
 
 export const maxDuration = 300; // 5 minutes max for responses
 
@@ -449,8 +450,10 @@ export async function POST(req: Request) {
     // Clean model ID (remove google/ prefix if present)
     const cleanModelId = modelId.replace('google/', '');
 
-    // Get enabled tools (Brave Search replaces Google grounding)
-    const tools = getEnabledBraveTools(mcpServers);
+    // Get enabled tools (Brave Search + YouTube)
+    const braveTools = getEnabledBraveTools(mcpServers);
+    const youtubeTools = getEnabledYouTubeTools(mcpServers);
+    const tools = { ...braveTools, ...youtubeTools };
     const hasTools = Object.keys(tools).length > 0;
 
     if (hasTools) {

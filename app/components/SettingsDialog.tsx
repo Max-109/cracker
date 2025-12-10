@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { HexColorPicker } from "react-colorful";
-import { Settings2, User, Pencil, Palette, Sparkles, GaugeCircle, MessageSquareText, Search, Globe } from 'lucide-react';
+import { Settings2, User, Pencil, Palette, Sparkles, GaugeCircle, MessageSquareText, Search, Globe, Youtube } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Dialog } from '@/components/ui';
 
@@ -611,9 +611,16 @@ const AVAILABLE_SERVERS = [
     name: 'Web Search', // User-facing name (generic)
     description: 'Search the web for current information',
     icon: Search,
+    color: null as string | null, // null = use CSS variable --text-accent
   },
-  // Future: add more tool servers here
-] as const;
+  {
+    slug: 'youtube',
+    name: 'YouTube',
+    description: 'Search videos and get transcripts',
+    icon: Youtube,
+    color: null as string | null, // null = use default accent for subtle look
+  },
+];
 
 function ToolsSection({ enabledServers, onToggleServer }: ToolsSectionProps) {
   return (
@@ -635,6 +642,8 @@ function ToolsSection({ enabledServers, onToggleServer }: ToolsSectionProps) {
         {AVAILABLE_SERVERS.map(server => {
           const isEnabled = enabledServers.includes(server.slug);
           const Icon = server.icon;
+          const hasCustomColor = server.color !== null;
+          const customColor = server.color!; // Non-null when hasCustomColor is true
 
           return (
             <button
@@ -642,27 +651,47 @@ function ToolsSection({ enabledServers, onToggleServer }: ToolsSectionProps) {
               onClick={() => onToggleServer(server.slug, !isEnabled)}
               className={cn(
                 "flex items-center w-full gap-3 p-3 transition-all duration-150 border",
-                isEnabled
-                  ? "bg-[var(--text-accent)]/10 border-[var(--text-accent)]/50"
-                  : "bg-[#1a1a1a] border-[var(--border-color)] hover:border-[var(--text-accent)]/30"
+                !isEnabled && "bg-[#1a1a1a] border-[var(--border-color)] hover:border-[var(--text-accent)]/30",
+                // Use CSS classes for default accent (when color is null)
+                isEnabled && !hasCustomColor && "bg-[var(--text-accent)]/10 border-[var(--text-accent)]/50"
               )}
+              style={isEnabled && hasCustomColor ? {
+                backgroundColor: `${customColor}10`,
+                borderColor: `${customColor}50`,
+              } : undefined}
             >
               {/* Icon */}
-              <div className={cn(
-                "w-8 h-8 flex items-center justify-center border",
-                isEnabled
-                  ? "border-[var(--text-accent)] bg-[var(--text-accent)]/20"
-                  : "border-[var(--border-color)] bg-[#0f0f0f]"
-              )}>
-                <Icon size={14} className={isEnabled ? "text-[var(--text-accent)]" : "text-[var(--text-secondary)]"} />
+              <div
+                className={cn(
+                  "w-8 h-8 flex items-center justify-center border",
+                  !isEnabled && "border-[var(--border-color)] bg-[#0f0f0f]",
+                  isEnabled && !hasCustomColor && "border-[var(--text-accent)] bg-[var(--text-accent)]/20"
+                )}
+                style={isEnabled && hasCustomColor ? {
+                  borderColor: `${customColor}80`,
+                  backgroundColor: `${customColor}20`,
+                } : undefined}
+              >
+                <Icon
+                  size={14}
+                  style={isEnabled && hasCustomColor ? { color: customColor } : undefined}
+                  className={cn(
+                    !isEnabled && "text-[var(--text-secondary)]",
+                    isEnabled && !hasCustomColor && "text-[var(--text-accent)]"
+                  )}
+                />
               </div>
 
               {/* Text */}
               <div className="flex-1 text-left">
-                <div className={cn(
-                  "text-xs font-semibold uppercase tracking-wider",
-                  isEnabled ? "text-[var(--text-accent)]" : "text-[var(--text-primary)]"
-                )}>
+                <div
+                  className={cn(
+                    "text-xs font-semibold uppercase tracking-wider",
+                    !isEnabled && "text-[var(--text-primary)]",
+                    isEnabled && !hasCustomColor && "text-[var(--text-accent)]"
+                  )}
+                  style={isEnabled && hasCustomColor ? { color: customColor } : undefined}
+                >
                   {server.name}
                 </div>
                 <div className="text-[9px] text-[var(--text-secondary)] mt-0.5">
@@ -671,12 +700,14 @@ function ToolsSection({ enabledServers, onToggleServer }: ToolsSectionProps) {
               </div>
 
               {/* Toggle Switch */}
-              <div className={cn(
-                "w-10 h-5 rounded-full transition-all duration-200 relative",
-                isEnabled
-                  ? "bg-[var(--text-accent)]"
-                  : "bg-[#2a2a2a]"
-              )}>
+              <div
+                className={cn(
+                  "w-10 h-5 rounded-full transition-all duration-200 relative",
+                  !isEnabled && "bg-[#2a2a2a]",
+                  isEnabled && !hasCustomColor && "bg-[var(--text-accent)]"
+                )}
+                style={isEnabled && hasCustomColor ? { backgroundColor: customColor } : undefined}
+              >
                 <div className={cn(
                   "absolute top-0.5 w-4 h-4 rounded-full transition-all duration-200",
                   isEnabled

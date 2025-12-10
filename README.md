@@ -207,40 +207,78 @@ internal format with JSON schema conversion that Vertex AI accepts.
 > [!IMPORTANT]
 > **MULTI-STEP TOOL CALLING (AI SDK v5):** For tools to work properly with Vertex AI, you must:
 > 1. Use `stopWhen: stepCountIs(N)` in `streamText()` instead of `maxSteps`
-> 2. Import `stepCountIs` from `'ai'`
-> 3. Save tool results in `onFinish` callback as `type: 'tool-invocation'` message parts
+> 2. Use `toolCallStreaming: true` for live UI updates during tool execution
+> 3. Import `stepCountIs` from `'ai'`
+> 4. Save tool results from the `steps` array in `onFinish` callback
 >
 > **Why this matters:** When the model calls a tool, it needs to continue generating after receiving 
 > results. Without `stopWhen: stepCountIs(5)`, the model stops after the first tool call with 
 > `finishReason: 'tool-calls'` and never produces the final text response.
->
-> ```typescript
-> import { streamText, stepCountIs } from 'ai';
+
+> [!CAUTION]
+> **AI SDK v5 PROPERTY NAMES:** The SDK uses different property names than you might expect:
 > 
-> const result = streamText({
->   model: vertex(modelId),
->   messages,
->   tools,
->   stopWhen: stepCountIs(5),  // ✅ Enables multi-step: tool call → result → final text
->   onFinish: async ({ text, toolCalls, toolResults }) => {
->     // Save tool invocations to DB for persistence
->     const parts = [];
->     if (toolCalls?.length) {
->       for (let i = 0; i < toolCalls.length; i++) {
->         parts.push({
->           type: 'tool-invocation',
->           toolCallId: toolCalls[i].toolCallId,
->           toolName: toolCalls[i].toolName,
->           args: toolCalls[i].args,
->           result: toolResults?.[i]?.result,
->         });
->       }
->     }
->     if (text) parts.push({ type: 'text', text });
->     // Save parts to database...
->   },
-> });
-> ```
+> | What | OLD Name | AI SDK v5 Name |
+> |------|----------|----------------|
+> | Tool arguments | `args` | `input` |
+> | Tool result | `result` | `output` |
+> | All tool calls | `toolCalls` (from callback) | `steps[].toolCalls` |
+> | All tool results | `toolResults` (from callback) | `steps[].toolResults` |
+>
+> The `onFinish` callback's `toolCalls` and `toolResults` only contain the **LAST step's** data.
+> To get ALL tool calls across multi-step execution, you MUST iterate through the `steps` array.
+
+```typescript
+import { streamText, stepCountIs } from 'ai';
+
+const result = streamText({
+  model: vertex(modelId),
+  messages,
+  tools,
+  stopWhen: stepCountIs(5),      // ✅ Enables multi-step: tool call → result → final text
+  toolCallStreaming: true,       // ✅ Stream tool invocations to client for live UI
+  onFinish: async ({ text, steps }) => {
+    // CRITICAL: Collect tool calls from ALL steps (not just the last one)
+    const allToolCalls: Array<{ toolCallId: string; toolName: string; args: unknown }> = [];
+    const allToolResults: Array<unknown> = [];
+
+    if (steps && steps.length > 0) {
+      for (const step of steps) {
+        // AI SDK v5: toolCalls have { toolCallId, toolName, input } (NOT args!)
+        // AI SDK v5: toolResults have { toolCallId, toolName, output } (NOT result!)
+        const stepToolCalls = step.toolCalls || [];
+        const stepToolResults = step.toolResults || [];
+        
+        for (let i = 0; i < stepToolCalls.length; i++) {
+          allToolCalls.push({
+            toolCallId: stepToolCalls[i].toolCallId,
+            toolName: stepToolCalls[i].toolName,
+            args: stepToolCalls[i].input,  // ⚠️ 'input' not 'args'!
+          });
+          if (stepToolResults[i]) {
+            allToolResults.push(stepToolResults[i].output);  // ⚠️ 'output' not 'result'!
+          }
+        }
+      }
+    }
+
+    // Save tool invocations to DB for persistence
+    const parts = [];
+    for (let i = 0; i < allToolCalls.length; i++) {
+      parts.push({
+        type: 'tool-invocation',
+        toolCallId: allToolCalls[i].toolCallId,
+        toolName: allToolCalls[i].toolName,
+        state: 'result',
+        args: allToolCalls[i].args,
+        result: allToolResults[i],  // We store as 'result' for our internal format
+      });
+    }
+    if (text) parts.push({ type: 'text', text });
+    // Save parts to database...
+  },
+});
+```
 
 
 #### 2. Register in Chat Route
