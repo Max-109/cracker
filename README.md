@@ -17,7 +17,7 @@
 <p align="center">
   <img src="https://img.shields.io/badge/Next.js-16-000000?style=for-the-badge&logo=next.js&logoColor=white" />
   <img src="https://img.shields.io/badge/Framework-React_19-61DAFB?style=for-the-badge&logo=react&logoColor=white" />
-  <img src="https://img.shields.io/badge/Model-Gemini_2.0-8E75B2?style=for-the-badge&logo=google-gemini&logoColor=white" />
+  <img src="https://img.shields.io/badge/Model-Gemini_3.0-8E75B2?style=for-the-badge&logo=google-gemini&logoColor=white" />
   <img src="https://img.shields.io/badge/Design-Tailwind_v4-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white" />
 </p>
 
@@ -31,15 +31,11 @@
 
 ## ✨ Features
 
-- **🚀 Cutting Edge Tech**: Built with **Next.js 16** (App Router), **React 19**, and **Tailwind CSS v4**.
-- **🧠 Advanced Reasoning**: Supports **DeepSeek R1** style thinking with collapsible reasoning blocks.
-- **⚡ Real-time Performance**: Extremely fast token streaming with **Gemini 2.5 Flash Lite** and **3.0 Pro**.
-- **🎨 Living Design**: Premium aesthetic with glassmorphism, micro-interactions, and a "living" UI that breathes.
-- **🔌 Multi-Model Support**: Switch instantly between **Expert** (Gemini 3.0), **Balanced**, and **Fast** models.
-- **📎 Smart Attachments**: Drag & drop support for **PDFs**, **Images**, and **Text**, with full multimodal understanding.
-- **🔍 Deep Research**: Autonomous research agent capability powered by **Brave Search** and **Tavily**.
-- **📱 Mobile Optimised**: Native-like responsiveness with touch gestures and mobile-first layout.
-- **🛠️ MCP Integration**: Extensible **Model Context Protocol** support for connecting external tools.
+- **🚀 Latest Models**: Powered by **Gemini 3.0 Pro** and **2.5 Flash** for cutting-edge performance.
+- **🧠 Reasoning Effort**: Adjustable **Low**, **Medium**, and **High** thinking modes for complex problem solving.
+- **🎓 Learning Mode**: Adaptive AI that learns from your conversations and remembers preferences.
+- **🔌 MCP Integration**: Extensible **Model Context Protocol** support to connect with external tools.
+- **📎 Smart Attachments**: Full multimodal understanding for **PDFs**, **Images**, and **Text** files.
 
 ## 🛠️ Tech Stack
 
