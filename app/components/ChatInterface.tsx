@@ -15,6 +15,9 @@ import { MessageList } from './MessageList';
 import { QuoteProvider, useQuoteContext } from './QuoteContext';
 import { SettingsDialog } from './SettingsDialog';
 import { ChatBackground } from './ChatBackground';
+import { getCachedChat } from '@/lib/cache';
+import { transformMessagesToUi } from '@/lib/message-transformer';
+import { trackCacheHit, trackCacheMiss, trackLoadTime } from './PerformanceMonitor';
 
 interface ChatInterfaceProps {
   initialChatId?: string;
@@ -24,6 +27,13 @@ type EditAttachment = { id: string; url: string; name: string; mediaType: string
 
 export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
   const { refreshChats, toggleSidebar, isSidebarOpen, chats } = useChatContext();
+
+  // Use a ref to track chats for optimistic loading without adding it to the
+  // loadMessages dependency array (which would cause unnecessary re-fetches)
+  const chatsRef = useRef(chats);
+  useEffect(() => {
+    chatsRef.current = chats;
+  }, [chats]);
 
   // Settings
   const [currentModelId, setCurrentModelId, isModelIdHydrated] = usePersistedSetting('MODEL_ID', "gemini-3-pro-preview");
@@ -62,6 +72,26 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
   const messagesRef = useRef<ChatMessage[]>([]);
   const currentModelIdRef = useRef(currentModelId);
   const reasoningEffortRef = useRef(reasoningEffort);
+
+  // Sync with URL changes (for history.pushState navigation)
+  useEffect(() => {
+    const handleUrlChange = () => {
+      const match = window.location.pathname.match(/\/chat\/([^/]+)/);
+      const urlChatId = match ? match[1] : null;
+      if (urlChatId && urlChatId !== chatIdRef.current) {
+        setCurrentChatId(urlChatId);
+        chatIdRef.current = urlChatId;
+      }
+    };
+
+    // Listen for popstate (browser back/forward)
+    window.addEventListener('popstate', handleUrlChange);
+
+    // Also check on mount in case URL changed via pushState
+    handleUrlChange();
+
+    return () => window.removeEventListener('popstate', handleUrlChange);
+  }, []);
 
   const responseLengthRef = useRef(responseLength);
   const userNameRef = useRef(userName);
@@ -360,25 +390,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
           const msgData = await msgRes.json();
           if (Array.isArray(msgData)) {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const uiMessages = msgData.map((msg: any) => {
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              let parts: Array<any>;
-              if (Array.isArray(msg.content)) {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                parts = msg.content.map((p: any) => {
-                  if (typeof p === 'string') return { type: 'text', text: p };
-                  if (p.type === 'text') return { type: 'text', text: p.text || '' };
-                  if (p.type === 'reasoning') return { type: 'reasoning', text: p.text || p.reasoning || '' };
-                  if (p.type === 'stopped') return { type: 'stopped', stopType: p.stopType };
-                  if (p.type === 'generated-image') return { type: 'generated-image', data: p.data, mediaType: p.mediaType };
-                  if (p.type === 'source' || p.type === 'source-url') return { type: 'source', url: p.url, title: p.title, source: p.source };
-                  return p;
-                });
-              } else {
-                parts = [{ type: 'text', text: msg.content || '' }];
-              }
-              return { id: msg.id, role: msg.role, parts, model: msg.model, tokensPerSecond: msg.tokensPerSecond };
-            });
+            const uiMessages = transformMessagesToUi(msgData);
             setMessages(uiMessages as Parameters<typeof setMessages>[0]);
           }
         } catch (e) {
@@ -512,44 +524,97 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
       return;
     }
 
-    setIsMessagesLoading(true);
-    fetch(`/api/chats/${currentChatId}`)
-      .then(res => res.json())
-      .then(data => {
-        if (Array.isArray(data)) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const uiMessages = data.map((msg: any) => {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            let parts: Array<any>;
+    const loadMessages = async () => {
+      const startTime = performance.now();
 
-            if (Array.isArray(msg.content)) {
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              parts = msg.content.map((p: any) => {
-                if (typeof p === 'string') return { type: 'text', text: p };
-                if (p.type === 'text') return { type: 'text', text: p.text || '' };
-                if (p.type === 'reasoning') return { type: 'reasoning', text: p.text || p.reasoning || '' };
-                if (p.type === 'stopped') return { type: 'stopped', stopType: p.stopType };
-                if (p.type === 'generated-image') return { type: 'generated-image', data: p.data, mediaType: p.mediaType };
-                if (p.type === 'image') return { type: 'file', url: p.image || p.url, mediaType: p.mediaType || 'image/png', filename: p.name || 'image' };
-                if (p.type === 'file') return { type: 'file', url: p.data || p.url, mediaType: p.mediaType || p.mimeType || 'application/octet-stream', filename: p.filename || p.name || 'file' };
-                if (p.type === 'source' || p.type === 'source-url') return { type: 'source', url: p.url, title: p.title, source: p.source };
-                if (p.type === 'tool-invocation') return p;
-                if (typeof p === 'object' && p !== null) return { type: 'text', text: p.text || '' };
-                return { type: 'text', text: String(p || '') };
-              });
-            } else if (typeof msg.content === 'string') {
-              parts = [{ type: 'text', text: msg.content }];
-            } else {
-              parts = [{ type: 'text', text: '' }];
-            }
+      // INSTANT LOAD: Check memory cache first (from ChatContext)
+      // This avoids async IDB lookup and provides instant navigation
+      // Data is already fresh from chats-with-messages - no need to refetch
+      const memoryChat = chatsRef.current.find(c => c.id === currentChatId);
+      if (memoryChat?.messages?.length) {
+        console.log('⚡ INSTANT: Using memory cache', currentChatId);
+        trackCacheHit();
+        trackLoadTime(startTime, 'cache');
+        const uiMessages = transformMessagesToUi(memoryChat.messages);
+        setMessages(uiMessages as Parameters<typeof setMessages>[0]);
+        setIsMessagesLoading(false);
+        // NO background fetch - data is already fresh from chats-with-messages
+        return;
+      }
 
-            return { id: msg.id, role: msg.role, parts, model: msg.model, tokensPerSecond: msg.tokensPerSecond };
-          });
+      // Fall back to IndexedDB cache
+      setIsMessagesLoading(true);
+
+      try {
+        // Try to get cached chat first for instant loading
+        const cachedChat = await getCachedChat(currentChatId);
+
+        if (cachedChat && cachedChat.messages && cachedChat.messages.length > 0) {
+          console.log('Using disk cache for loading');
+          trackCacheHit();
+          trackLoadTime(startTime, 'cache');
+
+          // Use the reusable transformer instead of duplicated code
+          const uiMessages = transformMessagesToUi(cachedChat.messages);
           setMessages(uiMessages as Parameters<typeof setMessages>[0]);
+          setIsMessagesLoading(false);
+
+          // Fetch fresh data in background
+          fetch(`/api/chats/${currentChatId}`)
+            .then(res => res.json())
+            .then(data => {
+              if (Array.isArray(data)) {
+                // Only update if there are new messages
+                const hasNewMessages = data.length !== cachedChat.messages.length ||
+                  data.some(newMsg =>
+                    !cachedChat.messages.some(cachedMsg => cachedMsg.id === newMsg.id)
+                  );
+                if (hasNewMessages) {
+                  const freshMessages = transformMessagesToUi(data);
+                  setMessages(freshMessages as Parameters<typeof setMessages>[0]);
+                }
+              }
+            })
+            .catch(err => console.error("Failed to fetch fresh messages:", err));
+        } else {
+          // No cache available, fetch from server
+          console.log('No cached messages, fetching from server');
+          trackCacheMiss();
+          const networkStartTime = performance.now();
+
+          fetch(`/api/chats/${currentChatId}`)
+            .then(res => res.json())
+            .then(data => {
+              trackLoadTime(networkStartTime, 'network');
+              if (Array.isArray(data)) {
+                const uiMessages = transformMessagesToUi(data);
+                setMessages(uiMessages as Parameters<typeof setMessages>[0]);
+              }
+            })
+            .catch(err => console.error("Failed to fetch messages:", err))
+            .finally(() => setIsMessagesLoading(false));
         }
-      })
-      .catch(err => console.error("Failed to fetch messages:", err))
-      .finally(() => setIsMessagesLoading(false));
+      } catch (error) {
+        console.error("Cache operation failed, falling back to network:", error);
+        trackCacheMiss();
+        const networkStartTime = performance.now();
+
+        // Fallback to network if cache fails
+        fetch(`/api/chats/${currentChatId}`)
+          .then(res => res.json())
+          .then(data => {
+            trackLoadTime(networkStartTime, 'network');
+            if (Array.isArray(data)) {
+              const uiMessages = transformMessagesToUi(data);
+              setMessages(uiMessages as Parameters<typeof setMessages>[0]);
+            }
+          })
+          .catch(err => console.error("Failed to fetch messages:", err))
+          .finally(() => setIsMessagesLoading(false));
+      }
+    };
+
+    loadMessages();
   }, [currentChatId, setMessages]);
 
   // Handle message edit
@@ -710,6 +775,8 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
           isNewChat = true;
           refreshChats();
           window.history.replaceState(null, '', `/chat/${newChat.id}`);
+          // Notify sidebar to update active indicator
+          window.dispatchEvent(new PopStateEvent('popstate'));
         }
       }
 

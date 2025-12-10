@@ -483,12 +483,16 @@ export async function POST(req: Request) {
       onChunk: ({ chunk }) => {
         // Record when first chunk of any type arrives
         const now = Date.now();
+        const chunkType = chunk.type as string; // Cast for comparison with potential unlisted types
         if (!firstChunkTime) {
           firstChunkTime = now;
+          console.log(`[CHUNK] First chunk type: ${chunkType}`);
         }
-        // Also track reasoning chunks specifically
-        if (chunk.type === 'reasoning-delta' && !firstReasoningTime) {
+        // Track reasoning chunks specifically - check both possible types
+        // Some models use 'reasoning-delta', others might use 'reasoning'
+        if ((chunkType === 'reasoning-delta' || chunkType === 'reasoning') && !firstReasoningTime) {
           firstReasoningTime = now;
+          console.log(`[CHUNK] First reasoning chunk detected at ${now - requestStartTime}ms`);
         }
       },
       onFinish: async ({ text, reasoning, usage, steps }) => {

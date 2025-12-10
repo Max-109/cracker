@@ -71,7 +71,11 @@ export const messages = pgTable('messages', {
   model: text('model'),
   tokensPerSecond: text('tokens_per_second'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
-});
+}, (table) => [
+  index('messages_chat_id_idx').on(table.chatId),
+  index('messages_created_at_idx').on(table.createdAt),
+  index('messages_chat_id_created_at_idx').on(table.chatId, table.createdAt),
+]);
 
 // MCP Server registry - built-in and custom MCP servers
 export const mcpServers = pgTable('mcp_servers', {

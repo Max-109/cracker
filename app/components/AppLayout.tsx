@@ -6,6 +6,7 @@ import { ChatContext } from './ChatContext';
 import { Sidebar } from './Sidebar';
 import { VisualEffects } from './VisualEffects';
 import { CommandPalette } from './CommandPalette';
+import { PerformanceMonitor, trackCacheHit, trackCacheMiss, trackLoadTime } from './PerformanceMonitor';
 import { cn } from '@/lib/utils';
 
 interface Chat {
@@ -13,13 +14,17 @@ interface Chat {
     title: string | null;
     mode?: 'chat' | 'learning' | 'deep-search';
     createdAt: string;
+    messages?: any[]; // Add messages to the chat interface for preloading
 }
 
 import Cookies from 'js-cookie';
+import { cacheChats, getCachedChats } from '@/lib/cache';
 
 export default function AppLayout({ children, initialSidebarOpen = true }: { children: React.ReactNode; initialSidebarOpen?: boolean }) {
     const [chats, setChats] = useState<Chat[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [hasMoreChats, setHasMoreChats] = useState(true);
+    const [isLoadingMore, setIsLoadingMore] = useState(false);
 
     // Initialize sidebar state from server cookie (passed as prop)
     const [sidebarOpen, setSidebarOpen] = useState(initialSidebarOpen);
@@ -40,18 +45,131 @@ export default function AppLayout({ children, initialSidebarOpen = true }: { chi
     const [isResizing, setIsResizing] = useState(false);
     const sidebarRef = useRef<HTMLDivElement>(null);
 
-    // Safely access id, handling potential array/undefined
-    const currentChatId = Array.isArray(chatId) ? chatId[0] : chatId || null;
-
-    const fetchChats = () => {
-        fetch('/api/chats')
-            .then(res => res.json())
-            .then(data => {
-                if (Array.isArray(data)) setChats(data);
-            })
-            .catch(err => console.error("Failed to fetch chats:", err))
-            .finally(() => setIsLoading(false));
+    // Track current chat ID from URL (supports pushState navigation)
+    const getUrlChatId = () => {
+        if (typeof window === 'undefined') return null;
+        const match = window.location.pathname.match(/\/chat\/([^/]+)/);
+        return match ? match[1] : null;
     };
+
+    const [currentChatId, setCurrentChatId] = useState<string | null>(() => {
+        // Initial value from params or URL
+        const paramId = Array.isArray(chatId) ? chatId[0] : chatId || null;
+        return paramId || getUrlChatId();
+    });
+
+    // Sync currentChatId with URL changes (popstate from sidebar navigation)
+    useEffect(() => {
+        const handleUrlChange = () => {
+            const urlChatId = getUrlChatId();
+            setCurrentChatId(urlChatId);
+        };
+        window.addEventListener('popstate', handleUrlChange);
+        return () => window.removeEventListener('popstate', handleUrlChange);
+    }, []);
+
+    const fetchChats = async () => {
+        const startTime = performance.now();
+
+        try {
+            // Try to get cached chats first for instant loading
+            const cachedChats = await getCachedChats();
+
+            if (cachedChats && cachedChats.length > 0) {
+                console.log('Using cached chats for instant loading');
+                trackCacheHit();
+                trackLoadTime(startTime, 'cache');
+                setChats(cachedChats);
+                setIsLoading(false);
+
+                // Fetch fresh data in background and update cache
+                fetch('/api/chats-with-messages?limit=15')
+                    .then(res => res.json())
+                    .then(response => {
+                        // Handle new paginated response format
+                        const data = response.chats || response;
+                        if (Array.isArray(data)) {
+                            setHasMoreChats(response.hasMore ?? true);
+                            // Update cache with fresh data
+                            cacheChats(data).catch(err =>
+                                console.error("Failed to update cache:", err)
+                            );
+                            // Only update state if data is significantly different
+                            const hasNewChats = data.length !== cachedChats.length ||
+                                data.some(newChat =>
+                                    !cachedChats.some(cachedChat => cachedChat.id === newChat.id)
+                                );
+                            if (hasNewChats) {
+                                setChats(data);
+                            }
+                        }
+                    })
+                    .catch(err => console.error("Failed to fetch fresh chats:", err));
+            } else {
+                // No cache available, fetch from server
+                console.log('No cache available, fetching from server');
+                trackCacheMiss();
+                const networkStartTime = performance.now();
+
+                fetch('/api/chats-with-messages?limit=15')
+                    .then(res => res.json())
+                    .then(response => {
+                        trackLoadTime(networkStartTime, 'network');
+                        const data = response.chats || response;
+                        if (Array.isArray(data)) {
+                            setHasMoreChats(response.hasMore ?? true);
+                            // Cache the data for future use
+                            cacheChats(data).catch(err =>
+                                console.error("Failed to cache chats:", err)
+                            );
+                            setChats(data);
+                        }
+                    })
+                    .catch(err => console.error("Failed to fetch chats:", err))
+                    .finally(() => setIsLoading(false));
+            }
+        } catch (error) {
+            console.error("Cache operation failed, falling back to network:", error);
+            trackCacheMiss();
+            const networkStartTime = performance.now();
+
+            // Fallback to network if cache fails
+            fetch('/api/chats?limit=15')
+                .then(res => res.json())
+                .then(response => {
+                    trackLoadTime(networkStartTime, 'network');
+                    const data = response.chats || response;
+                    if (Array.isArray(data)) setChats(data);
+                })
+                .catch(err => console.error("Failed to fetch chats:", err))
+                .finally(() => setIsLoading(false));
+        }
+    };
+
+    // Load more chats for infinite scroll
+    const loadMoreChats = useCallback(async () => {
+        if (isLoadingMore || !hasMoreChats) return;
+
+        setIsLoadingMore(true);
+        try {
+            const response = await fetch(`/api/chats-with-messages?limit=15&offset=${chats.length}`);
+            const data = await response.json();
+
+            if (data.chats && Array.isArray(data.chats)) {
+                setChats(prev => [...prev, ...data.chats]);
+                setHasMoreChats(data.hasMore ?? false);
+
+                // Update cache with all chats
+                cacheChats([...chats, ...data.chats]).catch(err =>
+                    console.error("Failed to update cache:", err)
+                );
+            }
+        } catch (err) {
+            console.error("Failed to load more chats:", err);
+        } finally {
+            setIsLoadingMore(false);
+        }
+    }, [chats, isLoadingMore, hasMoreChats]);
 
     useEffect(() => {
         setIsLoading(true);
@@ -87,6 +205,11 @@ export default function AppLayout({ children, initialSidebarOpen = true }: { chi
     }, [resize, stopResizing]);
 
     const handleNewChat = () => {
+        // Update URL to homepage and notify listeners
+        window.history.pushState({}, '', '/');
+        window.dispatchEvent(new PopStateEvent('popstate'));
+        setCurrentChatId(null); // Clear active indicator immediately
+
         // Only close sidebar on mobile
         if (window.innerWidth < 768) {
             setSidebarOpen(false);
@@ -96,8 +219,8 @@ export default function AppLayout({ children, initialSidebarOpen = true }: { chi
     };
 
     const handleSelectChat = (id: string) => {
-        // Don't close sidebar - user can use toggle button
-        if (id !== currentChatId) router.push(`/chat/${id}`);
+        // URL is already updated by Sidebar via history.pushState
+        // No need to trigger Next.js navigation
     };
 
     const toggleSidebar = () => {
@@ -114,8 +237,11 @@ export default function AppLayout({ children, initialSidebarOpen = true }: { chi
         <ChatContext.Provider value={{
             chats,
             isLoading,
-            refreshChats: fetchChats, // Provide fetchChats as refreshChats
-            isSidebarOpen: sidebarOpen, // Provide sidebarOpen as isSidebarOpen
+            refreshChats: fetchChats,
+            loadMoreChats,
+            hasMoreChats,
+            isLoadingMore,
+            isSidebarOpen: sidebarOpen,
             toggleSidebar,
             closeSidebar
         }}>
@@ -183,6 +309,9 @@ export default function AppLayout({ children, initialSidebarOpen = true }: { chi
                         {children}
                     </div>
                 </div>
+
+                {/* Performance Monitor - only in development */}
+                {process.env.NODE_ENV === 'development' && <PerformanceMonitor />}
             </div>
         </ChatContext.Provider>
     )

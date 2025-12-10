@@ -24,16 +24,21 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 
     const { id } = await params;
 
+    // Run ownership check and message fetch in parallel for better performance
+    const [isOwner, chatMessages] = await Promise.all([
+      verifyChatOwnership(id, user.id),
+      db
+        .select()
+        .from(messages)
+        .where(eq(messages.chatId, id))
+        .orderBy(asc(messages.createdAt))
+    ]);
+
     // Verify ownership
-    if (!(await verifyChatOwnership(id, user.id))) {
+    if (!isOwner) {
       return NextResponse.json({ error: 'Chat not found' }, { status: 404 });
     }
 
-    const chatMessages = await db
-      .select()
-      .from(messages)
-      .where(eq(messages.chatId, id))
-      .orderBy(asc(messages.createdAt));
     return NextResponse.json(chatMessages);
   } catch {
     return NextResponse.json({ error: 'Failed to fetch messages' }, { status: 500 });
@@ -57,7 +62,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     if (!(await verifyChatOwnership(id, user.id))) {
       return NextResponse.json({ error: 'Chat not found' }, { status: 404 });
     }
-    
+
     await db
       .update(chats)
       .set({ title })

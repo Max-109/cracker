@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "./components/AuthContext";
 import { SettingsProvider } from "./components/SettingsContext";
+import { registerServiceWorker } from '@/lib/service-worker';
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -70,6 +71,11 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Register service worker for offline caching and performance
+  if (typeof window !== 'undefined') {
+    registerServiceWorker();
+  }
+  
   return (
     <html lang="en" suppressHydrationWarning>
       <head>

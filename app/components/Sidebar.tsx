@@ -1,8 +1,9 @@
 import { X, Pencil, Trash2, Check, MessageSquare, Clock, Sparkles, AlertTriangle, LogOut, Shield, User, GraduationCap, Microscope } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Skeleton } from './Skeleton';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useAuth } from './AuthContext';
+import { useChatContext } from './ChatContext';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -101,6 +102,7 @@ export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose
     const groupedChats = groupChatsByDate(chats);
     const { profile, signOut } = useAuth();
     const router = useRouter();
+    const { loadMoreChats, hasMoreChats, isLoadingMore } = useChatContext();
 
     const [editingId, setEditingId] = useState<string | null>(null);
     const [renameValue, setRenameValue] = useState("");
@@ -110,6 +112,19 @@ export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose
     const [showDeleteAllDialog, setShowDeleteAllDialog] = useState(false);
     const [isDeletingAll, setIsDeletingAll] = useState(false);
     const inputRef = useRef<HTMLInputElement>(null);
+    const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+    // Infinite scroll handler
+    const handleScroll = useCallback(() => {
+        const container = scrollContainerRef.current;
+        if (!container || isLoadingMore || !hasMoreChats) return;
+
+        // Load more when within 100px of the bottom
+        const isNearBottom = container.scrollHeight - container.scrollTop - container.clientHeight < 100;
+        if (isNearBottom) {
+            loadMoreChats();
+        }
+    }, [loadMoreChats, isLoadingMore, hasMoreChats]);
 
     useEffect(() => {
         if (editingId && inputRef.current) {
@@ -350,7 +365,11 @@ export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose
             </div>
 
             {/* Scrollable Content Area */}
-            <div className="flex-1 overflow-y-auto scrollbar-custom relative">
+            <div
+                ref={scrollContainerRef}
+                onScroll={handleScroll}
+                className="flex-1 overflow-y-auto scrollbar-custom relative"
+            >
                 <div className="relative min-h-full">
                     {/* Loading State - Absolute Overlay */}
                     <FadeWrapper show={!!isLoading} isAbsolute={true} className="z-10 bg-[var(--bg-sidebar)]">
@@ -387,15 +406,14 @@ export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose
                                             {chats.map((chat) => {
                                                 const isSelected = currentChatId === chat.id;
                                                 return (
-                                                    <Link
+                                                    <div
                                                         key={chat.id}
-                                                        href={`/chat/${chat.id}`}
-                                                        onClick={(e) => {
-                                                            if (animatingDeleteId) {
-                                                                e.preventDefault();
-                                                                return;
-                                                            }
-                                                            onSelectChat(chat.id);
+                                                        onClick={() => {
+                                                            if (animatingDeleteId) return;
+                                                            // INSTANT NAVIGATION: No Next.js, pure client-side
+                                                            window.history.pushState({}, '', `/chat/${chat.id}`);
+                                                            // Manually dispatch popstate to notify ChatInterface
+                                                            window.dispatchEvent(new PopStateEvent('popstate'));
                                                         }}
                                                         className={cn(
                                                             "group relative px-2 py-2 text-sm cursor-pointer transition-all duration-150 flex items-center gap-2.5 border-l-2",
@@ -472,7 +490,7 @@ export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose
                                                                 )}
                                                             </>
                                                         )}
-                                                    </Link>
+                                                    </div>
                                                 );
                                             })}
                                         </div>
@@ -480,6 +498,25 @@ export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose
                                 )
                             ))}
                         </div>
+
+                        {/* Load More Indicator */}
+                        {hasMoreChats && (
+                            <div className="py-4 flex justify-center">
+                                {isLoadingMore ? (
+                                    <div className="flex items-center gap-2 text-[var(--text-secondary)] text-xs">
+                                        <div className="w-4 h-4 border-2 border-[var(--text-accent)] border-t-transparent rounded-full animate-spin" />
+                                        <span>Loading more...</span>
+                                    </div>
+                                ) : (
+                                    <button
+                                        onClick={loadMoreChats}
+                                        className="text-xs text-[var(--text-secondary)] hover:text-[var(--text-accent)] transition-colors"
+                                    >
+                                        Load more chats
+                                    </button>
+                                )}
+                            </div>
+                        )}
                     </FadeWrapper>
                 </div>
             </div>

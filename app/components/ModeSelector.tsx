@@ -16,7 +16,7 @@ const MODE_OPTIONS = [
   { mode: 'chat' as const, icon: MessageCircle, label: 'Chat', desc: 'Conversation' },
   { mode: 'image' as const, icon: Image, label: 'Image', desc: 'Generate images' },
   { mode: 'learning' as const, icon: GraduationCap, label: 'Learn', desc: 'Learning mode' },
-  { mode: 'deep-search' as const, icon: Microscope, label: 'Research', desc: 'Deep research' },
+  // { mode: 'deep-search' as const, icon: Microscope, label: 'Research', desc: 'Deep research' }, // Hidden for now
 ];
 
 export function ModeSelector({ currentMode, onModeChange, disabled }: ModeSelectorProps) {
@@ -44,12 +44,12 @@ export function ModeSelector({ currentMode, onModeChange, disabled }: ModeSelect
       title={`Mode: ${currentOption.label} (click to change)`}
     >
       {/* Icon */}
-      <CurrentIcon 
-        size={16} 
-        strokeWidth={2} 
-        className="transition-transform duration-200 group-hover:scale-110" 
+      <CurrentIcon
+        size={16}
+        strokeWidth={2}
+        className="transition-transform duration-200 group-hover:scale-110"
       />
-      
+
       {/* Mode position indicator - 3 dots */}
       <div className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 flex gap-0.5">
         {MODE_OPTIONS.map((_, i) => (
