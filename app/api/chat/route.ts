@@ -438,13 +438,15 @@ export async function POST(req: Request) {
     if (effort === 'high') thinkingBudget = 24576;
 
     const googleProviderOpts = {
-      thinkingConfig: {
-        includeThoughts: true,
-        ...(modelId.includes('gemini-3')
-          ? { thinkingLevel: effort === 'low' ? 'low' : 'high' }
-          : { thinkingBudget }
-        ),
-      },
+      ...(!modelId.includes('image') ? {
+        thinkingConfig: {
+          includeThoughts: true,
+          ...(modelId.includes('gemini-3')
+            ? { thinkingLevel: effort === 'low' ? 'low' : 'high' }
+            : { thinkingBudget }
+          ),
+        },
+      } : {}),
     };
 
     // Clean model ID (remove google/ prefix if present)
@@ -495,7 +497,7 @@ export async function POST(req: Request) {
           console.log(`[CHUNK] First reasoning chunk detected at ${now - requestStartTime}ms`);
         }
       },
-      onFinish: async ({ text, reasoning, usage, steps }) => {
+      onFinish: async ({ text, reasoning, usage, steps, files }) => {
         const endTime = Date.now();
         let tps = 0;
 
@@ -602,6 +604,8 @@ export async function POST(req: Request) {
               state?: string;
               args?: unknown;
               result?: unknown;
+              mediaType?: string;
+              url?: string;
             }> = [];
 
             // Add tool invocations first (with results) - from ALL steps
@@ -632,6 +636,21 @@ export async function POST(req: Request) {
 
             if (text) {
               contentParts.push({ type: 'text', text });
+            }
+
+            // Handle generated images from files
+            if (files && files.length > 0) {
+              console.log(`[API] Processing ${files.length} generated files`);
+              for (const file of files) {
+                // Use base64 directly from GeneratedFile
+                const dataUrl = `data:${file.mediaType};base64,${file.base64}`;
+                contentParts.push({
+                  type: 'file',
+                  mediaType: file.mediaType,
+                  url: dataUrl,
+                });
+                console.log(`[API] Added generated image: ${file.mediaType}, ${file.base64.length} chars base64`);
+              }
             }
 
             if (contentParts.length > 0) {

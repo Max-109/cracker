@@ -1020,6 +1020,15 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
         if (imgPart.data && imgPart.mediaType) {
           generatedImages.push({ data: imgPart.data, mediaType: imgPart.mediaType });
         }
+      } else if (part.type === 'file') {
+        // Handle file parts (generated images from API route)
+        const filePart = part as { type: 'file'; url?: string; mediaType?: string };
+        if (filePart.url && filePart.mediaType?.startsWith('image/')) {
+          // Extract base64 from data URL if present (format: data:image/png;base64,XXXX)
+          const base64Match = filePart.url.match(/^data:[^;]+;base64,(.+)$/);
+          const base64Data = base64Match ? base64Match[1] : filePart.url;
+          generatedImages.push({ data: base64Data, mediaType: filePart.mediaType });
+        }
       }
     });
   } else if (typeof safeContent === 'string') {
