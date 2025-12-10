@@ -94,11 +94,12 @@ export default function AppLayout({ children, initialSidebarOpen = true }: { chi
                             cacheChats(data).catch(err =>
                                 console.error("Failed to update cache:", err)
                             );
-                            // Only update state if data is significantly different
+                            // Only update state if data is significantly different (new chats or TITLE changes)
                             const hasNewChats = data.length !== cachedChats.length ||
-                                data.some(newChat =>
-                                    !cachedChats.some(cachedChat => cachedChat.id === newChat.id)
-                                );
+                                data.some(newChat => {
+                                    const cached = cachedChats.find(c => c.id === newChat.id);
+                                    return !cached || cached.title !== newChat.title;
+                                });
                             if (hasNewChats) {
                                 setChats(data);
                             }

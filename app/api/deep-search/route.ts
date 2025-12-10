@@ -1,4 +1,4 @@
-import { createVertex } from "@ai-sdk/google-vertex";
+import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { generateText } from "ai";
 import { db } from "@/db";
 import { messages as messagesTable, chats as chatsTable } from "@/db/schema";
@@ -6,15 +6,8 @@ import { eq } from "drizzle-orm";
 
 export const maxDuration = 300; // 5 minutes for full research
 
-const vertex = createVertex({
-  project: process.env.GOOGLE_VERTEX_PROJECT,
-  location: process.env.GOOGLE_VERTEX_LOCATION || 'global',
-  googleAuthOptions: {
-    credentials: {
-      client_email: process.env.GOOGLE_CLIENT_EMAIL,
-      private_key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-    },
-  },
+const google = createGoogleGenerativeAI({
+  apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
 });
 
 const RESEARCH_MODEL = 'gemini-3-pro-preview';
@@ -31,7 +24,7 @@ function getDateContext(): string {
 async function generateClarifyingQuestions(query: string): Promise<string[]> {
   try {
     const result = await generateText({
-      model: vertex(RESEARCH_MODEL),
+      model: google(RESEARCH_MODEL),
       system: `You are a research assistant. Generate 2-3 clarifying questions about scope, use case, or constraints. Return ONLY a JSON array: ["Question 1?", "Question 2?"]`,
       messages: [{ role: 'user', content: query }],
     });
@@ -92,7 +85,7 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     const { query, chatId, clarifyAnswers, skipClarify } = body;
-    
+
     if (!query) {
       return new Response(JSON.stringify({ error: 'Query is required' }), { status: 400 });
     }
@@ -120,7 +113,7 @@ export async function POST(req: Request) {
 
     // Full research - streaming inline
     const { stream, send, close } = createSSEStream();
-    
+
     (async () => {
       const startTime = Date.now();
       try {
@@ -133,15 +126,15 @@ export async function POST(req: Request) {
         send({ type: 'phase', phase: 'planning', description: 'Planning research approach...' });
         send({ type: 'progress', percent: 5, message: 'Generating search queries...' });
 
-        const clarifyContext = clarifyAnswers 
+        const clarifyContext = clarifyAnswers
           ? `\n\nUser clarifications:\n${clarifyAnswers.map((a: { q: string; a: string }) => `Q: ${a.q}\nA: ${a.a}`).join('\n\n')}`
           : '';
-        
+
         const queryResult = await generateText({
-          model: vertex(RESEARCH_MODEL),
+          model: google(RESEARCH_MODEL),
           prompt: `${getDateContext()}\n\nGenerate 8 diverse search queries for: "${query}"${clarifyContext}\n\nCover: main topic, comparisons, reviews, news, technical specs, pricing, issues.\n\nReturn ONLY queries, one per line.`,
         });
-        
+
         const searchQueries = queryResult.text.split('\n').filter(q => q.trim().length > 0).slice(0, 8);
         console.log(`[DeepSearch] Generated ${searchQueries.length} queries`);
 
@@ -153,7 +146,7 @@ export async function POST(req: Request) {
           const sq = searchQueries[i];
           send({ type: 'search', query: sq, index: i + 1, total: searchQueries.length });
           send({ type: 'progress', percent: 15 + Math.floor((i / searchQueries.length) * 30), message: `Searching: ${sq.slice(0, 50)}...` });
-          
+
           const results = await tavilySearch(sq, 5);
           results.forEach(r => {
             if (!sources.has(r.url)) {
@@ -171,10 +164,10 @@ export async function POST(req: Request) {
 
         const topTitles = Array.from(sources.values()).slice(0, 15).map(s => s.title).join('\n');
         const ddResult = await generateText({
-          model: vertex(RESEARCH_MODEL),
+          model: google(RESEARCH_MODEL),
           prompt: `Generate 3 follow-up searches to fill gaps:\n\nOriginal: ${query}\nFindings:\n${topTitles}\n\nReturn ONLY queries, one per line.`,
         });
-        
+
         const deepQueries = ddResult.text.split('\n').filter(q => q.trim()).slice(0, 3);
         for (const dq of deepQueries) {
           const results = await tavilySearch(dq, 3);
@@ -193,14 +186,14 @@ export async function POST(req: Request) {
         send({ type: 'progress', percent: 70, message: 'Generating report...' });
 
         const finalSources = Array.from(sources.values()).slice(0, 40);
-        const sourcesContext = finalSources.map((s, i) => 
+        const sourcesContext = finalSources.map((s, i) =>
           `[${i + 1}] ${s.title}\nURL: ${s.url}\nContent: ${s.content.slice(0, 600)}`
         ).join('\n---\n');
 
         send({ type: 'report_start' });
 
         const reportResult = await generateText({
-          model: vertex(RESEARCH_MODEL),
+          model: google(RESEARCH_MODEL),
           prompt: `${getDateContext()}
 
 Create a comprehensive research report for: "${query}"
@@ -219,7 +212,7 @@ Be thorough and cite every claim.`,
         });
 
         const reportText = reportResult.text;
-        
+
         // Stream the report text in chunks
         const chunkSize = 100;
         for (let i = 0; i < reportText.length; i += chunkSize) {

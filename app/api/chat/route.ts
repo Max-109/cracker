@@ -1,4 +1,4 @@
-import { createVertex } from "@ai-sdk/google-vertex";
+import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { streamText, convertToModelMessages, UIMessage, stepCountIs } from "ai";
 import { db } from "@/db";
 import { messages as messagesTable, userSettings } from "@/db/schema";
@@ -39,16 +39,9 @@ export async function GET(req: Request) {
   }
 }
 
-// Initialize Vertex AI provider
-const vertex = createVertex({
-  project: process.env.GOOGLE_VERTEX_PROJECT,
-  location: process.env.GOOGLE_VERTEX_LOCATION || 'global',
-  googleAuthOptions: {
-    credentials: {
-      client_email: process.env.GOOGLE_CLIENT_EMAIL,
-      private_key: process.env.GOOGLE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
-    },
-  },
+// Initialize Google Generative AI provider
+const google = createGoogleGenerativeAI({
+  apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
 });
 
 // Generate system prompt with user settings
@@ -437,12 +430,19 @@ export async function POST(req: Request) {
     const systemPrompt = generateSystemPrompt(respLength, uName, uGender, isLearningMode, isLearningMode ? undefined : userCustomInstructions);
 
     // Configure Google provider options for thinking
+
+    // Gemini 2.5 uses thinkingBudget (tokens): min 512, max 24576
+    // We map generic efforts to specific token budgets
+    let thinkingBudget = 8192; // Default (Medium)
+    if (effort === 'low') thinkingBudget = 2048;
+    if (effort === 'high') thinkingBudget = 24576;
+
     const googleProviderOpts = {
       thinkingConfig: {
         includeThoughts: true,
         ...(modelId.includes('gemini-3')
           ? { thinkingLevel: effort === 'low' ? 'low' : 'high' }
-          : { thinkingBudget: effort === 'high' ? 24576 : effort === 'medium' ? 8192 : 2048 }
+          : { thinkingBudget }
         ),
       },
     };
@@ -466,7 +466,7 @@ export async function POST(req: Request) {
     let firstReasoningTime: number | null = null;
 
     const result = streamText({
-      model: vertex(cleanModelId),
+      model: google(cleanModelId),
       system: systemPrompt,
       messages: convertToModelMessages(processedMessages as UIMessage[]),
       ...(hasTools && { tools, stopWhen: stepCountIs(5), toolCallStreaming: true }), // Enable tool call streaming to send tool parts to client
