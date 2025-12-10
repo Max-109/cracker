@@ -13,7 +13,7 @@ export function MobileControlCenter() {
     const [activeTab, setActiveTab] = useState<'models' | 'modes' | 'settings'>('models');
 
     // Settings logic (reused from CommandPalette/ModelSelector)
-    const [currentModelId, setCurrentModelId] = usePersistedSetting('CHATGPT_MODEL_ID', "gemini-3-pro-preview");
+    const [currentModelId, setCurrentModelId] = usePersistedSetting('MODEL_ID', "gemini-3-pro-preview");
     const { chatMode, setChatMode } = useChatMode();
     const router = useRouter();
 

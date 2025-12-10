@@ -10,12 +10,12 @@ export type { ChatMode } from '@/app/components/SettingsContext';
 export function usePersistedSetting(key: string, fallback: string) {
   const { settings, updateSettings, isHydrated } = useSettings();
 
-  // Map old localStorage keys to settings fields
+  // Map localStorage keys to settings fields
   const keyMap: Record<string, keyof typeof settings> = {
-    'CHATGPT_MODEL_ID': 'currentModelId',
-    'CHATGPT_MODEL_NAME': 'currentModelName',
-    'CHATGPT_REASONING_EFFORT': 'reasoningEffort',
-    'CHATGPT_ACCENT_COLOR': 'accentColor',
+    'MODEL_ID': 'currentModelId',
+    'MODEL_NAME': 'currentModelName',
+    'REASONING_EFFORT': 'reasoningEffort',
+    'ACCENT_COLOR': 'accentColor',
   };
 
   const settingsKey = keyMap[key];

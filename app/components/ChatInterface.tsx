@@ -26,9 +26,9 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
   const { refreshChats, toggleSidebar, isSidebarOpen, chats } = useChatContext();
 
   // Settings
-  const [currentModelId, setCurrentModelId, isModelIdHydrated] = usePersistedSetting('CHATGPT_MODEL_ID', "gemini-3-pro-preview");
-  const [currentModelName, setCurrentModelName, isModelNameHydrated] = usePersistedSetting('CHATGPT_MODEL_NAME', "Expert");
-  const [rawReasoningEffort, setRawReasoningEffort] = usePersistedSetting('CHATGPT_REASONING_EFFORT', "medium");
+  const [currentModelId, setCurrentModelId, isModelIdHydrated] = usePersistedSetting('MODEL_ID', "gemini-3-pro-preview");
+  const [currentModelName, setCurrentModelName, isModelNameHydrated] = usePersistedSetting('MODEL_NAME', "Expert");
+  const [rawReasoningEffort, setRawReasoningEffort] = usePersistedSetting('REASONING_EFFORT', "medium");
   const { accentColor, setAccentColor, isHydrated: isColorHydrated } = useAccentColor();
   const { responseLength, setResponseLength, isHydrated: isResponseLengthHydrated } = useResponseLength();
   const { userName, setUserName, userGender, setUserGender, isHydrated: isProfileHydrated } = useUserProfile();

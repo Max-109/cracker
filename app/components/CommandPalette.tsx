@@ -47,8 +47,8 @@ export function CommandPalette() {
     // Context & Settings
     const { refreshChats, toggleSidebar, isSidebarOpen } = useChatContext();
     const { signOut } = useAuth();
-    const [currentModelId, setCurrentModelId] = usePersistedSetting('CHATGPT_MODEL_ID', "gemini-3-pro-preview");
-    const [currentModelName, setCurrentModelName] = usePersistedSetting('CHATGPT_MODEL_NAME', "Expert");
+    const [currentModelId, setCurrentModelId] = usePersistedSetting('MODEL_ID', "gemini-3-pro-preview");
+    const [currentModelName, setCurrentModelName] = usePersistedSetting('MODEL_NAME', "Expert");
     const { chatMode, setChatMode } = useChatMode();
     const { accentColor } = useAccentColor();
 
