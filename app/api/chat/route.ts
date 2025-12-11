@@ -545,7 +545,52 @@ export async function POST(req: Request) {
       return msg;
     });
 
-    console.log('[API] Processed messages:', processedMessages.length);
+    // Post-process: download any blob URLs in 'file' or 'image' parts to base64
+    // This allows us to send small URLs in the request (avoiding Vercel payload limits)
+    // but provide full base64 data to the model
+    const hydratedMessages = await Promise.all(processedMessages.map(async (msg: any) => {
+      if (msg.parts && Array.isArray(msg.parts)) {
+        const newParts = await Promise.all(msg.parts.map(async (part: any) => {
+          // Handle File parts with HTTP URLs (Blob Storage)
+          if (part.type === 'file' && typeof part.data === 'string' && part.data.startsWith('http')) {
+            console.log(`[API] Downloading file from Blob: ${part.data}`);
+            try {
+              const response = await fetch(part.data);
+              if (!response.ok) throw new Error(`Failed to fetch ${part.data}: ${response.statusText}`);
+              const arrayBuffer = await response.arrayBuffer();
+              const base64 = Buffer.from(arrayBuffer).toString('base64');
+              // Keep original props but replace data with base64
+              return { ...part, data: base64 };
+            } catch (e) {
+              console.error('[API] Failed to download file:', e);
+              return part;
+            }
+          }
+
+          // Handle Image parts with HTTP URLs (Blob Storage)
+          // Vertex AI often works better with base64 for inline images than public URLs
+          if (part.type === 'image' && typeof part.image === 'string' && part.image.startsWith('http')) {
+            console.log(`[API] Downloading image from Blob: ${part.image}`);
+            try {
+              const response = await fetch(part.image);
+              if (!response.ok) throw new Error(`Failed to fetch ${part.image}: ${response.statusText}`);
+              const arrayBuffer = await response.arrayBuffer();
+              const base64 = Buffer.from(arrayBuffer).toString('base64');
+              return { ...part, image: base64 };
+            } catch (e) {
+              console.error('[API] Failed to download image:', e);
+              return part;
+            }
+          }
+
+          return part;
+        }));
+        return { ...msg, parts: newParts };
+      }
+      return msg;
+    }));
+
+    console.log('[API] Processed messages:', hydratedMessages.length);
 
     // Generate system prompt
     const systemPrompt = generateSystemPrompt(respLength, uName, uGender, isLearningMode, subMode, isLearningMode ? undefined : userCustomInstructions);
@@ -591,7 +636,7 @@ export async function POST(req: Request) {
     const result = streamText({
       model: google(cleanModelId),
       system: systemPrompt,
-      messages: convertToModelMessages(processedMessages as UIMessage[]),
+      messages: convertToModelMessages(hydratedMessages as UIMessage[]),
       ...(hasTools && { tools, stopWhen: stepCountIs(5), toolCallStreaming: true }), // Enable tool call streaming to send tool parts to client
       providerOptions: {
         google: googleProviderOpts,

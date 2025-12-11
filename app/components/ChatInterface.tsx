@@ -748,11 +748,14 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
       | { type: 'file'; name: string; data: string; mediaType: string; mimeType: string; filename?: string };
 
     const processedAttachments: PreparedAttachment[] = attachments.reduce<PreparedAttachment[]>((acc, attachment) => {
-      if (!attachment.dataUrl) return acc;
+      const url = attachment.url || attachment.dataUrl;
+      console.log('Processing attachment:', attachment.name, 'URL present:', !!url, 'Is Blob:', attachment.url ? 'yes' : 'no');
+
+      if (!url) return acc;
       if (attachment.mediaType.startsWith('image/')) {
-        acc.push({ name: attachment.name, type: 'image', image: attachment.dataUrl, mediaType: attachment.mediaType });
+        acc.push({ name: attachment.name, type: 'image', image: url, mediaType: attachment.mediaType });
       } else {
-        acc.push({ name: attachment.name, type: 'file', data: attachment.dataUrl, mediaType: attachment.mediaType, mimeType: attachment.mediaType, filename: attachment.name });
+        acc.push({ name: attachment.name, type: 'file', data: url, mediaType: attachment.mediaType, mimeType: attachment.mediaType, filename: attachment.name });
       }
       return acc;
     }, []);

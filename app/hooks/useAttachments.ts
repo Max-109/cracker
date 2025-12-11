@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import { convertFile, isSupportedMimeType, isConvertibleMimeType, createTextDataUrl } from '@/lib/file-converter';
+import { upload } from '@vercel/blob/client';
 
 const generateId = () =>
   typeof crypto !== 'undefined' && 'randomUUID' in crypto
@@ -14,6 +15,7 @@ export type AttachmentItem = {
   name: string;
   mediaType: string;
   dataUrl?: string;
+  url?: string;
   previewUrl?: string;
   progress: number;
   isUploading: boolean;
@@ -173,29 +175,69 @@ export function useAttachments() {
     setAttachments(prev => [...prev, ...newAttachments]);
 
     newAttachments.forEach((attachment) => {
-      processFile(
-        attachment.file,
-        attachment.mediaType,
-        (percent) => {
-          updateAttachment(attachment.id, (prev) => ({ ...prev, progress: percent }));
-        }
-      ).then((result) => {
-        updateAttachment(attachment.id, (prev) => ({
-          ...prev,
-          dataUrl: result.dataUrl,
-          mediaType: result.finalMediaType,
-          wasConverted: result.wasConverted,
-          previewUrl: prev.originalMediaType?.startsWith('image/') ? result.dataUrl : prev.previewUrl,
-          isUploading: false,
-          progress: 100,
-        }));
-      }).catch((error) => {
-        updateAttachment(attachment.id, (prev) => ({
-          ...prev,
-          isUploading: false,
-          error: error instanceof Error ? error.message : 'Failed to process file'
-        }));
-      });
+      // Check file size - if > 4MB, use Vercel Blob
+      if (attachment.file.size > 4 * 1024 * 1024) {
+        // Generate unique filename to avoid "Blob already exists" error
+        // @vercel/blob/client types might not support addRandomSuffix, so we do it manually
+        const uniqueFilename = `${Date.now()}-${attachment.file.name}`;
+
+        // Upload to Vercel Blob
+        upload(uniqueFilename, attachment.file, {
+          access: 'public',
+          handleUploadUrl: '/api/upload',
+          onUploadProgress: (progressEvent) => {
+            updateAttachment(attachment.id, (prev) => ({
+              ...prev,
+              progress: progressEvent.percentage
+            }));
+          },
+        })
+          .then((blob) => {
+            updateAttachment(attachment.id, (prev) => ({
+              ...prev,
+              url: blob.url,
+              // For images, we can use the blob URL as preview
+              previewUrl: prev.originalMediaType?.startsWith('image/') ? blob.url : prev.previewUrl,
+              // We set dataUrl to blob.url as well so consumers using dataUrl might still work if they just put it in src
+              // But we should prefer 'url' property in consumers
+              isUploading: false,
+              progress: 100,
+            }));
+          })
+          .catch((error) => {
+            console.error('Blob upload error:', error);
+            updateAttachment(attachment.id, (prev) => ({
+              ...prev,
+              isUploading: false,
+              error: error instanceof Error ? error.message : 'Upload failed'
+            }));
+          });
+      } else {
+        // Small file - use existing local processing
+        processFile(
+          attachment.file,
+          attachment.mediaType,
+          (percent) => {
+            updateAttachment(attachment.id, (prev) => ({ ...prev, progress: percent }));
+          }
+        ).then((result) => {
+          updateAttachment(attachment.id, (prev) => ({
+            ...prev,
+            dataUrl: result.dataUrl,
+            mediaType: result.finalMediaType,
+            wasConverted: result.wasConverted,
+            previewUrl: prev.originalMediaType?.startsWith('image/') ? result.dataUrl : prev.previewUrl,
+            isUploading: false,
+            progress: 100,
+          }));
+        }).catch((error) => {
+          updateAttachment(attachment.id, (prev) => ({
+            ...prev,
+            isUploading: false,
+            error: error instanceof Error ? error.message : 'Failed to process file'
+          }));
+        });
+      }
     });
   }, [updateAttachment]);
 
@@ -238,7 +280,13 @@ export function useAttachments() {
     setAttachments([]);
   }, []);
 
-  const hasPendingAttachments = attachments.some(att => att.isUploading || !att.dataUrl);
+  const hasPendingAttachments = attachments.some(att => !att.error && (att.isUploading || (!att.dataUrl && !att.url)));
+
+  // Debug log for pending state
+  if (hasPendingAttachments) {
+    const pending = attachments.filter(att => !att.error && (att.isUploading || (!att.dataUrl && !att.url)));
+    console.log('Pending attachments:', pending.map(a => ({ name: a.name, uploading: a.isUploading, hasUrl: !!a.url, hasData: !!a.dataUrl })));
+  }
 
   return {
     attachments,
