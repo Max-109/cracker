@@ -336,49 +336,14 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const editFileInputRef = useRef<HTMLInputElement>(null);
   const messageContentRef = useRef<HTMLDivElement>(null);
-  const { addQuote } = useQuoteContext();
 
   // Image lightbox
   const { isOpen: isLightboxOpen, src: lightboxSrc, alt: lightboxAlt, openLightbox, closeLightbox } = useLightbox();
 
-  // Text selection detection for quote functionality
-  useEffect(() => {
-    const handleTextSelection = () => {
-      const selection = window.getSelection();
-      if (!selection || selection.isCollapsed || !selection.toString().trim()) {
-        return;
-      }
-
-      const selectedText = selection.toString().trim();
-      if (selectedText.length === 0) {
-        return;
-      }
-
-      // Check if selection is within our message content
-      if (messageContentRef.current && messageContentRef.current.contains(selection.anchorNode)) {
-        const range = selection.getRangeAt(0);
-        const rect = range.getBoundingClientRect();
-
-        if (rect.width === 0 || rect.height === 0) {
-          return;
-        }
-
-        // Add the selected text as a quote
-        addQuote(selectedText, 'message-selection');
-      }
-    };
-
-    const handleMouseUp = () => {
-      // Small delay to allow selection to stabilize
-      setTimeout(handleTextSelection, 50);
-    };
-
-    document.addEventListener('mouseup', handleMouseUp);
-
-    return () => {
-      document.removeEventListener('mouseup', handleMouseUp);
-    };
-  }, [addQuote]);
+  // NOTE: Quote functionality is now handled by QuoteButton.tsx which shows a floating
+  // "Quote" button when text is selected. The user must click the button to add a quote,
+  // rather than quoting instantly on selection. This allows users to select text without
+  // automatically triggering a quote.
 
   // File reading with progress for edit mode
   const readFileWithProgress = useCallback((file: File, onProgress: (percent: number) => void): Promise<string> => {
