@@ -32,6 +32,14 @@ export function QuoteButton() {
       setIsVisible(false);
     };
 
+    // Hide button when selection is cleared (e.g., clicking elsewhere or pressing a key)
+    const handleSelectionChange = () => {
+      const selection = window.getSelection();
+      if (!selection || selection.isCollapsed || !selection.toString().trim()) {
+        setIsVisible(false);
+      }
+    };
+
     const handleMouseUp = (e: MouseEvent) => {
       const selection = window.getSelection();
       if (!selection || selection.isCollapsed || !selection.toString().trim()) {
@@ -97,11 +105,13 @@ export function QuoteButton() {
     document.addEventListener('mouseup', handleMouseUp);
     // Use mousedown instead of click to dismiss - this gives better UX
     document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('selectionchange', handleSelectionChange);
     window.addEventListener('scroll', handleScroll, { passive: true });
 
     return () => {
       document.removeEventListener('mouseup', handleMouseUp);
       document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('selectionchange', handleSelectionChange);
       window.removeEventListener('scroll', handleScroll);
     };
   }, []);
