@@ -61,6 +61,7 @@ export async function PUT(request: NextRequest) {
       'responseLength',
       'learningMode',
       'chatMode',
+      'learningSubMode', // Add to allowed updates
       'customInstructions',
       'userName',
       'userGender',

@@ -825,6 +825,7 @@ export async function POST(req: Request) {
                 role: 'assistant',
                 content: contentParts,
                 model: modelId,
+                learningSubMode: subMode, // Save the mode used
                 tokensPerSecond: tps > 0 ? String(Math.round(tps * 10) / 10) : null,
               });
             }

@@ -46,6 +46,8 @@ const DEFAULT_ACCOUNT_SETTINGS: AccountSettings = {
 
 const DEFAULT_ACCENT_COLOR = '#af8787';
 const ACCENT_COLOR_KEY = 'CRACKER_ACCENT_COLOR'; // Must match the inline script in layout.tsx
+const LEARNING_MODE_KEY = 'CRACKER_LEARNING_MODE';
+const LEARNING_SUB_MODE_KEY = 'CRACKER_LEARNING_SUB_MODE';
 
 interface SettingsContextType {
   settings: Settings;
@@ -61,11 +63,31 @@ export function getAccentColorFromStorage(): string {
   return localStorage.getItem(ACCENT_COLOR_KEY) || DEFAULT_ACCENT_COLOR;
 }
 
+// Get learning mode from localStorage (browser-only)
+function getLearningModeFromStorage(): boolean {
+  if (typeof window === 'undefined') return DEFAULT_ACCOUNT_SETTINGS.learningMode;
+  const stored = localStorage.getItem(LEARNING_MODE_KEY);
+  return stored ? JSON.parse(stored) : DEFAULT_ACCOUNT_SETTINGS.learningMode;
+}
+
+// Get learning sub-mode from localStorage (browser-only)
+function getLearningSubModeFromStorage(): LearningSubMode {
+  if (typeof window === 'undefined') return DEFAULT_ACCOUNT_SETTINGS.learningSubMode;
+  return (localStorage.getItem(LEARNING_SUB_MODE_KEY) as LearningSubMode) || DEFAULT_ACCOUNT_SETTINGS.learningSubMode;
+}
+
 // Save accent color to localStorage and apply CSS vars
 function saveAccentColor(color: string) {
   if (typeof window === 'undefined') return;
   localStorage.setItem(ACCENT_COLOR_KEY, color);
   applyAccentColorCSS(color);
+}
+
+// Save learning settings to localStorage
+function saveLearningSettings(mode: boolean, subMode: LearningSubMode) {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(LEARNING_MODE_KEY, JSON.stringify(mode));
+  localStorage.setItem(LEARNING_SUB_MODE_KEY, subMode);
 }
 
 // Update favicon with accent color (exported for use in other components)
@@ -148,6 +170,8 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   const [settings, setSettings] = useState<Settings>(() => ({
     ...DEFAULT_ACCOUNT_SETTINGS,
     accentColor: typeof window !== 'undefined' ? getAccentColorFromStorage() : DEFAULT_ACCENT_COLOR,
+    learningMode: typeof window !== 'undefined' ? getLearningModeFromStorage() : DEFAULT_ACCOUNT_SETTINGS.learningMode,
+    learningSubMode: typeof window !== 'undefined' ? getLearningSubModeFromStorage() : DEFAULT_ACCOUNT_SETTINGS.learningSubMode,
   }));
   const [isLoading, setIsLoading] = useState(true);
   const [isHydrated, setIsHydrated] = useState(false);
@@ -155,7 +179,14 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   // Load accent color from localStorage on mount (browser-only)
   useEffect(() => {
     const storedColor = getAccentColorFromStorage();
-    setSettings(prev => ({ ...prev, accentColor: storedColor }));
+    const storedLearningMode = getLearningModeFromStorage();
+    const storedSubMode = getLearningSubModeFromStorage();
+    setSettings(prev => ({
+      ...prev,
+      accentColor: storedColor,
+      learningMode: storedLearningMode,
+      learningSubMode: storedSubMode
+    }));
   }, []);
 
   const fetchSettings = useCallback(async () => {
@@ -225,6 +256,14 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       updates = accountUpdates;
     }
 
+    // Handle learning modes persistence (localStorage + DB)
+    if (updates.learningMode !== undefined || updates.learningSubMode !== undefined) {
+      const newMode = updates.learningMode ?? settings.learningMode;
+      const newSubMode = updates.learningSubMode ?? settings.learningSubMode;
+      saveLearningSettings(newMode, newSubMode);
+      // We still want to send these to the API, so we don't remove them from updates
+    }
+
     // If there are no account settings to update, we're done
     if (Object.keys(updates).length === 0) return;
 
@@ -256,7 +295,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     if (!authLoading) {
       fetchSettings();
     }
-  }, [authLoading, fetchSettings]);
+  }, [authLoading, user, fetchSettings]);
 
   // Apply accent color to CSS variables when it changes
   useEffect(() => {

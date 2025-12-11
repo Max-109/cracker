@@ -162,6 +162,14 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
   const ignoreNextChatIdChangeRef = useRef(false);
   const isRegeneratingRef = useRef(false);
 
+  // Helper to generate IDs
+  const generateId = useCallback(() => Math.random().toString(36).substring(2, 15), []);
+
+  // Local state to track learning modes for live messages (before they are saved/reloaded from DB)
+  // This ensures the UI indicator doesn't change when user switches modes during streaming
+  const [localMessageModes, setLocalMessageModes] = useState<Record<string, LearningSubMode>>({});
+  const pendingLearningSubModeRef = useRef<LearningSubMode | undefined>(undefined);
+
   // Sync state when prop changes
   useEffect(() => {
     setCurrentChatId(initialChatId || null);
@@ -230,6 +238,30 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
   const typedMessages = messages as unknown as ChatMessage[];
   const isStreaming = status === 'submitted' || status === 'streaming';
   const isLoading = isStreaming || deepResearchState.isActive;
+
+  // Tag new assistant messages with the pending mode
+  useEffect(() => {
+    const lastMsg = typedMessages[typedMessages.length - 1];
+    if (lastMsg && lastMsg.role === 'assistant' && !localMessageModes[lastMsg.id] && pendingLearningSubModeRef.current) {
+      // Only tag if it doesn't have a mode already (from DB)
+      // Check if message object itself has it (from DB transform)
+      if (!(lastMsg as any).learningSubMode) {
+        setLocalMessageModes(prev => ({ ...prev, [lastMsg.id]: pendingLearningSubModeRef.current! }));
+      }
+    }
+  }, [typedMessages, localMessageModes]);
+
+  // Merge local modes into messages for display
+  const messagesWithMode = useMemo(() => {
+    return typedMessages.map(m => {
+      // Prioritize existing mode on message (from DB), then local map, then fallback to current (only if we wanted to force it, but we don't)
+      const specificMode = (m as any).learningSubMode || localMessageModes[m.id];
+      if (specificMode) {
+        return { ...m, learningSubMode: specificMode };
+      }
+      return m;
+    });
+  }, [typedMessages, localMessageModes]);
 
   // Handle stop - just stop the streaming
   const handleStop = useCallback(() => {
@@ -814,15 +846,25 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
           let titlePrompt = userMessage;
 
           // Add attachment filenames to help generate meaningful titles for PDF-based chats
-          if (processedAttachments.length > 0) {
-            const attachmentNames = processedAttachments.map(a => a.name).join(', ');
-            if (titlePrompt.trim()) {
-              titlePrompt = `${titlePrompt} [Attachments: ${attachmentNames}]`;
-            } else {
-              // If no text, use attachment names as primary context
-              titlePrompt = `User uploaded: ${attachmentNames}`;
-            }
+          const msgId = generateId();
+
+          // Track the learning submode for this new message and the upcoming assistant response
+          if (learningModeRef.current) {
+            const currentSubMode = learningSubModeRef.current;
+            setLocalMessageModes(prev => ({
+              ...prev,
+              [msgId]: currentSubMode
+            }));
+            pendingLearningSubModeRef.current = currentSubMode;
           }
+          const attachmentNames = processedAttachments.map(a => a.name).join(', ');
+          if (titlePrompt.trim()) {
+            titlePrompt = `${titlePrompt} [Attachments: ${attachmentNames}]`;
+          } else {
+            // If no text, use attachment names as primary context
+            titlePrompt = `User uploaded: ${attachmentNames}`;
+          }
+
 
           // Add learning mode context for better title generation
           if (chatModeRef.current === 'learning' && learningSubModeRef.current) {
@@ -883,6 +925,14 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
         return;
       }
 
+      // Capture mode for the optimistic message tracking
+      const msgId = generateId(); // Generate stable ID for user message
+      if (learningModeRef.current && learningSubModeRef.current) {
+        const mode = learningSubModeRef.current;
+        setLocalMessageModes(prev => ({ ...prev, [msgId]: mode }));
+        pendingLearningSubModeRef.current = mode;
+      }
+
       // Use direct streaming via sendMessage - transport body() provides model, chatId, etc.
       // For multimodal content (with attachments), use AI SDK's file format for BOTH images and files
       // Vertex AI only accepts the 'file' type format: { type: 'file', filename, mediaType, url }
@@ -915,9 +965,11 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
           return { type: 'text' as const, text: '' };
         });
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await sendMessage({ role: 'user', parts: aiParts } as any);
+        // @ts-ignore - ID is valid but not in some older type defs
+        await sendMessage({ id: msgId, role: 'user', parts: aiParts } as any);
       } else {
-        await sendMessage({ text: finalContent });
+        // @ts-ignore - ID is valid
+        await sendMessage({ id: msgId, text: finalContent });
       }
 
       setIsSending(false);
@@ -1035,7 +1087,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
         <QuoteProvider>
           {/* Messages - this container can have overflow hidden */}
           <MessageList
-            messages={typedMessages}
+            messages={messagesWithMode}
             isMessagesLoading={isMessagesLoading}
             isSending={isSending}
             isStreaming={isStreaming}

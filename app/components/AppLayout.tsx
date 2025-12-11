@@ -7,6 +7,7 @@ import { Sidebar } from './Sidebar';
 import { VisualEffects } from './VisualEffects';
 import { CommandPalette } from './CommandPalette';
 import { PerformanceMonitor, trackCacheHit, trackCacheMiss, trackLoadTime } from './PerformanceMonitor';
+import { useAuth } from './AuthContext';
 import { cn } from '@/lib/utils';
 
 interface Chat {
@@ -21,6 +22,7 @@ import Cookies from 'js-cookie';
 import { cacheChats, getCachedChats } from '@/lib/cache';
 
 export default function AppLayout({ children, initialSidebarOpen = true }: { children: React.ReactNode; initialSidebarOpen?: boolean }) {
+    const { user, isLoading: authLoading } = useAuth();
     const [chats, setChats] = useState<Chat[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [hasMoreChats, setHasMoreChats] = useState(true);
@@ -173,9 +175,12 @@ export default function AppLayout({ children, initialSidebarOpen = true }: { chi
     }, [chats, isLoadingMore, hasMoreChats]);
 
     useEffect(() => {
+        // Don't fetch while auth is still loading
+        if (authLoading) return;
+
         setIsLoading(true);
         fetchChats();
-    }, []);
+    }, [user, authLoading]);
 
     const startResizing = useCallback((mouseDownEvent: React.MouseEvent) => {
         setIsResizing(true);

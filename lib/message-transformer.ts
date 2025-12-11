@@ -28,6 +28,7 @@ export function transformDbMessageToUi(msg: {
     }>;
     model?: string | null;
     tokensPerSecond?: string | null;
+    learningSubMode?: 'summary' | 'flashcard' | 'teaching'; // Add property to return type
 } {
     let parts: Array<{
         type: string;
@@ -133,7 +134,8 @@ export function transformDbMessageToUi(msg: {
         role: msg.role,
         parts,
         model: msg.model,
-        tokensPerSecond: msg.tokensPerSecond
+        tokensPerSecond: msg.tokensPerSecond,
+        learningSubMode: (msg as any).learningSubMode // Cast to any because our input type definition here doesn't have it yet (it comes from DB)
     };
 }
 
@@ -146,6 +148,7 @@ export function transformMessagesToUi(messages: Array<{
     content: unknown;
     model?: string | null;
     tokensPerSecond?: string | null;
+    learningSubMode?: string | null; // Add property to input type
 }>): ReturnType<typeof transformDbMessageToUi>[] {
     return messages.map(transformDbMessageToUi);
 }

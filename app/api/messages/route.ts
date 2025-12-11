@@ -4,19 +4,20 @@ import { NextResponse } from 'next/server';
 
 export async function POST(req: Request) {
   try {
-    const { chatId, role, content, model, tokensPerSecond } = await req.json();
+    const { chatId, role, content, model, tokensPerSecond, learningSubMode } = await req.json();
     if (!chatId || !role || !content) {
-        return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
-    
+
     const [newMessage] = await db.insert(messages).values({
-        chatId,
-        role,
-        content,
-        model: model || null,
-        tokensPerSecond: tokensPerSecond ? String(tokensPerSecond) : null,
+      chatId,
+      role,
+      content,
+      model: model || null,
+      tokensPerSecond: tokensPerSecond ? String(tokensPerSecond) : null,
+      learningSubMode: learningSubMode || null,
     }).returning();
-    
+
     return NextResponse.json(newMessage);
   } catch (error) {
     console.error("Save message error:", error);

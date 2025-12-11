@@ -27,6 +27,7 @@ interface AuthContextType {
   isGuest: boolean;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
+  refreshAuth: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -36,6 +37,7 @@ const AuthContext = createContext<AuthContextType>({
   isGuest: false,
   signOut: async () => { },
   refreshProfile: async () => { },
+  refreshAuth: async () => { },
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -59,11 +61,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const checkGuestSession = useCallback(async () => {
+    console.log('[AuthContext] checkGuestSession called');
     try {
       const res = await fetch('/api/auth/guest/session');
+      console.log('[AuthContext] Guest session API response status:', res.status);
       if (res.ok) {
         const data = await res.json();
+        console.log('[AuthContext] Guest session data:', data);
         if (data.user) {
+          console.log('[AuthContext] Setting guest user:', data.user.id, data.user.name);
           setUser({
             id: data.user.id,
             email: data.user.email,
@@ -78,12 +84,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             guestLogin: data.user.guestLogin,
           });
           setIsGuest(true);
+          console.log('[AuthContext] Guest user set successfully');
           return true;
         }
       }
     } catch (error) {
-      console.error('Failed to check guest session:', error);
+      console.error('[AuthContext] Failed to check guest session:', error);
     }
+    console.log('[AuthContext] No guest session found');
     return false;
   }, []);
 
@@ -92,6 +100,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await fetchProfile(user.id);
     }
   }, [user, fetchProfile]);
+
+  // Refresh auth state - checks both Supabase and guest sessions
+  const refreshAuth = useCallback(async () => {
+    console.log('[AuthContext] refreshAuth called');
+    setIsLoading(true);
+
+    // First check for Supabase auth user
+    const { data: { user: supabaseUser } } = await supabase.auth.getUser();
+    console.log('[AuthContext] Supabase user:', supabaseUser?.id || 'none');
+
+    if (supabaseUser) {
+      setUser(supabaseUser);
+      await fetchProfile(supabaseUser.id);
+      setIsGuest(false);
+      setIsLoading(false);
+      console.log('[AuthContext] Set Supabase user, done');
+      return;
+    }
+
+    // If no Supabase user, check for guest session
+    console.log('[AuthContext] Checking guest session...');
+    const hasGuestSession = await checkGuestSession();
+    console.log('[AuthContext] Guest session result:', hasGuestSession);
+
+    if (!hasGuestSession) {
+      setUser(null);
+      setProfile(null);
+      setIsGuest(false);
+    }
+    setIsLoading(false);
+    console.log('[AuthContext] refreshAuth complete, isGuest:', hasGuestSession);
+  }, [supabase.auth, fetchProfile, checkGuestSession]);
 
   useEffect(() => {
     const getUser = async () => {
@@ -149,7 +189,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, profile, isLoading, isGuest, signOut, refreshProfile }}>
+    <AuthContext.Provider value={{ user, profile, isLoading, isGuest, signOut, refreshProfile, refreshAuth }}>
       {children}
     </AuthContext.Provider>
   );

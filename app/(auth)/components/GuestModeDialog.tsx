@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { UserCircle, AlertTriangle, ArrowRight, User } from 'lucide-react';
+import { useAuth } from '@/app/components/AuthContext';
 import { cn } from '@/lib/utils';
 
 interface GuestModeDialogProps {
@@ -16,9 +17,11 @@ export function GuestModeDialog({ open, onOpenChange }: GuestModeDialogProps) {
     const [isLoading, setIsLoading] = useState(false);
     const [focusedField, setFocusedField] = useState(false);
     const router = useRouter();
+    const { refreshAuth } = useAuth();
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        console.log('[GuestModeDialog] handleSubmit called');
         if (!login.trim()) {
             setError('Please enter a login name');
             return;
@@ -28,6 +31,7 @@ export function GuestModeDialog({ open, onOpenChange }: GuestModeDialogProps) {
         setIsLoading(true);
 
         try {
+            console.log('[GuestModeDialog] Calling /api/auth/guest with login:', login.trim().toLowerCase());
             const response = await fetch('/api/auth/guest', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -35,16 +39,22 @@ export function GuestModeDialog({ open, onOpenChange }: GuestModeDialogProps) {
             });
 
             const data = await response.json();
+            console.log('[GuestModeDialog] API response:', response.status, data);
 
             if (!response.ok) {
                 setError(data.error || 'Failed to sign in as guest');
                 return;
             }
 
-            // Successfully signed in as guest
+            // Successfully signed in as guest - refresh auth state and navigate
+            console.log('[GuestModeDialog] Guest login successful, calling refreshAuth...');
+            await refreshAuth();
+            console.log('[GuestModeDialog] refreshAuth completed, navigating...');
+            onOpenChange(false); // Close dialog
             router.push('/');
             router.refresh();
-        } catch {
+        } catch (err) {
+            console.error('[GuestModeDialog] Error:', err);
             setError('An unexpected error occurred');
         } finally {
             setIsLoading(false);

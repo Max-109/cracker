@@ -68,4 +68,5 @@ export interface ChatMessage {
   content: string | MessagePart[];
   createdAt?: Date;
   parts?: MessagePart[];
+  learningSubMode?: 'summary' | 'flashcard' | 'teaching'; // Add optional mode property
 }

@@ -560,7 +560,7 @@ export function MessageList({
                   onClarifySubmit={onClarifySubmit}
                   onSkipClarify={onSkipClarify}
                   chatMode={chatMode}
-                  learningSubMode={learningSubMode}
+                  learningSubMode={(m.learningSubMode as LearningSubMode) || learningSubMode}
                 />
               );
             })}

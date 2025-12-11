@@ -51,6 +51,7 @@ export const userSettings = pgTable('user_settings', {
   responseLength: integer('response_length').default(30),
   learningMode: boolean('learning_mode').default(false), // Deprecated: use chatMode
   chatMode: text('chat_mode').default('chat'), // 'chat' | 'learning' | 'deep-search'
+  learningSubMode: text('learning_sub_mode').default('teaching'), // 'summary' | 'flashcard' | 'teaching'
   customInstructions: text('custom_instructions'), // User's custom instructions (highest priority)
   // MCP settings - which servers are enabled for this user
   enabledMcpServers: jsonb('enabled_mcp_servers').default(['brave-search']), // Array of MCP server slugs
@@ -72,6 +73,7 @@ export const messages = pgTable('messages', {
   role: text('role').notNull(),
   content: jsonb('content').notNull(),
   model: text('model'),
+  learningSubMode: text('learning_sub_mode'), // Store the mode used for this message
   tokensPerSecond: text('tokens_per_second'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (table) => [
