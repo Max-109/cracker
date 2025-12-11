@@ -1,10 +1,10 @@
 'use client';
 
 import { useCallback } from 'react';
-import { useSettings, ChatMode } from '@/app/components/SettingsContext';
+import { useSettings, ChatMode, LearningSubMode } from '@/app/components/SettingsContext';
 
 export type ReasoningEffortLevel = 'low' | 'medium' | 'high';
-export type { ChatMode } from '@/app/components/SettingsContext';
+export type { ChatMode, LearningSubMode } from '@/app/components/SettingsContext';
 
 // Model settings hook - now uses SettingsContext
 export function usePersistedSetting(key: string, fallback: string) {
@@ -86,6 +86,16 @@ export function useChatMode() {
   };
 }
 
+// Learning sub-mode setting (used when chatMode === 'learning')
+export function useLearningSubMode() {
+  const { settings, updateSettings, isHydrated } = useSettings();
+
+  return {
+    learningSubMode: settings.learningSubMode,
+    setLearningSubMode: (mode: LearningSubMode) => updateSettings({ learningSubMode: mode }),
+    isHydrated,
+  };
+}
 // Custom instructions hook
 export function useCustomInstructions() {
   const { settings, updateSettings, isHydrated } = useSettings();

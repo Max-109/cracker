@@ -11,7 +11,9 @@ import {
   ChevronUp,
   Sparkles,
   Plus,
-  Minus
+  Minus,
+  FileText,
+  Layers
 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
@@ -21,25 +23,43 @@ import rehypeKatex from 'rehype-katex';
 const REMARK_PLUGINS = [remarkMath, remarkGfm];
 const REHYPE_PLUGINS = [rehypeKatex];
 
+// Learning sub-mode type
+type LearningSubMode = 'summary' | 'flashcard' | 'teaching';
+
 interface LearningModeIndicatorProps {
   isStreaming?: boolean;
   compact?: boolean;
   thinkContent?: string;
   isOpen?: boolean;
   onToggle?: () => void;
-  markdownComponents?: any; // Pass markdown components from parent
+  markdownComponents?: any;
+  learningSubMode?: LearningSubMode;
 }
 
-const LEARNING_LABELS = [
-  "Teaching",
-  "Explaining",
-  "Illustrating",
-  "Demonstrating",
-  "Clarifying",
-  "Guiding",
-  "Instructing",
-  "Enlightening"
-];
+// Mode-specific configurations
+const MODE_CONFIGS = {
+  summary: {
+    icon: FileText,
+    streamingLabels: ["Extracting", "Analyzing", "Structuring", "Synthesizing"],
+    completeLabel: "Summary Mode",
+    streamingDesc: "Extracting key concepts from document...",
+    completeDesc: "Comprehensive concept summary"
+  },
+  flashcard: {
+    icon: Layers,
+    streamingLabels: ["Creating", "Generating", "Formulating", "Building"],
+    completeLabel: "Flashcard Mode",
+    streamingDesc: "Generating flashcards from document...",
+    completeDesc: "Q&A flashcard set for review"
+  },
+  teaching: {
+    icon: GraduationCap,
+    streamingLabels: ["Teaching", "Explaining", "Illustrating", "Demonstrating", "Guiding"],
+    completeLabel: "Teaching Mode",
+    streamingDesc: "Preparing structured explanation...",
+    completeDesc: "Optimized for learning & understanding"
+  }
+};
 
 export function LearningModeIndicator({
   isStreaming,
@@ -47,20 +67,25 @@ export function LearningModeIndicator({
   thinkContent,
   isOpen = false,
   onToggle,
-  markdownComponents
+  markdownComponents,
+  learningSubMode = 'teaching'
 }: LearningModeIndicatorProps) {
-  const [randomLabel] = useState(() => LEARNING_LABELS[Math.floor(Math.random() * LEARNING_LABELS.length)]);
+  // Get mode config
+  const modeConfig = MODE_CONFIGS[learningSubMode];
+  const IconComponent = modeConfig.icon;
+  const [randomLabel] = useState(() => modeConfig.streamingLabels[Math.floor(Math.random() * modeConfig.streamingLabels.length)]);
 
   // Determine if this should be expandable (has thinking content)
   const isExpandable = !!thinkContent && thinkContent.trim().length > 0 && thinkContent.trim() !== '[REDACTED]';
-  const displayLabel = isStreaming ? randomLabel : "Learning Mode";
+  const displayLabel = isStreaming ? randomLabel : modeConfig.completeLabel;
+  const displayDesc = isStreaming ? modeConfig.streamingDesc : modeConfig.completeDesc;
 
   if (compact) {
     return (
       <div className="inline-flex items-center gap-1.5 px-2 py-1 bg-[var(--text-accent)]/10 border border-[var(--text-accent)]/30">
-        <GraduationCap size={12} className={cn("text-[var(--text-accent)]", isStreaming && "animate-pulse")} />
+        <IconComponent size={12} className={cn("text-[var(--text-accent)]", isStreaming && "animate-pulse")} />
         <span className="text-[9px] uppercase tracking-[0.12em] font-semibold text-[var(--text-accent)]">
-          Learn Mode
+          {modeConfig.completeLabel}
         </span>
       </div>
     );
@@ -78,7 +103,7 @@ export function LearningModeIndicator({
       >
         <div className="relative">
           <div className="w-8 h-8 flex items-center justify-center border border-[var(--text-accent)]/50 bg-[var(--text-accent)]/10">
-            <GraduationCap size={16} className={cn("text-[var(--text-accent)]", isStreaming && "animate-pulse")} />
+            <IconComponent size={16} className={cn("text-[var(--text-accent)]", isStreaming && "animate-pulse")} />
           </div>
           {isStreaming && (
             <div className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-[var(--text-accent)] animate-pulse" />
@@ -100,7 +125,7 @@ export function LearningModeIndicator({
             </div>
           </div>
           <div className="text-[9px] text-[var(--text-secondary)] mt-0.5">
-            {isStreaming ? "Preparing structured explanation..." : "Optimized for learning & understanding"}
+            {displayDesc}
           </div>
         </div>
 

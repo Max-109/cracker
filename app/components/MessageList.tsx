@@ -8,7 +8,7 @@ import { LoadingIndicator } from './LoadingIndicator';
 
 import { FadeWrapper, ErrorAlert } from '@/components/ui';
 import { Sparkles, Code, Lightbulb, PenLine, Zap, ArrowRight } from 'lucide-react';
-import type { ChatMode } from '@/app/hooks/usePersistedSettings';
+import type { ChatMode, LearningSubMode } from '@/app/hooks/usePersistedSettings';
 
 // Autoscroll hook using scrollIntoView
 function useAutoScroll(
@@ -156,6 +156,7 @@ const ThrottledMessageItem = memo(function ThrottledMessageItem({
   onClarifySubmit,
   onSkipClarify,
   chatMode,
+  learningSubMode,
 }: {
   message: ChatMessage;
   index: number;
@@ -169,6 +170,7 @@ const ThrottledMessageItem = memo(function ThrottledMessageItem({
   onClarifySubmit?: (answers: { q: string; a: string }[]) => void;
   onSkipClarify?: () => void;
   chatMode?: ChatMode;
+  learningSubMode?: LearningSubMode;
 }) {
   const extractContent = (): string | MessagePart[] => {
     // DEBUG: Log message structure to trace toolInvocations
@@ -359,6 +361,7 @@ const ThrottledMessageItem = memo(function ThrottledMessageItem({
       onClarifySubmit={onClarifySubmit}
       onSkipClarify={onSkipClarify}
       chatMode={chatMode}
+      learningSubMode={learningSubMode}
     />
   );
 });
@@ -372,6 +375,7 @@ interface MessageListProps {
   streamingStats: { tokensPerSecond: number; modelId: string | null };
   currentChatId: string | null;
   chatMode?: ChatMode;
+  learningSubMode?: LearningSubMode;
   error: Error | null | undefined;
   onEdit: (index: number, content: string, attachments?: EditAttachment[]) => void;
   onRetry: () => void;
@@ -399,6 +403,7 @@ export function MessageList({
   streamingStats,
   currentChatId,
   chatMode,
+  learningSubMode,
   error,
   onEdit,
   onRetry,
@@ -555,6 +560,7 @@ export function MessageList({
                   onClarifySubmit={onClarifySubmit}
                   onSkipClarify={onSkipClarify}
                   chatMode={chatMode}
+                  learningSubMode={learningSubMode}
                 />
               );
             })}

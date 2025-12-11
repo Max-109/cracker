@@ -5,7 +5,7 @@ import { QuoteButton } from './QuoteButton';
 import { QuotedTextDisplay } from './QuotedTextDisplay';
 import { ChatInput } from './ChatInput';
 import type { AttachmentItem } from '@/app/hooks/useAttachments';
-import type { ReasoningEffortLevel } from '@/app/hooks/usePersistedSettings';
+import type { ReasoningEffortLevel, LearningSubMode } from '@/app/hooks/usePersistedSettings';
 import type { ChatMode } from '@/app/hooks/usePersistedSettings';
 
 interface Quote {
@@ -29,6 +29,8 @@ interface EnhancedChatInputProps {
   onReasoningEffortChange: (effort: ReasoningEffortLevel) => void;
   chatMode: ChatMode;
   onChatModeChange: (mode: ChatMode) => void;
+  learningSubMode: LearningSubMode;
+  onLearningSubModeChange: (mode: LearningSubMode) => void;
   disabled?: boolean;
   chatId?: string | null;
 }
@@ -48,6 +50,8 @@ export function EnhancedChatInput({
   onReasoningEffortChange,
   chatMode,
   onChatModeChange,
+  learningSubMode,
+  onLearningSubModeChange,
   disabled,
   chatId,
 }: EnhancedChatInputProps) {
@@ -87,6 +91,8 @@ export function EnhancedChatInput({
         onReasoningEffortChange={onReasoningEffortChange}
         chatMode={chatMode}
         onChatModeChange={onChatModeChange}
+        learningSubMode={learningSubMode}
+        onLearningSubModeChange={onLearningSubModeChange}
         disabled={disabled}
         chatId={chatId}
       />

@@ -8,7 +8,7 @@ import type { ChatMessage, MessagePart } from '@/lib/chat-types';
 import { useChatContext } from './ChatContext';
 import { updateFavicon, getAccentColorFromStorage } from './SettingsContext';
 import { useAttachments } from '@/app/hooks/useAttachments';
-import { usePersistedSetting, useAccentColor, useResponseLength, useUserProfile, useLearningMode, useChatMode, useCustomInstructions, useEnabledMcpServers, ReasoningEffortLevel, ChatMode } from '@/app/hooks/usePersistedSettings';
+import { usePersistedSetting, useAccentColor, useResponseLength, useUserProfile, useLearningMode, useChatMode, useLearningSubMode, useCustomInstructions, useEnabledMcpServers, ReasoningEffortLevel, ChatMode, LearningSubMode } from '@/app/hooks/usePersistedSettings';
 import { ModelSelector } from './ModelSelector';
 import { EnhancedChatInput } from './EnhancedChatInput';
 import { MessageList } from './MessageList';
@@ -46,8 +46,9 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
   const { chatMode, setChatMode, isHydrated: isChatModeHydrated } = useChatMode();
   const { customInstructions, setCustomInstructions, isHydrated: isCustomInstructionsHydrated } = useCustomInstructions();
   const { enabledMcpServers, toggleMcpServer, isHydrated: isMcpServersHydrated } = useEnabledMcpServers();
+  const { learningSubMode, setLearningSubMode, isHydrated: isLearningSubModeHydrated } = useLearningSubMode();
 
-  const isSettingsHydrated = isModelIdHydrated && isModelNameHydrated && isColorHydrated && isResponseLengthHydrated && isProfileHydrated && isLearningModeHydrated && isChatModeHydrated && isCustomInstructionsHydrated && isMcpServersHydrated;
+  const isSettingsHydrated = isModelIdHydrated && isModelNameHydrated && isColorHydrated && isResponseLengthHydrated && isProfileHydrated && isLearningModeHydrated && isChatModeHydrated && isCustomInstructionsHydrated && isMcpServersHydrated && isLearningSubModeHydrated;
 
   // Settings dialog state
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
@@ -110,6 +111,8 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
   useEffect(() => { customInstructionsRef.current = customInstructions; }, [customInstructions]);
   const enabledMcpServersRef = useRef(enabledMcpServers);
   useEffect(() => { enabledMcpServersRef.current = enabledMcpServers; }, [enabledMcpServers]);
+  const learningSubModeRef = useRef(learningSubMode);
+  useEffect(() => { learningSubModeRef.current = learningSubMode; }, [learningSubMode]);
 
   // Re-apply favicon on mount to handle client-side navigation between chats
   useEffect(() => {
@@ -179,6 +182,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
       userName: userNameRef.current,
       userGender: userGenderRef.current,
       learningMode: learningModeRef.current,
+      learningSubMode: learningSubModeRef.current,
       customInstructions: customInstructionsRef.current,
       enabledMcpServers: enabledMcpServersRef.current,
       accentColor: getAccentColorFromStorage(),
@@ -803,10 +807,30 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
         });
 
         if (isNewChat) {
+          // Build a richer prompt for title generation that includes attachment context
+          let titlePrompt = userMessage;
+
+          // Add attachment filenames to help generate meaningful titles for PDF-based chats
+          if (processedAttachments.length > 0) {
+            const attachmentNames = processedAttachments.map(a => a.name).join(', ');
+            if (titlePrompt.trim()) {
+              titlePrompt = `${titlePrompt} [Attachments: ${attachmentNames}]`;
+            } else {
+              // If no text, use attachment names as primary context
+              titlePrompt = `User uploaded: ${attachmentNames}`;
+            }
+          }
+
+          // Add learning mode context for better title generation
+          if (chatModeRef.current === 'learning' && learningSubModeRef.current) {
+            const subModeLabels = { summary: 'Summary', flashcard: 'Flashcards', teaching: 'Learning' };
+            titlePrompt = `[${subModeLabels[learningSubModeRef.current]}] ${titlePrompt}`;
+          }
+
           fetch('/api/generate-title', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ chatId: activeChatId, prompt: userMessage })
+            body: JSON.stringify({ chatId: activeChatId, prompt: titlePrompt })
           }).then(() => refreshChats());
         }
       }
@@ -1016,6 +1040,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
             streamingStats={streamingStats}
             currentChatId={currentChatId}
             chatMode={chats.find(c => c.id === currentChatId)?.mode as ChatMode || chatMode}
+            learningSubMode={learningSubMode}
             error={error}
             onEdit={stableHandleEdit}
             onRetry={handleRetry}
@@ -1042,6 +1067,8 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
             onReasoningEffortChange={setReasoningEffort}
             chatMode={chatMode}
             onChatModeChange={handleChatModeChange}
+            learningSubMode={learningSubMode}
+            onLearningSubModeChange={setLearningSubMode}
             chatId={currentChatId}
           />
         </QuoteProvider>

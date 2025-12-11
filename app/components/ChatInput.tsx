@@ -4,9 +4,10 @@ import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { ArrowUp, Paperclip, Square, Sparkles, X, File as FileIcon, Zap, Brain, Flame, Mic, AudioLines } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { AttachmentItem } from '@/app/hooks/useAttachments';
-import type { ReasoningEffortLevel } from '@/app/hooks/usePersistedSettings';
+import type { ReasoningEffortLevel, LearningSubMode } from '@/app/hooks/usePersistedSettings';
 import { useVoiceRecording } from '@/app/hooks/useVoiceRecording';
 import { ModeSelector, ChatMode } from './ModeSelector';
+import { LearningModePanel } from './LearningModePanel';
 import { ImageLightbox, useLightbox } from './ImageLightbox';
 import {
   Textarea,
@@ -29,6 +30,8 @@ interface ChatInputProps {
   onReasoningEffortChange: (effort: ReasoningEffortLevel) => void;
   chatMode: ChatMode;
   onChatModeChange: (mode: ChatMode) => void;
+  learningSubMode: LearningSubMode;
+  onLearningSubModeChange: (mode: LearningSubMode) => void;
   disabled?: boolean;
   chatId?: string | null;
 }
@@ -48,6 +51,8 @@ export function ChatInput({
   onReasoningEffortChange,
   chatMode,
   onChatModeChange,
+  learningSubMode,
+  onLearningSubModeChange,
   disabled,
   chatId,
 }: ChatInputProps) {
@@ -259,6 +264,17 @@ export function ChatInput({
           className="hidden"
           multiple
         />
+
+        {/* Learning Mode Panel - Show when in learning mode and NOT streaming */}
+        {chatMode === 'learning' && !isLoading && (
+          <LearningModePanel
+            selectedMode={learningSubMode}
+            onModeChange={onLearningSubModeChange}
+            onFileSelect={onFileSelect}
+            attachments={attachments}
+            disabled={isLoading}
+          />
+        )}
 
         {/* Attachments Preview */}
         {attachments.length > 0 && (

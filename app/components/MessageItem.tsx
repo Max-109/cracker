@@ -15,7 +15,7 @@ import { LearningModeIndicator, LearningModeBadge } from './LearningModeIndicato
 import { LoadingIndicator } from './LoadingIndicator';
 import { ImageLightbox, useLightbox } from './ImageLightbox';
 import { ToolCallIndicator, type ToolInvocation } from './ToolCallIndicator';
-import type { ChatMode } from '@/app/hooks/usePersistedSettings';
+import type { ChatMode, LearningSubMode } from '@/app/hooks/usePersistedSettings';
 import { useQuoteContext } from './QuoteContext';
 import { useAnimatedText } from '@/app/hooks/useAnimatedText';
 import 'katex/dist/katex.min.css';
@@ -47,6 +47,7 @@ interface MessageItemProps {
   onClarifySubmit?: (answers: { q: string; a: string }[]) => void;
   onSkipClarify?: () => void;
   chatMode?: ChatMode;
+  learningSubMode?: LearningSubMode;
 }
 
 const THINKING_LABELS = [
@@ -321,7 +322,7 @@ function ModelBadge({ name, fullName, tokensPerSecond }: { name: string; fullNam
   );
 }
 
-export const MessageItem = memo(function MessageItem({ role, content, isThinking, isStreaming, onEdit, onRetry, modelName, fullModelName, tokensPerSecond, onClarifySubmit, onSkipClarify, chatMode }: MessageItemProps) {
+export const MessageItem = memo(function MessageItem({ role, content, isThinking, isStreaming, onEdit, onRetry, modelName, fullModelName, tokensPerSecond, onClarifySubmit, onSkipClarify, chatMode, learningSubMode }: MessageItemProps) {
   const [isThinkingOpen, setIsThinkingOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isSearchExpanded, setIsSearchExpanded] = useState(false);
@@ -1102,10 +1103,11 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
               isOpen={isThinkingOpen}
               onToggle={() => setIsThinkingOpen(!isThinkingOpen)}
               markdownComponents={markdownComponents}
+              learningSubMode={learningSubMode}
             />
           ) : chatMode === 'learning' && isStreaming ? (
             /* Learning Mode streaming without thinking yet */
-            <LearningModeIndicator isStreaming={true} />
+            <LearningModeIndicator isStreaming={true} learningSubMode={learningSubMode} />
           ) : chatMode === 'learning' && finalContent && !isDeepResearching ? (
             /* Learning Mode completed badge (no thinking) */
             <LearningModeBadge />

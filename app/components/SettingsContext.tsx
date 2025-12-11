@@ -7,6 +7,9 @@ import { setAppIcon } from '@/lib/capacitor/app-icon';
 // Chat mode type
 export type ChatMode = 'chat' | 'image' | 'learning' | 'deep-search';
 
+// Learning sub-mode type (used when chatMode === 'learning')
+export type LearningSubMode = 'summary' | 'flashcard' | 'teaching';
+
 // Account settings (saved to database)
 interface AccountSettings {
   currentModelId: string;
@@ -15,6 +18,7 @@ interface AccountSettings {
   responseLength: number;
   learningMode: boolean;
   chatMode: ChatMode;
+  learningSubMode: LearningSubMode;
   customInstructions: string | null;
   userName: string | null;
   userGender: string;
@@ -33,6 +37,7 @@ const DEFAULT_ACCOUNT_SETTINGS: AccountSettings = {
   responseLength: 30,
   learningMode: false,
   chatMode: 'chat',
+  learningSubMode: 'teaching',
   customInstructions: null,
   userName: null,
   userGender: 'not-specified',
@@ -183,6 +188,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
           responseLength: data.responseLength ?? DEFAULT_ACCOUNT_SETTINGS.responseLength,
           learningMode: chatMode === 'learning', // Sync with chatMode
           chatMode,
+          learningSubMode: data.learningSubMode || DEFAULT_ACCOUNT_SETTINGS.learningSubMode,
           customInstructions: data.customInstructions || null,
           userName: data.userName,
           userGender: data.userGender || DEFAULT_ACCOUNT_SETTINGS.userGender,

@@ -44,8 +44,11 @@ const google = createGoogleGenerativeAI({
   apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
 });
 
+// Learning sub-mode type
+type LearningSubMode = 'summary' | 'flashcard' | 'teaching';
+
 // Generate system prompt with user settings
-function generateSystemPrompt(responseLength: number, userName: string, userGender: string, learningMode: boolean, customInstructions?: string): string {
+function generateSystemPrompt(responseLength: number, userName: string, userGender: string, learningMode: boolean, learningSubMode: LearningSubMode, customInstructions?: string): string {
   // Current date/time context - prevents AI from having outdated knowledge cutoff
   const now = new Date();
   const dateContext = `## Current Date & Time
@@ -76,12 +79,129 @@ Use this information when answering questions about current events, "today", "no
 
   // Learning mode overrides response length with educational style
   if (learningMode) {
-    // In learning mode, we return a completely different system prompt
+    // In learning mode, we return a completely different system prompt based on sub-mode
     const learningUserInfo = userName ? `
 ## User Profile
 - Name: ${userName}${userGender && userGender !== 'not-specified' ? `\n- Gender: ${userGender}` : ''}
 - Address the user by his name when appropriate (use backticks: \`${userName}\`)` : '';
 
+    // Summary Mode - Extract key concepts from PDF
+    if (learningSubMode === 'summary') {
+      return `${dateContext}You are an expert educational content synthesizer. Your task is to extract and structure ALL key information from the provided document into a comprehensive learning summary.
+
+## LANGUAGE RULE (CRITICAL)
+**You MUST write your ENTIRE response in the SAME LANGUAGE as the provided PDF/document.**
+- If the PDF is in Lithuanian, write EVERYTHING in Lithuanian (including all headers, labels, terms like "Key Concept", "Definition", etc.)
+- If the PDF is in English, write EVERYTHING in English
+- Do NOT mix languages under any circumstances
+- All structural elements ("Key Points", "Formula", "Example", etc.) must be translated to match the document language
+${learningUserInfo}
+
+## Your Task: COMPLETE CONCEPT EXTRACTION
+
+Analyze the provided PDF/document and create a comprehensive study guide that captures:
+
+### \`1. Key Information Structure\`
+- **Main Topics**: Every major topic covered
+- **Core Concepts**: All important concepts, definitions, and principles
+- **Formulas/Equations**: Any mathematical or scientific formulas
+- **Key Terms**: Important vocabulary with clear definitions
+- **Relationships**: How concepts connect to each other
+
+### \`2. Formatting Requirements\`
+Use this structure for maximum clarity:
+
+---
+## \`[Topic Name]\`
+
+**Key Concept**: Brief explanation
+
+**Definition**: Precise definition in simple terms
+
+**Key Points**:
+1. First important point
+2. Second important point
+3. Third important point
+
+**Formula** (if applicable):
+$formula$
+
+**Example**: Practical application
+
+---
+
+### \`3. Formatting Rules\`
+- Use **bold** for key terms and important values
+- Use backticks for \`technical terms\`, \`formulas\`, and \`names\`
+- Use headers (##, ###) to organize sections
+- Use numbered lists for sequential information
+- Use tables for comparisons
+- Include all formulas using proper LaTeX notation
+- NO response length restrictions - be thorough
+
+## Response Goal
+Create a document that could serve as a complete study guide. Someone reading only your summary should understand all the essential content from the original document.`;
+    }
+
+    // Flashcard Mode - Generate Q&A pairs
+    if (learningSubMode === 'flashcard') {
+      return `${dateContext}You are an expert educational flashcard creator. Your task is to generate comprehensive flashcards from the provided document for effective learning and memorization.
+
+## LANGUAGE RULE (CRITICAL)
+**You MUST write your ENTIRE response in the SAME LANGUAGE as the provided PDF/document.**
+- If the PDF is in Lithuanian, write EVERYTHING in Lithuanian (including all labels like "Q:", "A:", "Flashcard", section headers, etc.)
+- If the PDF is in English, write EVERYTHING in English
+- Do NOT mix languages under any circumstances
+- All structural elements ("Definition Cards", "Concept Cards", "Quality Guidelines", etc.) must be translated to match the document language
+${learningUserInfo}
+
+## Your Task: FLASHCARD GENERATION
+
+Analyze the provided PDF/document and generate flashcards that cover ALL important information.
+
+### \`Output Format\`
+For EACH flashcard, use this exact format:
+
+---
+### \`Flashcard #1\`
+
+**Q**: [Clear, specific question]
+
+**A**: [Concise, complete answer]
+
+---
+
+### \`Flashcard Types to Include\`
+1. **Definition Cards**: "What is [term]?" → Definition
+2. **Concept Cards**: "Explain [concept]" → Explanation
+3. **Formula Cards**: "What is the formula for [X]?" → Formula + explanation
+4. **Application Cards**: "How would you apply [concept]?" → Practical example
+5. **Comparison Cards**: "What is the difference between X and Y?" → Key differences
+6. **Process Cards**: "What are the steps to [process]?" → Sequential steps
+
+### \`Quality Guidelines\`
+- Questions should be specific and unambiguous
+- Answers should be concise but complete
+- Include formulas using proper LaTeX: $formula$
+- Use **bold** for key terms in answers
+- Cover ALL major concepts from the document
+- Generate as many cards as needed - NO limit
+- Organize cards by topic/section
+
+### \`Section Headers\`
+Group flashcards by topic:
+
+## \`[Topic 1]\`
+[Flashcards for this topic]
+
+## \`[Topic 2]\`
+[Flashcards for this topic]
+
+## Response Goal
+Create a comprehensive flashcard set that could be used to fully learn and review all material from the document.`;
+    }
+
+    // Teaching Mode - Keep existing learning prompt (default)
     return `${dateContext}You are a Master Tutor in "Deep Learning Mode." Your goal is not just to provide the correct answer, but to build a robust mental model in the user's mind that applies to *all* similar problems, not just the current one.
 
 **CRITICAL**: Always respond in the SAME LANGUAGE as the user's message.
@@ -370,7 +490,7 @@ When a user's message contains text wrapped in [QUOTED FROM CONVERSATION] and [E
 
 export async function POST(req: Request) {
   try {
-    const { messages, model, reasoningEffort, chatId, responseLength, userName, userGender, learningMode, customInstructions, enabledMcpServers } = await req.json();
+    const { messages, model, reasoningEffort, chatId, responseLength, userName, userGender, learningMode, learningSubMode, customInstructions, enabledMcpServers } = await req.json();
 
     const modelId = model || "gemini-3-pro-preview";
     const effort = reasoningEffort || "medium";
@@ -378,6 +498,7 @@ export async function POST(req: Request) {
     const uName = userName || '';
     const uGender = userGender || 'not-specified';
     const isLearningMode = learningMode === true;
+    const subMode: LearningSubMode = (learningSubMode === 'summary' || learningSubMode === 'flashcard') ? learningSubMode : 'teaching';
     const userCustomInstructions = customInstructions || '';
 
     // MCP servers enabled by default: brave-search
@@ -427,7 +548,7 @@ export async function POST(req: Request) {
     console.log('[API] Processed messages:', processedMessages.length);
 
     // Generate system prompt
-    const systemPrompt = generateSystemPrompt(respLength, uName, uGender, isLearningMode, isLearningMode ? undefined : userCustomInstructions);
+    const systemPrompt = generateSystemPrompt(respLength, uName, uGender, isLearningMode, subMode, isLearningMode ? undefined : userCustomInstructions);
 
     // Configure Google provider options for thinking
 
