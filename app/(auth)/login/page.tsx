@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { LogIn, Mail, Lock, AlertTriangle, Sparkles, ArrowRight, Shield, Fingerprint } from 'lucide-react';
+import { LogIn, Mail, Lock, AlertTriangle, Sparkles, ArrowRight, Fingerprint } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils';
 import { AuthBackground } from '../components/AuthBackground';
@@ -240,19 +240,13 @@ export default function LoginPage() {
             </div>
           </div>
 
-          {/* Security Badge - Redesigned */}
-          <div className="mt-6 flex flex-col items-center gap-3">
-            <div className="flex items-center gap-3">
-              <div className="w-6 h-6 border border-[var(--border-color)] bg-[#1a1a1a] flex items-center justify-center">
-                <Shield size={12} className="text-[var(--text-accent)]" />
-              </div>
-              <div className="h-px w-8 bg-gradient-to-r from-[var(--border-color)] to-transparent" />
-              <div className="w-6 h-6 border border-[var(--border-color)] bg-[#1a1a1a] flex items-center justify-center">
-                <Fingerprint size={12} className="text-[var(--text-secondary)]" />
-              </div>
+          {/* Badge */}
+          <div className="mt-6 flex flex-col items-center gap-2">
+            <div className="w-6 h-6 border border-[var(--border-color)] bg-[#1a1a1a] flex items-center justify-center">
+              <Fingerprint size={12} className="text-[var(--text-secondary)]" />
             </div>
             <span className="text-[8px] uppercase tracking-[0.2em] text-[var(--text-secondary)]">
-              End-to-End Encrypted
+              Your AI Assistant
             </span>
           </div>
         </div>
