@@ -29,6 +29,7 @@
     "drizzle-orm": "^0.44.7",
     "framer-motion": "^12.23.25",
     "idb": "^8.0.3",
+    "jose": "^6.1.3",
     "js-cookie": "^3.0.5",
     "katex": "^0.16.25",
     "lightningcss": "^1.30.2",

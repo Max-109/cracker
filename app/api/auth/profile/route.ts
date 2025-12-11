@@ -5,7 +5,7 @@ import { eq } from 'drizzle-orm';
 
 export async function GET(request: NextRequest) {
   const userId = request.nextUrl.searchParams.get('userId');
-  
+
   if (!userId) {
     return NextResponse.json({ error: 'User ID required' }, { status: 400 });
   }
@@ -17,6 +17,8 @@ export async function GET(request: NextRequest) {
         email: users.email,
         name: users.name,
         isAdmin: users.isAdmin,
+        isGuest: users.isGuest,
+        guestLogin: users.guestLogin,
       })
       .from(users)
       .where(eq(users.id, userId));

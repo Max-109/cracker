@@ -2,7 +2,7 @@ import { db } from '@/db';
 import { chats, messages } from '@/db/schema';
 import { eq, asc, and } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { getAuthUser } from '@/lib/auth';
 
 // Helper to verify chat ownership
 async function verifyChatOwnership(chatId: string, userId: string): Promise<boolean> {
@@ -15,8 +15,7 @@ async function verifyChatOwnership(chatId: string, userId: string): Promise<bool
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = await getAuthUser();
 
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -47,8 +46,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = await getAuthUser();
 
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -75,8 +73,7 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
 
 export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = await getAuthUser();
 
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

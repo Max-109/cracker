@@ -6,10 +6,13 @@ export const users = pgTable('users', {
   email: text('email').notNull().unique(),
   name: text('name'),
   isAdmin: boolean('is_admin').default(false).notNull(),
+  isGuest: boolean('is_guest').default(false).notNull(), // Guest mode users
+  guestLogin: text('guest_login'), // Login name for guest users (unique for guests)
   invitationCodeId: uuid('invitation_code_id'), // Reference to invitation_codes.id
   createdAt: timestamp('created_at').defaultNow().notNull(),
 }, (table) => [
   index('users_email_idx').on(table.email),
+  index('users_guest_login_idx').on(table.guestLogin),
 ]);
 
 // Invitation codes table

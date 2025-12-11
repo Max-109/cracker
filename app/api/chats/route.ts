@@ -2,12 +2,11 @@ import { db } from '@/db';
 import { chats, messages } from '@/db/schema';
 import { desc, eq, inArray } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { getAuthUser } from '@/lib/auth';
 
 export async function GET() {
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = await getAuthUser();
 
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -27,8 +26,7 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = await getAuthUser();
 
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -37,7 +35,7 @@ export async function POST(req: Request) {
     const { title, mode } = await req.json();
     const [newChat] = await db
       .insert(chats)
-      .values({ 
+      .values({
         title: title || 'New Chat',
         userId: user.id,
         mode: mode || 'chat',
@@ -51,8 +49,7 @@ export async function POST(req: Request) {
 
 export async function DELETE() {
   try {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = await getAuthUser();
 
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

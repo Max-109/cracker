@@ -3,11 +3,12 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { LogIn, Mail, Lock, AlertTriangle, Sparkles, ArrowRight, Fingerprint } from 'lucide-react';
+import { LogIn, Mail, Lock, AlertTriangle, Sparkles, ArrowRight, Fingerprint, UserCircle } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils';
 import { AuthBackground } from '../components/AuthBackground';
 import { FloatingIcons } from '../components/FeatureShowcase';
+import { GuestModeDialog } from '../components/GuestModeDialog';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -17,6 +18,7 @@ export default function LoginPage() {
   const [focusedField, setFocusedField] = useState<'email' | 'password' | null>(null);
   const [isPageMounted, setIsPageMounted] = useState(false);
   const [isExiting, setIsExiting] = useState(false);
+  const [guestDialogOpen, setGuestDialogOpen] = useState(false);
   const router = useRouter();
   const supabase = createClient();
 
@@ -225,7 +227,25 @@ export default function LoginPage() {
             </form>
 
             {/* Footer */}
-            <div className="px-5 py-4 border-t border-[var(--border-color)] bg-[#0f0f0f]">
+            <div className="px-5 py-4 border-t border-[var(--border-color)] bg-[#0f0f0f] space-y-3">
+              {/* Guest Mode Button */}
+              <button
+                type="button"
+                onClick={() => setGuestDialogOpen(true)}
+                className="w-full py-2.5 text-[10px] uppercase tracking-[0.14em] font-bold border border-[var(--border-color)] bg-[#1a1a1a] text-[var(--text-secondary)] hover:border-[var(--text-accent)]/50 hover:text-[var(--text-accent)] transition-all duration-150 flex items-center justify-center gap-2 group"
+              >
+                <UserCircle size={14} className="group-hover:text-[var(--text-accent)] transition-colors" />
+                Continue as Guest
+              </button>
+
+              {/* Divider */}
+              <div className="flex items-center gap-3">
+                <div className="flex-1 h-px bg-[var(--border-color)]" />
+                <span className="text-[8px] uppercase tracking-wider text-[var(--text-secondary)]">or</span>
+                <div className="flex-1 h-px bg-[var(--border-color)]" />
+              </div>
+
+              {/* Register Link */}
               <p className="text-[10px] text-[var(--text-secondary)] text-center">
                 Don&apos;t have an account?{' '}
                 <Link
@@ -251,6 +271,10 @@ export default function LoginPage() {
           </div>
         </div>
       </div>
+
+      {/* Guest Mode Dialog */}
+      <GuestModeDialog open={guestDialogOpen} onOpenChange={setGuestDialogOpen} />
     </div>
   );
 }
+
