@@ -1,0 +1,1671 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Fira+Code:wght@400;500;600&display=swap');
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  /* BACKGROUNDS - Dark but not pure black */
+  --bg-main: #1a1a1a;
+  --bg-main-rgb: 26, 26, 26;
+  --text-accent-rgb: 175, 135, 135;
+
+  /* Glassmorphism Bases */
+  --bg-sidebar: rgba(20, 20, 20, 0.7);
+  --bg-sidebar-solid: #141414;
+
+  --bg-input: #1e1e1e;
+  --bg-hover: #252525;
+  --bg-code: #222222;
+
+  /* TEXT */
+  --text-primary: #FFFFFF;
+  --text-secondary: #555555;
+  --text-accent: #af8787;
+
+  /* BORDERS */
+  --border-color: #333333;
+  --border-active: #af8787;
+
+  /* UTILITIES */
+  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+  --radius: 0px;
+  --bubble-user: transparent;
+
+  /* Shadcn/Tailwind Theme Mapped to OpenCode Colors */
+  --background: var(--bg-main);
+  --foreground: var(--text-primary);
+
+  --card: var(--bg-main);
+  --card-foreground: var(--text-primary);
+
+  --popover: var(--bg-main);
+  --popover-foreground: var(--text-primary);
+
+  --primary: var(--text-accent);
+  --primary-foreground: #000000;
+
+  --secondary: var(--bg-code);
+  --secondary-foreground: var(--text-primary);
+
+  --muted: #232323;
+  --muted-foreground: var(--text-secondary);
+
+  --accent: #282828;
+  --accent-foreground: var(--text-accent);
+
+  --destructive: #ef4444;
+  --destructive-foreground: #000000;
+
+  --border: var(--border-color);
+  --input: var(--border-color);
+  --ring: var(--border-active);
+
+  --chart-1: #af8787;
+  --chart-2: #6bb032;
+  --chart-3: #5a9428;
+  --chart-4: #48781e;
+  --chart-5: #af8787;
+
+  --sidebar: var(--bg-sidebar);
+  --sidebar-foreground: var(--text-primary);
+  --sidebar-primary: #1f1f1f;
+  --sidebar-primary-foreground: var(--text-primary);
+  --sidebar-accent: #1f1f1f;
+  --sidebar-accent-foreground: var(--text-primary);
+  --sidebar-border: var(--border-color);
+  --sidebar-ring: var(--border-active);
+
+  /* Thinking Loader Variables (Defaults) */
+  --accent-h: 93;
+  --accent-s: 59%;
+  --accent-l: 52%;
+  --accent-contrast: #000000;
+}
+
+body {
+  background-color: var(--bg-main);
+  color: var(--foreground);
+  font-family: var(--font-mono);
+  margin: 0;
+  padding: 0;
+  height: 100vh;
+  height: 100dvh;
+  /* Dynamic viewport height for mobile */
+  -webkit-text-size-adjust: 100%;
+  /* Prevent iOS text size adjustment */
+}
+
+/* iOS Safe Area Support */
+@supports (padding: env(safe-area-inset-bottom)) {
+  body {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* ============================================
+   CAPACITOR APP / WEBVIEW SAFE AREAS
+   For Android WebView status bar & navigation
+   ============================================ */
+
+@media (max-width: 768px) {
+
+  /* Add safe area padding to the entire app body */
+  body {
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    background-color: var(--bg-main);
+  }
+
+  /* Input area - add extra bottom padding for navigation bar */
+  .mobile-input-area,
+  [data-input-area="true"] {
+    padding-bottom: 20px;
+    background-color: var(--bg-main);
+  }
+
+  /* Larger touch targets for mobile */
+  .mobile-input-area button,
+  .mobile-input-area [role="button"],
+  [data-input-area="true"] button {
+    min-height: 44px;
+    min-width: 44px;
+  }
+
+  /* Larger icons in input area */
+  .mobile-input-area svg,
+  [data-input-area="true"] svg {
+    width: 22px;
+    height: 22px;
+  }
+
+  /* Textarea larger on mobile */
+  .mobile-input-area textarea,
+  [data-input-area="true"] textarea {
+    min-height: 52px;
+    font-size: 16px;
+  }
+
+  /* Prevent placeholder text from wrapping */
+  .mobile-input-area textarea::placeholder,
+  [data-input-area="true"] textarea::placeholder {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+* {
+  border-color: var(--border-color);
+}
+
+::selection {
+  background: var(--text-accent);
+  color: #000000;
+}
+
+input,
+textarea {
+  caret-color: var(--text-accent);
+}
+
+button,
+input,
+textarea,
+select {
+  border-radius: 0;
+  font-family: var(--font-mono);
+}
+
+:focus-visible {
+  outline: 1px solid var(--border-active);
+  outline-offset: 0;
+  box-shadow: none;
+}
+
+/* Keep custom theme inline for usage in JS/Tailwind config if needed */
+@theme inline {
+  --color-gpt-main: var(--bg-main);
+  --color-gpt-sidebar: var(--bg-sidebar);
+  --color-gpt-input: var(--bg-input);
+  --color-gpt-hover: var(--bg-hover);
+  --color-gpt-text: var(--text-primary);
+  --color-gpt-subtext: var(--text-secondary);
+  --color-gpt-border: var(--border-color);
+  --color-gpt-bubble: var(--bubble-user);
+
+  /* Shadcn Mappings */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --radius-xl: 0px;
+}
+
+/* Accent colored bullet points (list markers) */
+.prose ul>li::marker,
+.prose ol>li::marker {
+  color: var(--text-accent);
+}
+
+/* Accent colored bold text */
+.prose strong,
+.prose b {
+  color: var(--text-accent);
+  font-weight: 600;
+}
+
+/* Mobile Wrapping Fixes - Critical for long strings like LaTeX */
+.prose {
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  hyphens: auto;
+}
+
+.prose * {
+  max-width: 100%;
+}
+
+/* KaTeX specific overflow fixes */
+.katex-display {
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  padding: 0.75rem 1rem;
+  margin: 0.75rem 0;
+  background: var(--bg-code);
+  border: 1px solid var(--border-color);
+  border-left: 2px solid var(--text-accent);
+}
+
+.katex {
+  word-break: normal !important;
+  white-space: normal;
+  color: var(--text-primary);
+}
+
+/* Inline math styling - similar to code backticks */
+.katex:not(.katex-display .katex) {
+  background: var(--bg-code);
+  border: 1px solid var(--border-color);
+  padding: 0.15rem 0.4rem;
+  margin: 0 0.1rem;
+}
+
+.katex-html {
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+/* Prevent long equations from breaking layout */
+.katex .base {
+  max-width: 100%;
+}
+
+/* Accent color for KaTeX elements */
+.katex .mord.text,
+.katex .mord.textit,
+.katex .mord.textbf {
+  color: var(--text-accent);
+}
+
+/* Style textcolor commands - KaTeX uses .mord.text for \textcolor */
+.katex .mord[style*="color"] {
+  font-weight: 500;
+}
+
+/* Mobile-specific fixes */
+@media (max-width: 768px) {
+
+  /* Prevent zoom on input focus in iOS Safari */
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+
+  /* Ensure code blocks scroll horizontally */
+  .syntax-highlight {
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Prevent horizontal overflow on message containers */
+  .prose {
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  /* Force all containers to respect viewport width */
+  .w-full,
+  .flex-1,
+  main,
+  [class*="max-w-"] {
+    max-width: 100vw !important;
+    overflow-x: hidden;
+  }
+
+  /* CRITICAL: Allow dropdowns to overflow on mobile */
+  .dropdown-container,
+  .dropdown-container * {
+    overflow: visible !important;
+  }
+
+  /* Code blocks on mobile should scroll */
+  .syntax-highlight,
+  pre,
+  code {
+    max-width: 100%;
+  }
+}
+
+/* Code block wrap mode - applies to all nested elements including inline styles */
+.code-wrap-enabled,
+.code-wrap-enabled *,
+.code-wrap-enabled pre,
+.code-wrap-enabled code,
+.code-wrap-enabled span,
+.code-wrap-enabled div {
+  white-space: pre-wrap !important;
+  word-break: break-word !important;
+  overflow-wrap: anywhere !important;
+}
+
+/* Prevent code blocks from breaking parent layout */
+.prose pre,
+.prose .syntax-highlight {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+/* Message container must contain overflow - critical for mobile */
+.flex-1.text-\[\#E5E5E5\],
+.flex-1.space-y-3 {
+  overflow-x: hidden;
+  max-width: 100%;
+  min-width: 0;
+}
+
+/* Ensure all message wrappers contain overflow */
+.mb-6.group {
+  overflow: hidden;
+  max-width: 100%;
+}
+
+/* Force text wrapping on any element that might overflow */
+.break-words,
+[style*="overflow-wrap"] {
+  word-break: break-word !important;
+  overflow-wrap: anywhere !important;
+  min-width: 0;
+}
+
+/* Custom Table Styles for Markdown */
+.prose table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1em 0;
+}
+
+.prose th,
+.prose td {
+  border: 1px solid var(--border-color);
+  padding: 0.5em;
+  text-align: left;
+}
+
+.prose th {
+  background-color: var(--bg-input);
+  font-weight: 600;
+}
+
+/* Custom Scrollbar - Thin & Dark */
+.scrollbar-custom {
+  /* Hides standard scrollbar in Firefox */
+  scrollbar-width: thin;
+  scrollbar-color: #424242 transparent;
+}
+
+/* Webkit Scrollbar Styling (Chrome, Safari, Edge) */
+.scrollbar-custom::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.scrollbar-custom::-webkit-scrollbar-track {
+  background: transparent;
+  margin-block: 4px;
+  /* Optional: margin at ends */
+}
+
+.scrollbar-custom::-webkit-scrollbar-thumb {
+  background-color: transparent;
+  /* Hidden by default */
+  border-radius: 10px;
+  transition: background-color 0.2s ease;
+}
+
+/* Only show thumb on hover of the container, chatgpt style */
+.scrollbar-custom:hover::-webkit-scrollbar-thumb {
+  background-color: #424242;
+}
+
+.scrollbar-custom::-webkit-scrollbar-thumb:hover {
+  background-color: #676767;
+}
+
+/* Hide corner */
+.scrollbar-custom::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Scanner / Thinking Animation */
+.thinking-loader {
+  --dot-size: 6px;
+  --gap: 3px;
+  --runner-size: 20px;
+  --count: 10;
+  --track-dot-color: #1f1f1f;
+  margin-left: 10px;
+  --step-time: 0.12s;
+  --pause-time: 0.3s;
+  --tail-lag: calc(var(--step-time) * 4);
+  --step-size: calc(var(--dot-size) + var(--gap));
+  --move-duration: calc(var(--step-time) * (var(--count) - 1));
+  --wait-phase: calc(var(--tail-lag) + var(--pause-time));
+  --total-cycle: calc((var(--move-duration) * 2) + (var(--wait-phase) * 2));
+  --runner-offset: calc((var(--runner-size) - var(--dot-size)) / -2);
+
+  position: relative;
+  width: calc((var(--dot-size) * var(--count)) + (var(--gap) * (var(--count) - 1)));
+  height: var(--runner-size);
+  display: flex;
+  align-items: center;
+}
+
+.thinking-track {
+  display: flex;
+  gap: var(--gap);
+  width: 100%;
+  z-index: 0;
+}
+
+.thinking-track span {
+  display: block;
+  width: var(--dot-size);
+  height: var(--dot-size);
+  background-color: var(--track-dot-color);
+}
+
+.thinking-runner {
+  position: absolute;
+  left: var(--runner-offset);
+  top: 0;
+  width: var(--runner-size);
+  height: var(--runner-size);
+  box-sizing: border-box;
+  animation: thinking-move-cycle var(--total-cycle) infinite;
+  animation-timing-function: steps(calc(var(--count) - 1));
+}
+
+.thinking-head {
+  z-index: 20;
+  border: 2px solid var(--text-accent);
+  padding: 4px;
+  background-image:
+    linear-gradient(var(--text-accent), var(--text-accent)),
+    linear-gradient(#000000, #000000);
+  background-clip: content-box, border-box;
+}
+
+.thinking-tail {
+  z-index: 10;
+  border: none;
+  padding: 0;
+  background: transparent;
+  animation-delay: calc(var(--step-time) * var(--i));
+}
+
+.thinking-tail::after {
+  content: '';
+  display: block;
+  width: var(--dot-size);
+  height: var(--dot-size);
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  opacity: 1;
+  background-color: hsl(var(--accent-h), var(--accent-s), calc(var(--accent-l) - (var(--i) * 9%)));
+}
+
+@keyframes thinking-move-cycle {
+  0% {
+    transform: translateX(0);
+  }
+
+  29% {
+    transform: translateX(calc(var(--step-size) * (var(--count) - 1)));
+  }
+
+  50% {
+    transform: translateX(calc(var(--step-size) * (var(--count) - 1)));
+  }
+
+  79% {
+    transform: translateX(0);
+  }
+
+  100% {
+    transform: translateX(0);
+  }
+}
+
+/* Thinking Label Glow Animation */
+@keyframes thinking-glow {
+
+  0%,
+  100% {
+    color: var(--text-secondary);
+  }
+
+  50% {
+    color: var(--text-accent);
+  }
+}
+
+.animate-thinking-glow {
+  animation: thinking-glow 2s ease-in-out infinite;
+}
+
+/* ============================================
+   STREAMING EFFECT - Visible accent indicator
+   ============================================ */
+
+.streaming-active {
+  position: relative;
+}
+
+/* Glowing left border during streaming */
+.streaming-active::before {
+  content: '';
+  position: absolute;
+  left: -16px;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--text-accent);
+  box-shadow: 0 0 12px var(--text-accent),
+    0 0 24px rgba(var(--text-accent-rgb), 0.4);
+  animation: streaming-glow 1.2s ease-in-out infinite;
+}
+
+/* Subtle bottom edge gradient */
+.streaming-active::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -4px;
+  height: 24px;
+  background: linear-gradient(to top,
+      rgba(var(--text-accent-rgb), 0.15) 0%,
+      transparent 100%);
+  pointer-events: none;
+  animation: streaming-fade 1.5s ease-in-out infinite;
+  mask-image: linear-gradient(to right, transparent, black 20%, black 80%, transparent);
+  -webkit-mask-image: linear-gradient(to right, transparent, black 20%, black 80%, transparent);
+}
+
+@keyframes streaming-glow {
+
+  0%,
+  100% {
+    opacity: 0.7;
+    box-shadow: 0 0 8px var(--text-accent),
+      0 0 16px rgba(var(--text-accent-rgb), 0.3);
+  }
+
+  50% {
+    opacity: 1;
+    box-shadow: 0 0 16px var(--text-accent),
+      0 0 32px rgba(var(--text-accent-rgb), 0.5);
+  }
+}
+
+@keyframes streaming-fade {
+
+  0%,
+  100% {
+    opacity: 0.5;
+  }
+
+  50% {
+    opacity: 0.8;
+  }
+}
+
+/* Generated Image Reveal Animations */
+@keyframes image-materialize {
+  0% {
+    opacity: 0;
+    filter: blur(20px) saturate(0);
+    transform: scale(1.02);
+  }
+
+  30% {
+    opacity: 0.4;
+    filter: blur(12px) saturate(0.3);
+  }
+
+  60% {
+    opacity: 0.8;
+    filter: blur(5px) saturate(0.7);
+    transform: scale(1.005);
+  }
+
+  100% {
+    opacity: 1;
+    filter: blur(0) saturate(1);
+    transform: scale(1);
+  }
+}
+
+@keyframes scan-reveal {
+  0% {
+    top: 0%;
+    opacity: 0;
+  }
+
+  10% {
+    opacity: 0.8;
+  }
+
+  90% {
+    opacity: 0.6;
+  }
+
+  100% {
+    top: 100%;
+    opacity: 0;
+  }
+}
+
+@keyframes border-glow {
+  0% {
+    border-color: rgba(var(--text-accent-rgb, 175, 135, 135), 0);
+    box-shadow: inset 0 0 0 0 rgba(var(--text-accent-rgb, 175, 135, 135), 0);
+  }
+
+  50% {
+    border-color: rgba(var(--text-accent-rgb, 175, 135, 135), 0.5);
+    box-shadow: inset 0 0 20px 0 rgba(var(--text-accent-rgb, 175, 135, 135), 0.1);
+  }
+
+  100% {
+    border-color: rgba(var(--text-accent-rgb, 175, 135, 135), 0);
+    box-shadow: inset 0 0 0 0 rgba(var(--text-accent-rgb, 175, 135, 135), 0);
+  }
+}
+
+/* Cyberpunk Hover Utilities */
+.hover-pulse:hover {
+  animation: pulse-glow 2s infinite cubic-bezier(0.979, 0.31, 0.2, 0.404);
+}
+
+/* Cursor Aware Fill Animation */
+.cursor-fill-circle {
+  position: absolute;
+  width: 400px;
+  height: 400px;
+  background-color: var(--text-accent);
+  border-radius: 50%;
+  pointer-events: none;
+  transform: translate(-50%, -50%) scale(0);
+  transition: transform 0.5s cubic-bezier(0.979, 0.31, 0.2, 0.404);
+  /* Use snake easing for consistency */
+}
+
+.group:hover .cursor-fill-circle {
+  transform: translate(-50%, -50%) scale(1);
+}
+
+.hover-invert {
+  transition: all 0.2s ease;
+}
+
+.hover-invert:hover {
+  background-color: var(--text-accent) !important;
+  color: #000000 !important;
+  border-color: var(--text-accent) !important;
+}
+
+.hover-glow {
+  transition: all 0.3s ease;
+}
+
+.hover-glow:focus-within,
+.hover-glow:hover {
+  box-shadow: 0 0 15px -3px var(--border-active);
+  border-color: var(--border-active);
+}
+
+/* Chat Item Delete Animation - Glitch Dissolve */
+@keyframes chat-delete-glitch {
+  0% {
+    opacity: 1;
+    transform: translateX(0);
+    clip-path: inset(0 0 0 0);
+  }
+
+  10% {
+    transform: translateX(-3px);
+    clip-path: inset(0 0 50% 0);
+  }
+
+  20% {
+    transform: translateX(3px);
+    clip-path: inset(30% 0 20% 0);
+  }
+
+  30% {
+    transform: translateX(-2px);
+    clip-path: inset(60% 0 0 0);
+  }
+
+  40% {
+    opacity: 0.8;
+    transform: translateX(2px);
+    clip-path: inset(10% 0 40% 0);
+  }
+
+  50% {
+    transform: translateX(0);
+    clip-path: inset(0 0 0 0);
+  }
+
+  60% {
+    opacity: 0.6;
+    transform: translateX(5px) skewX(-5deg);
+    filter: blur(1px);
+  }
+
+  70% {
+    transform: translateX(-5px) skewX(5deg);
+    filter: blur(2px);
+  }
+
+  80% {
+    opacity: 0.3;
+    transform: translateX(0) scaleY(0.8);
+    filter: blur(3px);
+  }
+
+  90% {
+    opacity: 0.1;
+    transform: scaleY(0.5) scaleX(1.1);
+    filter: blur(4px);
+  }
+
+  100% {
+    opacity: 0;
+    transform: scaleY(0) scaleX(1.2);
+    filter: blur(5px);
+  }
+}
+
+.chat-item-deleting {
+  animation: chat-delete-glitch 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97) forwards;
+  background: linear-gradient(90deg, transparent, rgba(239, 68, 68, 0.1), transparent);
+  pointer-events: none;
+}
+
+/* Chat Item Rename Success Animation - Accent Flash */
+@keyframes chat-rename-success {
+  0% {
+    background: transparent;
+    box-shadow: none;
+  }
+
+  20% {
+    background: linear-gradient(90deg, var(--text-accent), transparent 80%);
+    box-shadow: 0 0 20px -5px var(--text-accent);
+  }
+
+  40% {
+    background: linear-gradient(90deg, transparent, var(--text-accent) 50%, transparent);
+  }
+
+  60% {
+    background: linear-gradient(90deg, transparent 20%, var(--text-accent));
+    box-shadow: 0 0 15px -5px var(--text-accent);
+  }
+
+  80% {
+    background: linear-gradient(90deg, var(--text-accent) 0%, transparent 50%);
+  }
+
+  100% {
+    background: transparent;
+    box-shadow: none;
+  }
+}
+
+.chat-item-renamed {
+  position: relative;
+  overflow: hidden;
+}
+
+.chat-item-renamed::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, var(--text-accent), transparent);
+  opacity: 0.3;
+  animation: chat-rename-scan 0.6s ease-out forwards;
+}
+
+@keyframes chat-rename-scan {
+  0% {
+    transform: translateX(-100%);
+    opacity: 0.5;
+  }
+
+  50% {
+    opacity: 0.3;
+  }
+
+  100% {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}
+
+/* Button Danger Hover (for delete button) */
+.hover-glow-danger {
+  transition: all 0.3s ease;
+}
+
+.hover-glow-danger:hover {
+  box-shadow: 0 0 15px -3px #ef4444;
+  border-color: #ef4444;
+  background-color: #ef4444 !important;
+  color: #000000 !important;
+}
+
+/* Fix for double outline on prompt box */
+.no-outline:focus,
+.no-outline:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* Scanline Animation for Attachments */
+@keyframes scanline-move {
+  0% {
+    transform: translateY(-100%);
+  }
+
+  100% {
+    transform: translateY(100%);
+  }
+}
+
+.scanline-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom, transparent, var(--text-accent), transparent);
+  opacity: 0;
+  transform: translateY(-100%);
+  transition: opacity 0.2s;
+  pointer-events: none;
+}
+
+.group:hover .scanline-overlay {
+  opacity: 0.2;
+  animation: scanline-move 1.5s linear infinite;
+}
+
+/* New Chat Button - Radial Fill from Cursor */
+.cursor-aware-button {
+  clip-path: circle(0% at var(--x, 50%) var(--y, 50%));
+  transition: clip-path 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.group.new-chat-btn.is-hovered .cursor-aware-button {
+  clip-path: circle(150% at var(--x, 50%) var(--y, 50%));
+}
+
+/* Button container effects */
+.group.new-chat-btn {
+  transition: box-shadow 0.5s ease, border-color 0.5s ease;
+}
+
+.group.new-chat-btn.is-hovered {
+  box-shadow: 0 0 25px -5px var(--text-accent);
+  border-color: var(--text-accent) !important;
+}
+
+.group.new-chat-btn.is-hovered .text-\[var\(--text-primary\)\] {
+  color: black;
+}
+
+.group.new-chat-btn:active {
+  transform: scale(0.98);
+  transition: transform 0.1s ease;
+}
+
+/* Dynamic Syntax Highlighting - Derives all colors from accent */
+/* Default syntax variables (fallback) */
+:root {
+  --syntax-primary: var(--text-accent);
+  --syntax-function: #d2a8ff;
+  --syntax-keyword: #ff7b72;
+  --syntax-string: #a5d6ff;
+  --syntax-number: #79c0ff;
+  --syntax-class: #ffa657;
+  --syntax-comment: #484f58;
+  --syntax-operator: #ff7b72;
+}
+
+/* Base token color */
+.syntax-highlight .token {
+  color: #c9d1d9;
+}
+
+/* Primary tokens - use accent color */
+.syntax-highlight .token.property,
+.syntax-highlight .token.tag,
+.syntax-highlight .token.symbol,
+.syntax-highlight .token.inserted,
+.syntax-highlight .token.variable,
+.syntax-highlight .token.regex,
+.syntax-highlight .token.constant {
+  color: var(--syntax-primary) !important;
+}
+
+/* Functions and methods */
+.syntax-highlight .token.function,
+.syntax-highlight .token.function-variable,
+.syntax-highlight .token.method,
+.syntax-highlight .token.atrule {
+  color: var(--syntax-function) !important;
+}
+
+/* Keywords and operators */
+.syntax-highlight .token.keyword,
+.syntax-highlight .token.important,
+.syntax-highlight .token.deleted {
+  color: var(--syntax-keyword) !important;
+}
+
+.syntax-highlight .token.operator,
+.syntax-highlight .token.entity {
+  color: var(--syntax-operator) !important;
+}
+
+/* Strings and chars */
+.syntax-highlight .token.string,
+.syntax-highlight .token.char,
+.syntax-highlight .token.url,
+.syntax-highlight .token.attr-value {
+  color: var(--syntax-string) !important;
+}
+
+/* Numbers and booleans */
+.syntax-highlight .token.number,
+.syntax-highlight .token.boolean {
+  color: var(--syntax-number) !important;
+}
+
+/* Classes and types */
+.syntax-highlight .token.selector,
+.syntax-highlight .token.attr-name,
+.syntax-highlight .token.builtin,
+.syntax-highlight .token.class-name,
+.syntax-highlight .token.maybe-class-name,
+.syntax-highlight .token.type {
+  color: var(--syntax-class) !important;
+}
+
+/* Comments */
+.syntax-highlight .token.comment,
+.syntax-highlight .token.prolog,
+.syntax-highlight .token.doctype,
+.syntax-highlight .token.cdata {
+  color: var(--syntax-comment) !important;
+  font-style: italic;
+}
+
+/* Punctuation - subtle */
+.syntax-highlight .token.punctuation {
+  color: #6e7681 !important;
+}
+
+/* Ender Pearl Eye Animation for Color Picker */
+.ender-eye-container {
+  position: relative;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ender-eye {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  transition: transform 0.25s ease-out, border-radius 0.25s ease-out, box-shadow 0.15s ease-out;
+  position: relative;
+}
+
+.color-picker-btn:hover .ender-eye {
+  box-shadow: 0 0 12px -2px currentColor;
+}
+
+.ender-eye.closed {
+  transform: scaleY(0.25) scaleX(1.12);
+  border-radius: 45% 45% 45% 45%;
+}
+
+.color-picker-btn:hover .ender-eye-container::after {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 50%;
+  border: 1px solid currentColor;
+  opacity: 0;
+  animation: ender-ring 1.5s ease-out infinite;
+}
+
+@keyframes ender-ring {
+  0% {
+    transform: scale(1);
+    opacity: 0.6;
+  }
+
+  100% {
+    transform: scale(1.8);
+    opacity: 0;
+  }
+}
+
+/* Mode Selector Scanline Animation */
+@keyframes mode-scan {
+  0% {
+    transform: translateY(-100%);
+  }
+
+  100% {
+    transform: translateY(200%);
+  }
+}
+
+.animate-mode-scan {
+  animation: mode-scan 1.2s ease-in-out infinite;
+}
+
+/* AI Indicator Scan Animation */
+@keyframes ai-scan {
+
+  0%,
+  100% {
+    transform: translateY(0);
+    opacity: 0;
+  }
+
+  10% {
+    opacity: 1;
+  }
+
+  90% {
+    opacity: 1;
+  }
+
+  50% {
+    transform: translateY(14px);
+  }
+}
+
+/* ============================================
+   AUTH PAGE ANIMATIONS
+   ============================================ */
+
+/* Scanline Animation - Full Page */
+@keyframes scanline {
+  0% {
+    top: -2px;
+  }
+
+  100% {
+    top: 100%;
+  }
+}
+
+.animate-scanline {
+  animation: scanline 8s linear infinite;
+}
+
+/* Floating Particles */
+@keyframes float-particle {
+
+  0%,
+  100% {
+    transform: translateY(0) translateX(0);
+    opacity: 0.15;
+  }
+
+  25% {
+    transform: translateY(-30px) translateX(15px);
+    opacity: 0.25;
+  }
+
+  50% {
+    transform: translateY(-50px) translateX(-10px);
+    opacity: 0.1;
+  }
+
+  75% {
+    transform: translateY(-20px) translateX(-20px);
+    opacity: 0.2;
+  }
+}
+
+.animate-float-particle {
+  animation: float-particle 20s ease-in-out infinite;
+}
+
+/* Data Stream Effect */
+@keyframes data-stream {
+
+  0%,
+  100% {
+    opacity: 0.1;
+    transform: scaleY(1);
+  }
+
+  50% {
+    opacity: 0.4;
+    transform: scaleY(1.2);
+  }
+}
+
+.animate-data-stream {
+  animation: data-stream 4s ease-in-out infinite;
+}
+
+/* Auth Page Transitions */
+@keyframes auth-page-enter {
+  0% {
+    opacity: 0;
+    transform: translateY(20px) scale(0.98);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes auth-page-exit {
+  0% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateY(-20px) scale(0.98);
+  }
+}
+
+.auth-page-enter {
+  animation: auth-page-enter 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.auth-page-exit {
+  animation: auth-page-exit 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Auth Card Shimmer */
+@keyframes auth-shimmer {
+  0% {
+    transform: translateX(-100%) rotate(15deg);
+  }
+
+  100% {
+    transform: translateX(200%) rotate(15deg);
+  }
+}
+
+.auth-card-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+
+.auth-card-shimmer::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg,
+      transparent,
+      var(--text-accent) 50%,
+      transparent);
+  opacity: 0;
+  transform: translateX(-100%) rotate(15deg);
+  transition: opacity 0.3s;
+}
+
+.auth-card-shimmer:hover::before {
+  opacity: 0.05;
+  animation: auth-shimmer 1.5s ease-in-out;
+}
+
+/* Success State Pulse */
+@keyframes success-pulse {
+
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 var(--text-accent);
+  }
+
+  50% {
+    box-shadow: 0 0 30px 10px transparent;
+  }
+}
+
+.animate-success-pulse {
+  animation: success-pulse 2s ease-in-out infinite;
+}
+
+/* Auth Loading Spinner - Orbital */
+@keyframes auth-orbit {
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.auth-orbit {
+  animation: auth-orbit 1.5s linear infinite;
+}
+
+/* Typing Indicator */
+@keyframes auth-typing {
+
+  0%,
+  60%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.4;
+  }
+
+  30% {
+    transform: translateY(-4px);
+    opacity: 1;
+  }
+}
+
+.auth-typing-dot {
+  animation: auth-typing 1.2s ease-in-out infinite;
+}
+
+/* Input Focus Animation */
+@keyframes input-focus-glow {
+
+  0%,
+  100% {
+    box-shadow: 0 0 10px -5px var(--text-accent);
+  }
+
+  50% {
+    box-shadow: 0 0 20px -5px var(--text-accent);
+  }
+}
+
+.input-focused {
+  animation: input-focus-glow 2s ease-in-out infinite;
+}
+
+/* Security Badge Scan */
+@keyframes badge-scan {
+
+  0%,
+  100% {
+    background-position: -100% 0;
+  }
+
+  50% {
+    background-position: 200% 0;
+  }
+}
+
+.security-badge {
+  background: linear-gradient(90deg,
+      transparent 0%,
+      var(--text-accent) 50%,
+      transparent 100%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  animation: badge-scan 3s ease-in-out infinite;
+}
+
+/* Stagger Animation for Form Fields */
+.auth-field-stagger>* {
+  opacity: 0;
+  transform: translateY(10px);
+  animation: auth-field-appear 0.4s ease-out forwards;
+}
+
+.auth-field-stagger>*:nth-child(1) {
+  animation-delay: 0.1s;
+}
+
+.auth-field-stagger>*:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.auth-field-stagger>*:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+.auth-field-stagger>*:nth-child(4) {
+  animation-delay: 0.4s;
+}
+
+.auth-field-stagger>*:nth-child(5) {
+  animation-delay: 0.5s;
+}
+
+.auth-field-stagger>*:nth-child(6) {
+  animation-delay: 0.6s;
+}
+
+@keyframes auth-field-appear {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Glitch Effect for Error States */
+@keyframes auth-glitch {
+
+  0%,
+  100% {
+    transform: translate(0);
+  }
+
+  20% {
+    transform: translate(-2px, 2px);
+  }
+
+  40% {
+    transform: translate(-2px, -2px);
+  }
+
+  60% {
+    transform: translate(2px, 2px);
+  }
+
+  80% {
+    transform: translate(2px, -2px);
+  }
+}
+
+.auth-error-glitch {
+  animation: auth-glitch 0.3s ease-in-out;
+}
+
+/* Floating Icons Animation */
+@keyframes float-icon {
+
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+
+  25% {
+    transform: translateY(-15px) rotate(3deg);
+  }
+
+  50% {
+    transform: translateY(-8px) rotate(-2deg);
+  }
+
+  75% {
+    transform: translateY(-20px) rotate(2deg);
+  }
+}
+
+.animate-float-icon {
+  animation: float-icon 12s ease-in-out infinite;
+}
+
+/* Slower, more subtle float for chat background */
+@keyframes float-icon-slow {
+
+  0%,
+  100% {
+    transform: translateY(0) rotate(0deg);
+  }
+
+  33% {
+    transform: translateY(-8px) rotate(1deg);
+  }
+
+  66% {
+    transform: translateY(-4px) rotate(-1deg);
+  }
+}
+
+.animate-float-icon-slow {
+  animation: float-icon-slow 20s ease-in-out infinite;
+}
+
+/* Progress pulse animation for deep research */
+@keyframes progressPulse {
+
+  0%,
+  100% {
+    opacity: 0.8;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
+.animate-progress-pulse {
+  animation: progressPulse 1.5s ease-in-out infinite;
+}
+
+/* Quote Button Animation */
+@keyframes quoteButtonFadeIn {
+  0% {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.9);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.quote-button {
+  animation: quoteButtonFadeIn 150ms ease-out forwards;
+}
+
+/* Quoted Text Display Animation */
+@keyframes quotedTextSlideIn {
+  0% {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.quoted-text-display {
+  animation: quotedTextSlideIn 200ms ease-out forwards;
+}
+
+/* Quote Item Hover Effects */
+.quote-item {
+  transition: all 150ms ease;
+}
+
+/* Scanner Animation */
+@keyframes scan {
+  0% {
+    transform: translateY(-100vh);
+    opacity: 0;
+  }
+
+  10% {
+    opacity: 0.2;
+  }
+
+  90% {
+    opacity: 0.2;
+  }
+
+  100% {
+    transform: translateY(100vh);
+    opacity: 0;
+  }
+}
+
+/* Chromatic Glitch Animation */
+@keyframes glitch-skew {
+  0% {
+    transform: skew(0deg);
+  }
+
+  20% {
+    transform: skew(-2deg);
+  }
+
+  40% {
+    transform: skew(2deg);
+  }
+
+  60% {
+    transform: skew(-1deg);
+  }
+
+  80% {
+    transform: skew(1deg);
+  }
+
+  100% {
+    transform: skew(0deg);
+  }
+}
+
+@keyframes glitch-anim-1 {
+  0% {
+    clip: rect(20px, 9999px, 10px, 0);
+  }
+
+  20% {
+    clip: rect(60px, 9999px, 70px, 0);
+  }
+
+  40% {
+    clip: rect(10px, 9999px, 50px, 0);
+  }
+
+  60% {
+    clip: rect(80px, 9999px, 20px, 0);
+  }
+
+  80% {
+    clip: rect(30px, 9999px, 40px, 0);
+  }
+
+  100% {
+    clip: rect(50px, 9999px, 60px, 0);
+  }
+}
+
+@keyframes glitch-anim-2 {
+  0% {
+    clip: rect(50px, 9999px, 60px, 0);
+  }
+
+  20% {
+    clip: rect(20px, 9999px, 10px, 0);
+  }
+
+  40% {
+    clip: rect(70px, 9999px, 30px, 0);
+  }
+
+  60% {
+    clip: rect(10px, 9999px, 50px, 0);
+  }
+
+  80% {
+    clip: rect(60px, 9999px, 20px, 0);
+  }
+
+  100% {
+    clip: rect(30px, 9999px, 40px, 0);
+  }
+}
+
+.glitch-hover {
+  position: relative;
+}
+
+.glitch-hover:hover::before,
+.glitch-hover:hover::after {
+  content: attr(data-text);
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  background: inherit;
+}
+
+.glitch-hover:hover::before {
+  left: 2px;
+  text-shadow: -1px 0 #ff00c1;
+  clip: rect(44px, 450px, 56px, 0);
+  animation: glitch-anim-1 2s infinite linear alternate-reverse;
+}
+
+.glitch-hover:hover::after {
+  left: -2px;
+  text-shadow: -1px 0 #00fff9;
+  clip: rect(44px, 450px, 56px, 0);
+  animation: glitch-anim-2 2s infinite linear alternate-reverse;
+}
+
+/* Focus Mode Utility */
+body.focus-mode .sidebar-container,
+body.focus-mode .visual-effects,
+body.focus-mode .chat-header {
+  opacity: 0.1;
+  filter: blur(4px);
+  pointer-events: none;
+  transition: all 0.5s ease;
+}
+
+body.focus-mode .chat-input-area {
+  z-index: 9999;
+}
+
+.quote-item:hover {
+  border-color: rgba(var(--text-accent-rgb), 0.2);
+  background-color: rgba(var(--text-accent-rgb), 0.05);
+}
