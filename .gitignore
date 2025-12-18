@@ -42,6 +42,3 @@ yarn-error.log*
 next-env.d.ts
 .env*.local
 
-# markdown files
-*.md
-*.MD
