@@ -38,7 +38,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
   // Settings
   const [currentModelId, setCurrentModelId, isModelIdHydrated] = usePersistedSetting('MODEL_ID', "gemini-3-flash-preview");
   const [currentModelName, setCurrentModelName, isModelNameHydrated] = usePersistedSetting('MODEL_NAME', "Expert");
-  const [rawReasoningEffort, setRawReasoningEffort] = usePersistedSetting('REASONING_EFFORT', "medium");
+  // Auto-reasoning: no longer user-selected, determined automatically per-message
   const { accentColor, setAccentColor, isHydrated: isColorHydrated } = useAccentColor();
   const { responseLength, setResponseLength, isHydrated: isResponseLengthHydrated } = useResponseLength();
   const { userName, setUserName, userGender, setUserGender, isHydrated: isProfileHydrated } = useUserProfile();
@@ -54,10 +54,8 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
 
   // Settings dialog state
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const reasoningEffort = (rawReasoningEffort as ReasoningEffortLevel) ?? 'medium';
-  const setReasoningEffort = useCallback((value: ReasoningEffortLevel) => {
-    setRawReasoningEffort(value);
-  }, [setRawReasoningEffort]);
+  // Auto-reasoning: reasoning effort is determined per-message, not user-selected
+  // We keep the ref to pass to transport, but it gets set before each message send
 
   // Attachments
   const {
@@ -74,7 +72,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
   const chatIdRef = useRef<string | null>(initialChatId || null);
   const messagesRef = useRef<ChatMessage[]>([]);
   const currentModelIdRef = useRef(currentModelId);
-  const reasoningEffortRef = useRef(reasoningEffort);
+  const reasoningEffortRef = useRef<ReasoningEffortLevel>('medium'); // Auto-reasoning: updated per-message
 
   // Sync with URL changes (for history.pushState navigation)
   useEffect(() => {
@@ -104,7 +102,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
   const customInstructionsRef = useRef(customInstructions);
 
   useEffect(() => { currentModelIdRef.current = currentModelId; }, [currentModelId]);
-  useEffect(() => { reasoningEffortRef.current = reasoningEffort; }, [reasoningEffort]);
+  // Auto-reasoning: reasoningEffortRef is now updated before each message, not synced from user setting
   useEffect(() => { responseLengthRef.current = responseLength; }, [responseLength]);
   useEffect(() => { userNameRef.current = userName; }, [userName]);
   useEffect(() => { userGenderRef.current = userGender; }, [userGender]);
@@ -821,6 +819,22 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
       return acc;
     }, []);
 
+    // Auto-reasoning: determine effort level based on prompt complexity
+    try {
+      const autoReasoningRes = await fetch('/api/auto-reasoning', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: userMessage })
+      });
+      const autoReasoningData = await autoReasoningRes.json();
+      const autoEffort = autoReasoningData.effort as ReasoningEffortLevel;
+      reasoningEffortRef.current = autoEffort;
+      console.log(`[CLIENT] Auto-reasoning determined effort: ${autoEffort}`);
+    } catch (e) {
+      console.error('[CLIENT] Auto-reasoning failed, defaulting to medium:', e);
+      reasoningEffortRef.current = 'medium';
+    }
+
     setInput('');
     clearAttachments();
 
@@ -1151,8 +1165,6 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
             onFileSelect={handleFileSelect}
             onPaste={handlePaste}
             onRemoveAttachment={removeAttachment}
-            reasoningEffort={reasoningEffort}
-            onReasoningEffortChange={setReasoningEffort}
             chatMode={chatMode}
             onChatModeChange={handleChatModeChange}
             learningSubMode={learningSubMode}
