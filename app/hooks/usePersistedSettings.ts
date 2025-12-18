@@ -182,3 +182,25 @@ export function useEnabledMcpServers() {
     isHydrated
   };
 }
+
+// Code wrap setting - enables word wrap in code blocks
+export function useCodeWrap() {
+  const { settings, updateSettings, isHydrated } = useSettings();
+
+  return {
+    codeWrap: settings.codeWrap,
+    setCodeWrap: (value: boolean) => updateSettings({ codeWrap: value }),
+    isHydrated,
+  };
+}
+
+// Auto-scroll setting - enables auto-scroll during streaming
+export function useAutoScroll() {
+  const { settings, updateSettings, isHydrated } = useSettings();
+
+  return {
+    autoScroll: settings.autoScroll,
+    setAutoScroll: (value: boolean) => updateSettings({ autoScroll: value }),
+    isHydrated,
+  };
+}

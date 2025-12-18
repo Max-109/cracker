@@ -8,7 +8,7 @@ import type { ChatMessage, MessagePart } from '@/lib/chat-types';
 import { useChatContext } from './ChatContext';
 import { updateFavicon, getAccentColorFromStorage } from './SettingsContext';
 import { useAttachments } from '@/app/hooks/useAttachments';
-import { usePersistedSetting, useAccentColor, useResponseLength, useUserProfile, useLearningMode, useChatMode, useLearningSubMode, useCustomInstructions, useEnabledMcpServers, ReasoningEffortLevel, ChatMode, LearningSubMode } from '@/app/hooks/usePersistedSettings';
+import { usePersistedSetting, useAccentColor, useResponseLength, useUserProfile, useLearningMode, useChatMode, useLearningSubMode, useCustomInstructions, useEnabledMcpServers, useCodeWrap, useAutoScroll, ReasoningEffortLevel, ChatMode, LearningSubMode } from '@/app/hooks/usePersistedSettings';
 import { ModelSelector } from './ModelSelector';
 import { EnhancedChatInput } from './EnhancedChatInput';
 import { MessageList } from './MessageList';
@@ -47,6 +47,8 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
   const { customInstructions, setCustomInstructions, isHydrated: isCustomInstructionsHydrated } = useCustomInstructions();
   const { enabledMcpServers, toggleMcpServer, isHydrated: isMcpServersHydrated } = useEnabledMcpServers();
   const { learningSubMode, setLearningSubMode, isHydrated: isLearningSubModeHydrated } = useLearningSubMode();
+  const { codeWrap, setCodeWrap } = useCodeWrap();
+  const { autoScroll, setAutoScroll } = useAutoScroll();
 
   const isSettingsHydrated = isModelIdHydrated && isModelNameHydrated && isColorHydrated && isResponseLengthHydrated && isProfileHydrated && isLearningModeHydrated && isChatModeHydrated && isCustomInstructionsHydrated && isMcpServersHydrated && isLearningSubModeHydrated;
 
@@ -1109,6 +1111,10 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
           onAccentColorChange={setAccentColor}
           enabledMcpServers={enabledMcpServers}
           onToggleMcpServer={toggleMcpServer}
+          codeWrap={codeWrap}
+          onCodeWrapChange={setCodeWrap}
+          autoScroll={autoScroll}
+          onAutoScrollChange={setAutoScroll}
         />
 
         <QuoteProvider>

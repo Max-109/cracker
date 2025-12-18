@@ -23,6 +23,8 @@ interface AccountSettings {
   userName: string | null;
   userGender: string;
   enabledMcpServers: string[]; // MCP servers enabled for tool calling
+  codeWrap: boolean; // Enable word wrap in code blocks
+  autoScroll: boolean; // Enable auto-scroll during streaming
 }
 
 // Combined settings (account + browser-only)
@@ -42,6 +44,8 @@ const DEFAULT_ACCOUNT_SETTINGS: AccountSettings = {
   userName: null,
   userGender: 'not-specified',
   enabledMcpServers: ['brave-search'], // Brave Search enabled by default
+  codeWrap: true, // Code wrap enabled by default
+  autoScroll: true, // Auto-scroll enabled by default
 };
 
 const DEFAULT_ACCENT_COLOR = '#af8787';
@@ -224,6 +228,8 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
           userName: data.userName,
           userGender: data.userGender || DEFAULT_ACCOUNT_SETTINGS.userGender,
           enabledMcpServers: Array.isArray(data.enabledMcpServers) ? data.enabledMcpServers : DEFAULT_ACCOUNT_SETTINGS.enabledMcpServers,
+          codeWrap: data.codeWrap ?? DEFAULT_ACCOUNT_SETTINGS.codeWrap,
+          autoScroll: data.autoScroll ?? DEFAULT_ACCOUNT_SETTINGS.autoScroll,
           accentColor: getAccentColorFromStorage(), // Always use fresh localStorage value
         });
       }

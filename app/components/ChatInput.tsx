@@ -227,10 +227,16 @@ export function ChatInput({
     return () => clearTimeout(timer);
   }, [chatId]);
 
-  // Handle mobile keyboard
+  // Handle mobile keyboard - only scroll on mobile/touch devices
   const handleFocus = () => {
-    textareaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    // Only do this on mobile where keyboard pushes content
+    if (window.matchMedia('(max-width: 768px)').matches && 'ontouchstart' in window) {
+      setTimeout(() => {
+        textareaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+      }, 300); // Delay to allow keyboard to appear
+    }
   };
+
 
   useEffect(() => {
     if (typeof window === 'undefined' || !window.visualViewport) return;

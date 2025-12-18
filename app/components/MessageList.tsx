@@ -10,50 +10,103 @@ import { FadeWrapper, ErrorAlert } from '@/components/ui';
 import { Sparkles, Code, Lightbulb, PenLine, Zap, ArrowRight } from 'lucide-react';
 import type { ChatMode, LearningSubMode } from '@/app/hooks/usePersistedSettings';
 
-// Autoscroll hook using scrollIntoView
+// Autoscroll hook - improved with requestAnimationFrame and near-bottom detection
 function useAutoScroll(
   isStreaming: boolean,
-  messagesLength: number
+  userMessageCount: number  // Track user messages specifically, not total
 ) {
+  // Core refs
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const [userPaused, setUserPaused] = useState(false);
-  const scrollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const lastScrollTopRef = useRef(0);
-  const isAutoScrollingRef = useRef(false);
+  const lastUserMessageRef = useRef<HTMLDivElement>(null);
 
-  // Scroll to bottom using scrollIntoView on the end marker
-  const scrollToBottom = useCallback(() => {
-    if (messagesEndRef.current) {
-      isAutoScrollingRef.current = true;
-      messagesEndRef.current.scrollIntoView({ behavior: 'instant', block: 'end' });
-      setTimeout(() => {
-        isAutoScrollingRef.current = false;
-      }, 100);
-    }
+  // State for tracking user interaction
+  const [userHasScrolledUp, setUserHasScrolledUp] = useState(false);
+  const isAutoScrollingRef = useRef(false);
+  const lastScrollTopRef = useRef(0);
+  const rafRef = useRef<number | null>(null);
+  const prevUserMessageCountRef = useRef(userMessageCount);
+  const initialScrollDoneRef = useRef(true); // Flag to prevent streaming from overriding initial scroll
+
+  // Threshold for "near bottom" detection (in pixels)
+  const NEAR_BOTTOM_THRESHOLD = 150;
+
+  // Check if scrolled near bottom
+  const isNearBottom = useCallback(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return true;
+    const { scrollTop, scrollHeight, clientHeight } = container;
+    return scrollHeight - scrollTop - clientHeight < NEAR_BOTTOM_THRESHOLD;
   }, []);
 
-  // Detect user scrolling to pause/resume autoscroll
+  // Scroll to position user message near the TOP of viewport
+  const scrollToUserMessage = useCallback(() => {
+    const container = scrollContainerRef.current;
+    const userMessage = lastUserMessageRef.current;
+    if (!container || !userMessage) return;
+
+    isAutoScrollingRef.current = true;
+
+    // Get the user message position relative to container
+    const messageRect = userMessage.getBoundingClientRect();
+    const containerRect = container.getBoundingClientRect();
+    const offsetFromContainerTop = messageRect.top - containerRect.top + container.scrollTop;
+
+    // Scroll so user message is near top with some padding (80px from top)
+    const targetScroll = offsetFromContainerTop - 80;
+
+    container.scrollTo({ top: Math.max(0, targetScroll), behavior: 'smooth' });
+
+    // Reset flag after scroll completes
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        isAutoScrollingRef.current = false;
+      });
+    });
+  }, []);
+
+  // Smooth scroll to bottom using scrollTop (for streaming)
+  const scrollToBottom = useCallback((smooth = false) => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+
+    isAutoScrollingRef.current = true;
+    const targetScroll = container.scrollHeight - container.clientHeight;
+
+    if (smooth) {
+      container.scrollTo({ top: targetScroll, behavior: 'smooth' });
+    } else {
+      container.scrollTop = targetScroll;
+    }
+
+    // Reset flag after scroll completes using double rAF for safety
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        isAutoScrollingRef.current = false;
+      });
+    });
+  }, []);
+
+  // Handle scroll events - detect user scrolling up
   useEffect(() => {
     const container = scrollContainerRef.current;
     if (!container) return;
 
     const handleScroll = () => {
+      // Ignore auto-triggered scrolls
       if (isAutoScrollingRef.current) return;
 
       const currentScrollTop = container.scrollTop;
       const delta = currentScrollTop - lastScrollTopRef.current;
-      const { scrollHeight, clientHeight } = container;
-      const distanceFromBottom = scrollHeight - currentScrollTop - clientHeight;
 
-      // User scrolled UP - pause (no auto-resume)
-      if (delta < -30) {
-        setUserPaused(true);
+      // User scrolled up significantly - pause auto-scroll
+      if (delta < -10) {
+        setUserHasScrolledUp(true);
       }
 
-      // User scrolled DOWN and is near bottom - resume
-      if (delta > 20 && distanceFromBottom < 100) {
-        setUserPaused(false);
+      // User scrolled down and is near bottom - resume auto-scroll
+      if (isNearBottom()) {
+        setUserHasScrolledUp(false);
       }
 
       lastScrollTopRef.current = currentScrollTop;
@@ -61,59 +114,83 @@ function useAutoScroll(
 
     container.addEventListener('scroll', handleScroll, { passive: true });
     return () => container.removeEventListener('scroll', handleScroll);
-  }, []);
+  }, [isNearBottom]);
 
-  // Continuous scrolling during streaming
+  // Auto-scroll during streaming using requestAnimationFrame
   useEffect(() => {
-    if (scrollIntervalRef.current) {
-      clearInterval(scrollIntervalRef.current);
-      scrollIntervalRef.current = null;
+    // Don't start streaming auto-scroll until initial scroll is done
+    if (!isStreaming || userHasScrolledUp || !initialScrollDoneRef.current) {
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+      return;
     }
 
-    if (isStreaming && !userPaused) {
-      scrollToBottom();
-      scrollIntervalRef.current = setInterval(scrollToBottom, 50);
-    }
+    let lastTime = 0;
+    const SCROLL_INTERVAL = 100; // Only scroll every 100ms max
+
+    const tick = (time: number) => {
+      if (time - lastTime >= SCROLL_INTERVAL) {
+        // Only auto-scroll if near bottom and initial scroll is complete
+        if (isNearBottom() && initialScrollDoneRef.current) {
+          scrollToBottom(false);
+        }
+        lastTime = time;
+      }
+      rafRef.current = requestAnimationFrame(tick);
+    };
+
+    rafRef.current = requestAnimationFrame(tick);
 
     return () => {
-      if (scrollIntervalRef.current) {
-        clearInterval(scrollIntervalRef.current);
-        scrollIntervalRef.current = null;
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
       }
     };
-  }, [isStreaming, userPaused, scrollToBottom]);
+  }, [isStreaming, userHasScrolledUp, isNearBottom, scrollToBottom]);
 
-  // Reset pause when NEW streaming starts
+  // Reset state when new streaming starts
   useEffect(() => {
     if (isStreaming) {
-      setUserPaused(false);
+      setUserHasScrolledUp(false);
     }
   }, [isStreaming]);
 
-  // Scroll on new messages (non-streaming)
+  // Scroll to user message when a NEW USER message is added
   useEffect(() => {
-    if (!userPaused) {
-      scrollToBottom();
-    }
-  }, [messagesLength, scrollToBottom, userPaused]);
+    const prevCount = prevUserMessageCountRef.current;
+    prevUserMessageCountRef.current = userMessageCount;
 
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      if (scrollIntervalRef.current) clearInterval(scrollIntervalRef.current);
-    };
-  }, []);
+    // Only trigger when a NEW user message is added (not assistant messages)
+    if (userMessageCount > prevCount && lastUserMessageRef.current) {
+      // Prevent streaming from overriding until we're done
+      initialScrollDoneRef.current = false;
+
+      // Delay to let the DOM update fully
+      setTimeout(() => {
+        scrollToUserMessage();
+        // Allow streaming auto-scroll after a delay
+        setTimeout(() => {
+          initialScrollDoneRef.current = true;
+        }, 500);
+      }, 200);
+    }
+  }, [userMessageCount, scrollToUserMessage]);
 
   return {
     scrollContainerRef,
     messagesEndRef,
+    lastUserMessageRef,
     forceScrollToBottom: useCallback(() => {
-      setUserPaused(false);
-      scrollToBottom();
+      setUserHasScrolledUp(false);
+      scrollToBottom(true);
     }, [scrollToBottom]),
-    isUserPaused: userPaused
+    isUserPaused: userHasScrolledUp
   };
 }
+
 
 // Custom hook for throttling values
 function useThrottledValue<T>(value: T, limit: number): T {
@@ -413,10 +490,18 @@ export function MessageList({
   onClarifySubmit,
   onSkipClarify,
 }: MessageListProps) {
+  // Count user messages for scroll tracking
+  const userMessageCount = messages.filter(m => m.role === 'user').length;
+
   // Use the new flawless autoscroll hook
-  const { scrollContainerRef, messagesEndRef } = useAutoScroll(
+  const { scrollContainerRef, messagesEndRef, lastUserMessageRef } = useAutoScroll(
     isStreaming,
-    messages.length
+    userMessageCount
+  );
+
+  // Find the last user message index for scroll positioning
+  const lastUserMessageIndex = messages.reduce((lastIdx, m, idx) =>
+    m.role === 'user' ? idx : lastIdx, -1
   );
 
   return (
@@ -546,22 +631,26 @@ export function MessageList({
               const isThinkingForMessage = isStreaming && isLastAssistant;
 
               return (
-                <ThrottledMessageItem
+                <div
                   key={m.id}
-                  message={m}
-                  index={index}
-                  isThinking={isThinkingForMessage}
-                  isStreaming={isThinkingForMessage}
-                  onEdit={onEdit}
-                  onRetry={onRetry}
-                  modelName={modelShortName}
-                  fullModelName={displayModelId || undefined}
-                  tokensPerSecond={displayTps}
-                  onClarifySubmit={onClarifySubmit}
-                  onSkipClarify={onSkipClarify}
-                  chatMode={chatMode}
-                  learningSubMode={(m.learningSubMode as LearningSubMode) || learningSubMode}
-                />
+                  ref={index === lastUserMessageIndex && m.role === 'user' ? lastUserMessageRef : undefined}
+                >
+                  <ThrottledMessageItem
+                    message={m}
+                    index={index}
+                    isThinking={isThinkingForMessage}
+                    isStreaming={isThinkingForMessage}
+                    onEdit={onEdit}
+                    onRetry={onRetry}
+                    modelName={modelShortName}
+                    fullModelName={displayModelId || undefined}
+                    tokensPerSecond={displayTps}
+                    onClarifySubmit={onClarifySubmit}
+                    onSkipClarify={onSkipClarify}
+                    chatMode={chatMode}
+                    learningSubMode={(m.learningSubMode as LearningSubMode) || learningSubMode}
+                  />
+                </div>
               );
             })}
 
@@ -583,6 +672,9 @@ export function MessageList({
           </>
         </FadeWrapper>
 
+
+        {/* Spacer for comfortable scroll positioning */}
+        <div className="min-h-[13vh]" />
         <div ref={messagesEndRef} />
       </div>
     </div>

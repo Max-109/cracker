@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { HexColorPicker } from "react-colorful";
-import { Settings2, User, Pencil, Palette, Sparkles, GaugeCircle, MessageSquareText, Search, Globe, Youtube } from 'lucide-react';
+import { Settings2, User, Pencil, Palette, Sparkles, GaugeCircle, MessageSquareText, Search, Globe, Youtube, Sliders } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Dialog } from '@/components/ui';
 
@@ -54,6 +54,11 @@ interface SettingsDialogProps {
   // MCP Servers
   enabledMcpServers: string[];
   onToggleMcpServer: (serverSlug: string, enabled: boolean) => void;
+  // Behavior settings
+  codeWrap: boolean;
+  onCodeWrapChange: (enabled: boolean) => void;
+  autoScroll: boolean;
+  onAutoScrollChange: (enabled: boolean) => void;
 }
 
 export function SettingsDialog({
@@ -71,8 +76,12 @@ export function SettingsDialog({
   onAccentColorChange,
   enabledMcpServers,
   onToggleMcpServer,
+  codeWrap,
+  onCodeWrapChange,
+  autoScroll,
+  onAutoScrollChange,
 }: SettingsDialogProps) {
-  const [activeSection, setActiveSection] = useState<'response' | 'profile' | 'appearance' | 'tools'>('response');
+  const [activeSection, setActiveSection] = useState<'response' | 'profile' | 'appearance' | 'tools' | 'behavior'>('response');
   // Initialize local state from props
   const [localResponseLength, setLocalResponseLength] = useState(responseLength);
   const [localCustomInstructions, setLocalCustomInstructions] = useState(customInstructions);
@@ -138,6 +147,7 @@ export function SettingsDialog({
             { id: 'profile' as const, icon: User, label: 'Profile' },
             { id: 'tools' as const, icon: Globe, label: 'Tools' },
             { id: 'appearance' as const, icon: Palette, label: 'Appearance' },
+            { id: 'behavior' as const, icon: Sliders, label: 'Behavior' },
           ].map(({ id, icon: Icon, label }) => (
             <button
               key={id}
@@ -184,6 +194,14 @@ export function SettingsDialog({
             <AppearanceSection
               accentColor={localAccentColor}
               onAccentColorChange={setLocalAccentColor}
+            />
+          )}
+          {activeSection === 'behavior' && (
+            <BehaviorSection
+              codeWrap={codeWrap}
+              onCodeWrapChange={onCodeWrapChange}
+              autoScroll={autoScroll}
+              onAutoScrollChange={onAutoScrollChange}
             />
           )}
         </div>
@@ -592,6 +610,90 @@ function AppearanceSection({ accentColor, onAccentColorChange }: AppearanceSecti
           className="w-full py-2 text-[10px] uppercase tracking-wider font-semibold text-[var(--text-secondary)] border border-[var(--border-color)] hover:text-[var(--text-accent)] hover:border-[var(--text-accent)] transition-all duration-150"
         >
           Reset to Default
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// Behavior Section
+interface BehaviorSectionProps {
+  codeWrap: boolean;
+  onCodeWrapChange: (enabled: boolean) => void;
+  autoScroll: boolean;
+  onAutoScrollChange: (enabled: boolean) => void;
+}
+
+function BehaviorSection({ codeWrap, onCodeWrapChange, autoScroll, onAutoScrollChange }: BehaviorSectionProps) {
+  return (
+    <div className="space-y-6">
+      {/* Section Header */}
+      <div className="flex items-center gap-2 mb-4">
+        <Sliders size={12} className="text-[var(--text-accent)]" />
+        <span className="text-[10px] uppercase tracking-[0.16em] font-semibold text-[var(--text-secondary)]">
+          Behavior
+        </span>
+      </div>
+
+      <p className="text-[10px] text-[var(--text-secondary)] leading-relaxed">
+        Customize how the chat interface behaves.
+      </p>
+
+      <div className="space-y-3">
+        {/* Code Wrap Toggle */}
+        <button
+          onClick={() => onCodeWrapChange(!codeWrap)}
+          className="flex items-center justify-between w-full p-3 bg-[#1a1a1a] border border-[var(--border-color)] hover:border-[var(--text-accent)]/30 transition-all duration-150"
+        >
+          <div className="text-left">
+            <div className="text-xs font-semibold uppercase tracking-wider text-[var(--text-primary)]">
+              Code Wrap
+            </div>
+            <div className="text-[9px] text-[var(--text-secondary)] mt-0.5">
+              Wrap long lines in code blocks
+            </div>
+          </div>
+          <div
+            className={cn(
+              "w-10 h-5 rounded-full transition-all duration-200 relative",
+              codeWrap ? "bg-[var(--text-accent)]" : "bg-[#2a2a2a]"
+            )}
+          >
+            <div className={cn(
+              "absolute top-0.5 w-4 h-4 rounded-full transition-all duration-200",
+              codeWrap
+                ? "left-[22px] bg-black"
+                : "left-0.5 bg-[#4a4a4a]"
+            )} />
+          </div>
+        </button>
+
+        {/* Auto-Scroll Toggle */}
+        <button
+          onClick={() => onAutoScrollChange(!autoScroll)}
+          className="flex items-center justify-between w-full p-3 bg-[#1a1a1a] border border-[var(--border-color)] hover:border-[var(--text-accent)]/30 transition-all duration-150"
+        >
+          <div className="text-left">
+            <div className="text-xs font-semibold uppercase tracking-wider text-[var(--text-primary)]">
+              Auto-Scroll
+            </div>
+            <div className="text-[9px] text-[var(--text-secondary)] mt-0.5">
+              Follow AI response while streaming
+            </div>
+          </div>
+          <div
+            className={cn(
+              "w-10 h-5 rounded-full transition-all duration-200 relative",
+              autoScroll ? "bg-[var(--text-accent)]" : "bg-[#2a2a2a]"
+            )}
+          >
+            <div className={cn(
+              "absolute top-0.5 w-4 h-4 rounded-full transition-all duration-200",
+              autoScroll
+                ? "left-[22px] bg-black"
+                : "left-0.5 bg-[#4a4a4a]"
+            )} />
+          </div>
         </button>
       </div>
     </div>
