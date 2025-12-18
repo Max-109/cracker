@@ -819,22 +819,24 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
       return acc;
     }, []);
 
-    // Auto-reasoning: determine effort level based on prompt complexity
-    try {
-      const autoReasoningRes = await fetch('/api/auto-reasoning', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: userMessage })
-      });
-      const autoReasoningData = await autoReasoningRes.json();
-      const autoEffort = autoReasoningData.effort as ReasoningEffortLevel;
-      reasoningEffortRef.current = autoEffort;
-      console.log(`[CLIENT] Auto-reasoning determined effort: ${autoEffort}`);
-    } catch (e) {
+    // Start auto-reasoning in parallel (don't block UI)
+    // We'll await the result right before sending the message
+    const autoReasoningPromise = fetch('/api/auto-reasoning', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt: userMessage })
+    }).then(res => res.json()).then(data => {
+      const effort = data.effort as ReasoningEffortLevel;
+      reasoningEffortRef.current = effort;
+      console.log(`[CLIENT] Auto-reasoning determined effort: ${effort}`);
+      return effort;
+    }).catch(e => {
       console.error('[CLIENT] Auto-reasoning failed, defaulting to medium:', e);
       reasoningEffortRef.current = 'medium';
-    }
+      return 'medium';
+    });
 
+    // Clear input immediately so UI feels responsive
     setInput('');
     clearAttachments();
 
@@ -975,6 +977,9 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
         setLocalMessageModes(prev => ({ ...prev, [msgId]: mode }));
         pendingLearningSubModeRef.current = mode;
       }
+
+      // Wait for auto-reasoning to complete before sending (it's been running in parallel)
+      await autoReasoningPromise;
 
       // Use direct streaming via sendMessage - transport body() provides model, chatId, etc.
       // For multimodal content (with attachments), use AI SDK's file format for BOTH images and files
