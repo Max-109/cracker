@@ -1,25 +1,31 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { cn } from '@/lib/utils';
 
 export function LoadingIndicator({ className }: { className?: string }) {
+  // Generate 16 dots (4x4 grid) with random timing
+  // useMemo ensures values stay fixed after first render (no jitter)
+  const dots = useMemo(() => {
+    return Array.from({ length: 16 }).map(() => ({
+      // Random duration between 3s and 6s (slower = rarer flashes)
+      duration: 3 + Math.random() * 3,
+      // Negative delay starts animation "in the past" so we don't wait
+      delay: -(Math.random() * 5),
+    }));
+  }, []);
+
   return (
     <div className={cn("flex items-center", className)}>
-      <div className="thinking-loader">
-        <div className="thinking-track">
-          {Array.from({ length: 10 }).map((_, idx) => (
-            <span key={idx} />
-          ))}
-        </div>
-
-        {[4, 3, 2, 1].map((i) => (
+      <div className="thinking-grid">
+        {dots.map((dot, i) => (
           <div
-            key={`tail-${i}`}
-            className="thinking-runner thinking-tail"
-            style={{ ['--i' as string]: i } as React.CSSProperties}
+            key={i}
+            className="thinking-dot"
+            style={{
+              animationDuration: `${dot.duration}s`,
+              animationDelay: `${dot.delay}s`,
+            }}
           />
         ))}
-
-        <div className="thinking-runner thinking-head" />
       </div>
     </div>
   );

@@ -456,105 +456,64 @@ select {
   }
 }
 
-/* Scanner / Thinking Animation */
-.thinking-loader {
-  --dot-size: 6px;
-  --gap: 3px;
-  --runner-size: 20px;
-  --count: 10;
-  --track-dot-color: #1f1f1f;
-  margin-left: 10px;
-  --step-time: 0.12s;
-  --pause-time: 0.3s;
-  --tail-lag: calc(var(--step-time) * 4);
-  --step-size: calc(var(--dot-size) + var(--gap));
-  --move-duration: calc(var(--step-time) * (var(--count) - 1));
-  --wait-phase: calc(var(--tail-lag) + var(--pause-time));
-  --total-cycle: calc((var(--move-duration) * 2) + (var(--wait-phase) * 2));
-  --runner-offset: calc((var(--runner-size) - var(--dot-size)) / -2);
-
-  position: relative;
-  width: calc((var(--dot-size) * var(--count)) + (var(--gap) * (var(--count) - 1)));
-  height: var(--runner-size);
-  display: flex;
-  align-items: center;
+/* Thinking Grid Animation - Flickering 4x4 dot matrix */
+.thinking-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  grid-template-rows: repeat(4, 1fr);
+  gap: 3px;
+  width: 28px;
+  height: 28px;
+  margin-left: 4px;
 }
 
-.thinking-track {
-  display: flex;
-  gap: var(--gap);
+.thinking-dot {
   width: 100%;
-  z-index: 0;
+  height: 100%;
+  border-radius: 1px;
+  /* Use accent color - opacity controls the brightness level */
+  background-color: var(--text-accent);
+  animation-name: thinking-flicker;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
 }
 
-.thinking-track span {
-  display: block;
-  width: var(--dot-size);
-  height: var(--dot-size);
-  background-color: var(--track-dot-color);
-}
+@keyframes thinking-flicker {
 
-.thinking-runner {
-  position: absolute;
-  left: var(--runner-offset);
-  top: 0;
-  width: var(--runner-size);
-  height: var(--runner-size);
-  box-sizing: border-box;
-  animation: thinking-move-cycle var(--total-cycle) infinite;
-  animation-timing-function: steps(calc(var(--count) - 1));
-}
-
-.thinking-head {
-  z-index: 20;
-  border: 2px solid var(--text-accent);
-  padding: 4px;
-  background-image:
-    linear-gradient(var(--text-accent), var(--text-accent)),
-    linear-gradient(#000000, #000000);
-  background-clip: content-box, border-box;
-}
-
-.thinking-tail {
-  z-index: 10;
-  border: none;
-  padding: 0;
-  background: transparent;
-  animation-delay: calc(var(--step-time) * var(--i));
-}
-
-.thinking-tail::after {
-  content: '';
-  display: block;
-  width: var(--dot-size);
-  height: var(--dot-size);
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  opacity: 1;
-  background-color: hsl(var(--accent-h), var(--accent-s), calc(var(--accent-l) - (var(--i) * 9%)));
-}
-
-@keyframes thinking-move-cycle {
+  /* Idle: very dim (10% of accent) */
   0% {
-    transform: translateX(0);
+    opacity: 0.1;
   }
 
-  29% {
-    transform: translateX(calc(var(--step-size) * (var(--count) - 1)));
+  25% {
+    opacity: 0.1;
   }
 
-  50% {
-    transform: translateX(calc(var(--step-size) * (var(--count) - 1)));
+  /* Small blip - brief visibility */
+  30% {
+    opacity: 0.4;
   }
 
-  79% {
-    transform: translateX(0);
+  35% {
+    opacity: 0.1;
+  }
+
+  /* Long wait period */
+  70% {
+    opacity: 0.1;
+  }
+
+  /* The flash - quick and bright */
+  75% {
+    opacity: 1.0;
+  }
+
+  85% {
+    opacity: 0.1;
   }
 
   100% {
-    transform: translateX(0);
+    opacity: 0.1;
   }
 }
 
