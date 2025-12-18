@@ -668,6 +668,7 @@ function AttachmentCard({ attachment, onRemove, onImageClick }: AttachmentCardPr
   // Use original media type for display, but actual mediaType for logic
   const displayMediaType = attachment.originalMediaType || attachment.mediaType;
   const isImage = displayMediaType.startsWith('image/');
+  const isVideo = displayMediaType.startsWith('video/');
 
   // Get file extension from original type or filename
   const getFileExt = () => {
@@ -701,6 +702,14 @@ function AttachmentCard({ attachment, onRemove, onImageClick }: AttachmentCardPr
   const displayName = truncateFilename(attachment.name);
   const needsTooltip = attachment.name !== displayName;
 
+  // Video icon component
+  const VideoIcon = () => (
+    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polygon points="23 7 16 12 23 17 23 7" />
+      <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+    </svg>
+  );
+
   return (
     <div className="relative group flex-shrink-0">
       <div
@@ -725,6 +734,19 @@ function AttachmentCard({ attachment, onRemove, onImageClick }: AttachmentCardPr
               </div>
             )}
             {/* Image type badge - Hidden on mobile */}
+            <div className="hidden md:flex absolute bottom-0.5 left-0.5 px-1 py-0.5 bg-black/80 border border-[var(--border-color)] rounded-[2px]">
+              <span className="text-[7px] uppercase tracking-wider text-[var(--text-accent)] font-semibold">{fileExt}</span>
+            </div>
+          </div>
+        ) : isVideo ? (
+          <div className="relative !w-[40px] !h-[40px] md:!w-[64px] md:!h-[64px]">
+            {/* Video preview with play icon overlay */}
+            <div className="w-full h-full bg-[#0f0f0f] flex items-center justify-center">
+              <div className="text-[var(--text-accent)]">
+                <VideoIcon />
+              </div>
+            </div>
+            {/* Video type badge - Hidden on mobile */}
             <div className="hidden md:flex absolute bottom-0.5 left-0.5 px-1 py-0.5 bg-black/80 border border-[var(--border-color)] rounded-[2px]">
               <span className="text-[7px] uppercase tracking-wider text-[var(--text-accent)] font-semibold">{fileExt}</span>
             </div>

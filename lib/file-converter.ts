@@ -28,6 +28,11 @@ const SUPPORTED_MIME_TYPES = new Set([
     'application/json',
     'application/xml',
     'text/xml',
+    // Video types (Gemini supports these)
+    'video/mp4',
+    'video/webm',
+    'video/quicktime',
+    'video/x-msvideo',
 ]);
 
 // MIME types that we can convert to text

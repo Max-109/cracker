@@ -23,7 +23,12 @@ export async function POST(request: Request) {
                         'text/plain',
                         'text/markdown',
                         'text/csv',
-                        'application/json'
+                        'application/json',
+                        // Video types
+                        'video/mp4',
+                        'video/webm',
+                        'video/quicktime', // .mov
+                        'video/x-msvideo', // .avi
                     ],
                     tokenPayload: JSON.stringify({
                         // optional payload to save in metadata or use in onUploadCompleted

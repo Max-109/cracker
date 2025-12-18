@@ -196,8 +196,8 @@ export function useAttachments() {
             updateAttachment(attachment.id, (prev) => ({
               ...prev,
               url: blob.url,
-              // For images, we can use the blob URL as preview
-              previewUrl: prev.originalMediaType?.startsWith('image/') ? blob.url : prev.previewUrl,
+              // For images and videos, we can use the blob URL as preview
+              previewUrl: (prev.originalMediaType?.startsWith('image/') || prev.originalMediaType?.startsWith('video/')) ? blob.url : prev.previewUrl,
               // We set dataUrl to blob.url as well so consumers using dataUrl might still work if they just put it in src
               // But we should prefer 'url' property in consumers
               isUploading: false,
@@ -226,7 +226,7 @@ export function useAttachments() {
             dataUrl: result.dataUrl,
             mediaType: result.finalMediaType,
             wasConverted: result.wasConverted,
-            previewUrl: prev.originalMediaType?.startsWith('image/') ? result.dataUrl : prev.previewUrl,
+            previewUrl: (prev.originalMediaType?.startsWith('image/') || prev.originalMediaType?.startsWith('video/')) ? result.dataUrl : prev.previewUrl,
             isUploading: false,
             progress: 100,
           }));
