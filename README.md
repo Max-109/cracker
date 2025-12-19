@@ -1,134 +1,274 @@
-<p align="center">
-  <img src="app/icon-template.svg" width="100" alt="Cracker Logo" />
-</p>
+<!-- 
+  ╔═══════════════════════════════════════════════════════════════════════════╗
+  ║                                                                           ║
+  ║   ██████╗██████╗  █████╗  ██████╗██╗  ██╗███████╗██████╗                  ║
+  ║  ██╔════╝██╔══██╗██╔══██╗██╔════╝██║ ██╔╝██╔════╝██╔══██╗                 ║
+  ║  ██║     ██████╔╝███████║██║     █████╔╝ █████╗  ██████╔╝                 ║
+  ║  ██║     ██╔══██╗██╔══██║██║     ██╔═██╗ ██╔══╝  ██╔══██╗                 ║
+  ║  ╚██████╗██║  ██║██║  ██║╚██████╗██║  ██╗███████╗██║  ██║                 ║
+  ║   ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝                 ║
+  ║                                                                           ║
+  ╚═══════════════════════════════════════════════════════════════════════════╝
+-->
 
-# Cracker
+<div align="center">
 
-<p align="center">
-  <strong>The Ultimate AI Chat Experience</strong>
-</p>
+<br>
 
-<p align="center">
-  <a href="https://cracker.mom">
-    <img src="https://img.shields.io/badge/LIVE-cracker.mom-000000?style=for-the-badge&logo=google-chrome&logoColor=white" alt="Live Demo" />
-  </a>
-</p>
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                                                                  │
+│     ██████╗██████╗  █████╗  ██████╗██╗  ██╗███████╗██████╗       │
+│    ██╔════╝██╔══██╗██╔══██╗██╔════╝██║ ██╔╝██╔════╝██╔══██╗      │
+│    ██║     ██████╔╝███████║██║     █████╔╝ █████╗  ██████╔╝      │
+│    ██║     ██╔══██╗██╔══██║██║     ██╔═██╗ ██╔══╝  ██╔══██╗      │
+│    ╚██████╗██║  ██║██║  ██║╚██████╗██║  ██╗███████╗██║  ██║      │
+│     ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝ ╚═════╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝      │
+│                                                                  │
+│                    THE LIVING INTERFACE                          │
+│                                                                  │
+└──────────────────────────────────────────────────────────────────┘
+```
 
-<p align="center">
-  <img src="https://img.shields.io/badge/Next.js-16-000000?style=for-the-badge&logo=next.js&logoColor=white" />
-  <img src="https://img.shields.io/badge/Framework-React_19-61DAFB?style=for-the-badge&logo=react&logoColor=white" />
-  <img src="https://img.shields.io/badge/Model-Gemini_3.0_Pro-8E75B2?style=for-the-badge&logo=google-gemini&logoColor=white" />
-  <img src="https://img.shields.io/badge/Design-Tailwind_v4-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white" />
-</p>
+<br>
+
+[![LIVE](https://img.shields.io/badge/▶_LIVE-cracker.mom-1a1a1a?style=flat-square&labelColor=af8787)](https://cracker.mom)
+&nbsp;&nbsp;
+[![Next.js](https://img.shields.io/badge/Next.js_16-000000?style=flat-square&logo=next.js&logoColor=white)](https://nextjs.org)
+&nbsp;&nbsp;
+[![Gemini](https://img.shields.io/badge/Gemini_3.0-1a1a1a?style=flat-square&logo=google-gemini&logoColor=af8787)](https://ai.google.dev)
+&nbsp;&nbsp;
+[![TypeScript](https://img.shields.io/badge/TypeScript-1a1a1a?style=flat-square&logo=typescript&logoColor=3178C6)](https://typescriptlang.org)
+
+<br>
+
+```
+An independent, premium AI chat experience.
+Not a clone. Not a wrapper. A living interface.
+```
+
+<br>
+
+</div>
 
 ---
 
-<p align="center">
-  <em>Multi-model • Deep Reasoning • Real-time Streaming • Living Interface</em>
-</p>
+<br>
+
+## `// WHAT IS THIS`
+
+**Cracker** is a next-generation AI interface built from scratch. It's designed for those who want more than a generic chatbot — it's an experience.
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│  ◆ DEEP REASONING        Visualize AI thinking in real-time                │
+│  ◆ MULTI-MODEL           Gemini 3.0 Pro, 2.5 Flash, and more               │
+│  ◆ TOOL CALLING          Web search, YouTube, extensible MCP               │
+│  ◆ SMART ATTACHMENTS     PDFs, images, code files — full understanding     │
+│  ◆ LEARNING MODE         AI that remembers and adapts to you               │
+│  ◆ LIVING INTERFACE      Glassmorphism, micro-animations, premium feel     │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+<br>
 
 ---
 
-## ✨ Features
+<br>
 
-- **🚀 Latest Models**: Powered by **Gemini 3.0 Pro** and **2.5 Flash** for cutting-edge performance.
-- **🧠 Reasoning Effort**: Adjustable **Low**, **Medium**, and **High** thinking modes for complex problem solving.
-- **🎓 Learning Mode**: Adaptive AI that learns from your conversations and remembers preferences.
-- **🔌 MCP Integration**: Extensible **Model Context Protocol** support to connect with external tools.
-- **📎 Smart Attachments**: Full multimodal understanding for **PDFs**, **Images**, and **Text** files.
+## `// FEATURES`
 
-## 🛠️ Tech Stack
+<table>
+<tr>
+<td width="50%">
 
-| Component | Technology |
-|-----------|------------|
-| **Framework** | Next.js 16 (App Router) |
-| **Language** | TypeScript |
-| **Runtime** | Bun |
-| **Styling** | Tailwind CSS v4 |
-| **AI SDK** | Vercel AI SDK Core |
-| **Model Provider** | Google Generative AI (Gemini API) |
-| **Database** | PostgreSQL (Neon) + Drizzle ORM |
-| **State** | React Context + URL State |
+### ⚡ Real-Time Streaming
+Token-by-token display with TPS metrics.
+No loading bars. No waiting. Pure flow.
 
-## 🚀 Quick Start
+### 🧠 Reasoning Visualization
+Watch the AI think. Collapsible "Cracking" display shows the reasoning process with custom animations.
 
-### Prerequisites
-- [Bun](https://bun.sh/) (v1.0+)
-- PostgreSQL Database
-- Google AI API Key
+### 🎨 Customizable Theme
+Dynamic accent color picker. Your interface, your colors. Sharp-edge aesthetic throughout.
 
-### Installation
+</td>
+<td width="50%">
+
+### 🔧 Tool Integration
+Web search, YouTube, and extensible MCP protocol. The AI can reach out and get real information.
+
+### 📎 Multimodal Input
+Drag-and-drop files. Paste images. Full understanding of PDFs, code, and documents.
+
+### 📱 Mobile Ready
+Responsive design with safe area support. Android APK via Capacitor.
+
+</td>
+</tr>
+</table>
+
+<br>
+
+---
+
+<br>
+
+## `// STACK`
+
+```
+┌────────────────────┬─────────────────────────────────────────────────────────┐
+│ RUNTIME            │ Bun                                                     │
+├────────────────────┼─────────────────────────────────────────────────────────┤
+│ FRAMEWORK          │ Next.js 16 (App Router)                                 │
+├────────────────────┼─────────────────────────────────────────────────────────┤
+│ LANGUAGE           │ TypeScript                                              │
+├────────────────────┼─────────────────────────────────────────────────────────┤
+│ STYLING            │ Tailwind CSS v4 + CSS Variables                         │
+├────────────────────┼─────────────────────────────────────────────────────────┤
+│ AI                 │ Vercel AI SDK + Google Generative AI                    │
+├────────────────────┼─────────────────────────────────────────────────────────┤
+│ DATABASE           │ PostgreSQL (Neon) + Drizzle ORM                         │
+├────────────────────┼─────────────────────────────────────────────────────────┤
+│ AUTH               │ Supabase                                                │
+└────────────────────┴─────────────────────────────────────────────────────────┘
+```
+
+<br>
+
+---
+
+<br>
+
+## `// QUICKSTART`
 
 ```bash
-# 1. Clone
-git clone <repo-url>
-cd testchatgpt
+# Clone
+git clone https://github.com/yourusername/cracker.git
+cd cracker
 
-# 2. Install
+# Install (always use bun, never npm)
 bun install
 
-# 3. Setup Env
+# Configure
 cp .env.example .env
+# Add your GOOGLE_GENERATIVE_AI_API_KEY and DATABASE_URL
+
+# Run
+bun dev
 ```
 
-### Environment Setup
+<br>
 
-Add your keys to `.env`:
+### Environment
 
 ```env
-# Database
-DATABASE_URL=postgresql://user:pass@host/db
+# Required
+DATABASE_URL=postgresql://...
+GOOGLE_GENERATIVE_AI_API_KEY=your_key
 
-# Google Gemini API (Required)
-GOOGLE_GENERATIVE_AI_API_KEY=your_api_key_here
-
-# Optional: Search Tools
-TAVILY_API_KEY=...
+# Optional (for tools)
 BRAVE_API_KEY=...
+YOUTUBE_API_KEY=...
 ```
 
-### Run
-
-```bash
-# Start development server
-bun dev
-
-# Run database migrations
-bun run db:push
-```
-
-## 🏗️ Architecture
-
-```mermaid
-graph TD
-    User[User] -->|Chat| UI[Next.js UI]
-    UI -->|Stream| API[API Interface]
-    API -->|Prompt| SDK[Vercel AI SDK]
-    SDK -->|Generate| Gemini[Gemini API]
-    
-    subgraph Tools
-    Gemini -->|Call| MCP[MCP Client]
-    MCP -->|Search| Brave[Brave API]
-    end
-    
-    subgraph Data
-    UI -->|Persist| DB[(PostgreSQL)]
-    end
-```
-
-## 📱 Mobile App (Android)
-
-This project includes a capacitor configuration for Android.
-
-```bash
-# Build Android APK
-bun run build
-npx cap sync android
-npx cap open android
-```
+<br>
 
 ---
 
-<p align="center">
-  <sub>Built with ❤️ by Max</sub>
-</p>
+<br>
+
+## `// ARCHITECTURE`
+
+```
+                    ┌─────────────────────────────────────────┐
+                    │                 USER                    │
+                    └───────────────────┬─────────────────────┘
+                                        │
+                                        ▼
+┌───────────────────────────────────────────────────────────────────────────────┐
+│                              NEXT.JS UI                                       │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐          │
+│  │  Sidebar    │  │    Chat     │  │  Settings   │  │  Messages   │          │
+│  │             │  │  Interface  │  │   Dialog    │  │    List     │          │
+│  └─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘          │
+└───────────────────────────────────────┬───────────────────────────────────────┘
+                                        │
+                                        ▼
+┌───────────────────────────────────────────────────────────────────────────────┐
+│                              API LAYER                                        │
+│  ┌─────────────────────────────────────────────────────────────────────────┐ │
+│  │  /api/chat  ──►  Vercel AI SDK  ──►  Google Gemini API                  │ │
+│  └─────────────────────────────────────────────────────────────────────────┘ │
+│                                        │                                      │
+│                              ┌─────────┴─────────┐                           │
+│                              ▼                   ▼                           │
+│                    ┌─────────────────┐  ┌─────────────────┐                  │
+│                    │   BRAVE SEARCH  │  │    YOUTUBE      │                  │
+│                    │      TOOL       │  │      TOOL       │                  │
+│                    └─────────────────┘  └─────────────────┘                  │
+└───────────────────────────────────────────────────────────────────────────────┘
+                                        │
+                                        ▼
+                    ┌─────────────────────────────────────────┐
+                    │           POSTGRESQL (NEON)             │
+                    │  ┌─────────┐ ┌──────────┐ ┌──────────┐  │
+                    │  │  chats  │ │ messages │ │ settings │  │
+                    │  └─────────┘ └──────────┘ └──────────┘  │
+                    └─────────────────────────────────────────┘
+```
+
+<br>
+
+---
+
+<br>
+
+## `// ANDROID`
+
+Build a native Android APK using Capacitor:
+
+```bash
+npx cap sync android
+cd android && ./gradlew assembleRelease
+```
+
+The app wraps `cracker.mom` in a native WebView with full safe-area support.
+
+<br>
+
+---
+
+<br>
+
+## `// LICENSE`
+
+MIT
+
+<br>
+
+---
+
+<div align="center">
+
+<br>
+
+```
+┌──────────────────────────────────────────────────────────────────┐
+│                                                                  │
+│                      BUILT WITH OBSESSION                        │
+│                                                                  │
+│                            by Max                                │
+│                                                                  │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+<br>
+
+[![GitHub](https://img.shields.io/badge/GitHub-1a1a1a?style=flat-square&logo=github&logoColor=white)](https://github.com)
+&nbsp;&nbsp;
+[![cracker.mom](https://img.shields.io/badge/cracker.mom-af8787?style=flat-square)](https://cracker.mom)
+
+</div>
