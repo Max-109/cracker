@@ -1,98 +1,136 @@
 <div align="center">
 
-<img src="app/icon-template.svg" width="80" alt="Cracker" />
-
 # Cracker
 
-**The Living Interface**
-
-An independent, premium AI chat experience.
-
-[![Live](https://img.shields.io/badge/▶_LIVE-cracker.mom-af8787?style=for-the-badge)](https://cracker.mom)
-
----
-
-<sub>Multi-model &nbsp;•&nbsp; Deep Reasoning &nbsp;•&nbsp; Real-time Streaming &nbsp;•&nbsp; Tool Calling</sub>
+[![Live Demo](https://img.shields.io/badge/LIVE-cracker.mom-af8787?style=flat-square)](https://cracker.mom)
+[![Next.js](https://img.shields.io/badge/Next.js-16-000000?style=flat-square&logo=next.js&logoColor=white)](https://nextjs.org)
+[![Gemini](https://img.shields.io/badge/Gemini-3.0_Pro-8E75B2?style=flat-square&logo=google-gemini&logoColor=white)](https://ai.google.dev)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](https://opensource.org/licenses/MIT)
 
 </div>
 
-<br>
+[Cracker](https://cracker.mom/) is an independent AI chat interface built from the ground up. Not a ChatGPT clone or wrapper — a fully custom experience with its own design language, reasoning visualization, and tool ecosystem.
 
-## What is Cracker?
+<div align="center">
 
-Cracker is a next-generation AI interface built from scratch. Not a ChatGPT wrapper. Not a clone. A completely custom experience with its own design language, reasoning visualization, and tool ecosystem.
+<!-- TODO: Add demo GIF here -->
+<!-- ![Demo](/assets/demo.gif) -->
 
-**→** Watch the AI think with real-time "Cracking" visualization  
-**→** Powered by Gemini 3.0 Pro and 2.5 Flash  
-**→** Web search, YouTube, and extensible tool calling via MCP  
-**→** Full multimodal input: PDFs, images, code files  
-**→** Learning mode that adapts to your preferences  
-**→** Sharp-edge glassmorphism UI with customizable accent colors
+</div>
 
-<br>
+## Goals
 
-## Stack
+- **Premium Experience**: A "living interface" with glassmorphism, micro-animations, and sharp-edge aesthetics.
+- **Deep Reasoning**: Real-time visualization of AI thinking with collapsible "Cracking" display.
+- **Multi-Model**: Seamless switching between Gemini 3.0 Pro, 2.5 Flash, and more.
+- **Extensibility**: Tool calling via MCP (Model Context Protocol) — web search, YouTube, and custom tools.
+- **Learning Mode**: AI that remembers your preferences and adapts over time.
 
-| | Technology |
-|:--|:--|
-| **Runtime** | Bun |
-| **Framework** | Next.js 16 (App Router) |
-| **Language** | TypeScript |
-| **Styling** | Tailwind CSS v4 |
-| **AI** | Vercel AI SDK + Google Generative AI |
-| **Database** | PostgreSQL (Neon) + Drizzle ORM |
-| **Auth** | Supabase |
+> [!NOTE]
+> Cracker is actively maintained and continuously evolving with new features.
 
-<br>
+## Features
+
+- [x] Configuration & User Settings
+- [x] Authentication (Supabase)
+- Chat Interface
+  - [x] Real-time Streaming
+  - [x] Tokens Per Second Metrics
+  - [x] Message Persistence
+  - [x] Chat History Sidebar
+- Reasoning & Thinking
+  - [x] Collapsible Reasoning Display
+  - [x] Thinking Effort Levels (Low/Medium/High)
+  - [x] Auto Effort Classification
+- Multimodal
+  - [x] Image Attachments
+  - [x] PDF Documents
+  - [x] Code Files
+  - [x] Drag & Drop Upload
+  - [x] Clipboard Paste
+- Tools (MCP)
+  - [x] Web Search (Brave API)
+  - [x] YouTube Search
+  - [x] Tool Call Indicator UI
+- Customization
+  - [x] Dynamic Accent Colors
+  - [x] Code Wrapping Toggle
+  - [x] Auto-Scroll Settings
+  - [x] Learning Mode
+  - [x] Custom Instructions
+- Mobile
+  - [x] Responsive Design
+  - [x] Safe Area Support
+  - [x] Android APK (Capacitor)
+
+## Tech Stack
+
+| Component | Technology |
+|-----------|------------|
+| Runtime | Bun |
+| Framework | Next.js 16 (App Router) |
+| Language | TypeScript |
+| Styling | Tailwind CSS v4 |
+| AI | Vercel AI SDK + Google Generative AI |
+| Database | PostgreSQL (Neon) + Drizzle ORM |
+| Auth | Supabase |
 
 ## Quick Start
 
 ```bash
 # Clone
-git clone https://github.com/yourusername/cracker.git && cd cracker
+git clone https://github.com/yourusername/cracker.git
+cd cracker
 
-# Install (bun only, never npm)
+# Install (use bun, not npm)
 bun install
 
 # Configure
 cp .env.example .env
-# Add: DATABASE_URL, GOOGLE_GENERATIVE_AI_API_KEY
 
 # Run
 bun dev
 ```
 
-<br>
-
-## Environment
+### Environment Variables
 
 ```env
 # Required
 DATABASE_URL=postgresql://...
 GOOGLE_GENERATIVE_AI_API_KEY=...
 
-# Optional (tools)
+# Auth
+NEXT_PUBLIC_SUPABASE_URL=...
+NEXT_PUBLIC_SUPABASE_ANON_KEY=...
+
+# Optional (Tools)
 BRAVE_API_KEY=...
 YOUTUBE_API_KEY=...
 ```
 
-<br>
+## Mobile App
 
-## Mobile
-
-Android APK via Capacitor:
+Build an Android APK using Capacitor:
 
 ```bash
 npx cap sync android
 cd android && ./gradlew assembleRelease
 ```
 
-<br>
+The app wraps the deployed website in a native WebView.
+
+## Contributing
+
+Contributions are welcome! Please read the codebase guidelines in `AGENTS.md`.
+
+## Documentation
+
+Technical documentation for AI agents and contributors: [`AGENTS.md`](AGENTS.md)
 
 ---
 
 <div align="center">
 
-<sub>Built with obsession by **Max**</sub>
+Built by **Max**
 
 </div>
