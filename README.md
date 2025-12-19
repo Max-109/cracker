@@ -1,136 +1,134 @@
-<div align="center">
+<p align="center">
+  <img src="app/icon-template.svg" width="100" alt="Cracker Logo" />
+</p>
 
 # Cracker
 
-[![Live Demo](https://img.shields.io/badge/LIVE-cracker.mom-af8787?style=flat-square)](https://cracker.mom)
-[![Next.js](https://img.shields.io/badge/Next.js-16-000000?style=flat-square&logo=next.js&logoColor=white)](https://nextjs.org)
-[![Gemini](https://img.shields.io/badge/Gemini-3.0_Pro-8E75B2?style=flat-square&logo=google-gemini&logoColor=white)](https://ai.google.dev)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](https://opensource.org/licenses/MIT)
+<p align="center">
+  <strong>The Ultimate AI Chat Experience</strong>
+</p>
 
-</div>
+<p align="center">
+  <a href="https://cracker.mom">
+    <img src="https://img.shields.io/badge/LIVE-cracker.mom-000000?style=for-the-badge&logo=google-chrome&logoColor=white" alt="Live Demo" />
+  </a>
+</p>
 
-[Cracker](https://cracker.mom/) is an independent AI chat interface built from the ground up. Not a ChatGPT clone or wrapper — a fully custom experience with its own design language, reasoning visualization, and tool ecosystem.
-
-<div align="center">
-
-<!-- TODO: Add demo GIF here -->
-<!-- ![Demo](/assets/demo.gif) -->
-
-</div>
-
-## Goals
-
-- **Premium Experience**: A "living interface" with glassmorphism, micro-animations, and sharp-edge aesthetics.
-- **Deep Reasoning**: Real-time visualization of AI thinking with collapsible "Cracking" display.
-- **Multi-Model**: Seamless switching between Gemini 3.0 Pro, 2.5 Flash, and more.
-- **Extensibility**: Tool calling via MCP (Model Context Protocol) — web search, YouTube, and custom tools.
-- **Learning Mode**: AI that remembers your preferences and adapts over time.
-
-> [!NOTE]
-> Cracker is actively maintained and continuously evolving with new features.
-
-## Features
-
-- [x] Configuration & User Settings
-- [x] Authentication (Supabase)
-- Chat Interface
-  - [x] Real-time Streaming
-  - [x] Tokens Per Second Metrics
-  - [x] Message Persistence
-  - [x] Chat History Sidebar
-- Reasoning & Thinking
-  - [x] Collapsible Reasoning Display
-  - [x] Thinking Effort Levels (Low/Medium/High)
-  - [x] Auto Effort Classification
-- Multimodal
-  - [x] Image Attachments
-  - [x] PDF Documents
-  - [x] Code Files
-  - [x] Drag & Drop Upload
-  - [x] Clipboard Paste
-- Tools (MCP)
-  - [x] Web Search (Brave API)
-  - [x] YouTube Search
-  - [x] Tool Call Indicator UI
-- Customization
-  - [x] Dynamic Accent Colors
-  - [x] Code Wrapping Toggle
-  - [x] Auto-Scroll Settings
-  - [x] Learning Mode
-  - [x] Custom Instructions
-- Mobile
-  - [x] Responsive Design
-  - [x] Safe Area Support
-  - [x] Android APK (Capacitor)
-
-## Tech Stack
-
-| Component | Technology |
-|-----------|------------|
-| Runtime | Bun |
-| Framework | Next.js 16 (App Router) |
-| Language | TypeScript |
-| Styling | Tailwind CSS v4 |
-| AI | Vercel AI SDK + Google Generative AI |
-| Database | PostgreSQL (Neon) + Drizzle ORM |
-| Auth | Supabase |
-
-## Quick Start
-
-```bash
-# Clone
-git clone https://github.com/yourusername/cracker.git
-cd cracker
-
-# Install (use bun, not npm)
-bun install
-
-# Configure
-cp .env.example .env
-
-# Run
-bun dev
-```
-
-### Environment Variables
-
-```env
-# Required
-DATABASE_URL=postgresql://...
-GOOGLE_GENERATIVE_AI_API_KEY=...
-
-# Auth
-NEXT_PUBLIC_SUPABASE_URL=...
-NEXT_PUBLIC_SUPABASE_ANON_KEY=...
-
-# Optional (Tools)
-BRAVE_API_KEY=...
-YOUTUBE_API_KEY=...
-```
-
-## Mobile App
-
-Build an Android APK using Capacitor:
-
-```bash
-npx cap sync android
-cd android && ./gradlew assembleRelease
-```
-
-The app wraps the deployed website in a native WebView.
-
-## Contributing
-
-Contributions are welcome! Please read the codebase guidelines in `AGENTS.md`.
-
-## Documentation
-
-Technical documentation for AI agents and contributors: [`AGENTS.md`](AGENTS.md)
+<p align="center">
+  <img src="https://img.shields.io/badge/Next.js-16-000000?style=for-the-badge&logo=next.js&logoColor=white" />
+  <img src="https://img.shields.io/badge/Framework-React_19-61DAFB?style=for-the-badge&logo=react&logoColor=white" />
+  <img src="https://img.shields.io/badge/Model-Gemini_3.0_Pro-8E75B2?style=for-the-badge&logo=google-gemini&logoColor=white" />
+  <img src="https://img.shields.io/badge/Design-Tailwind_v4-06B6D4?style=for-the-badge&logo=tailwindcss&logoColor=white" />
+</p>
 
 ---
 
-<div align="center">
+<p align="center">
+  <em>Multi-model • Deep Reasoning • Real-time Streaming • Living Interface</em>
+</p>
 
-Built by **Max**
+---
 
-</div>
+## ✨ Features
+
+- **🚀 Latest Models**: Powered by **Gemini 3.0 Pro** and **3.0 Flash** for cutting-edge performance.
+- **🧠 Reasoning Effort**: Adjustable **Low**, **Medium**, and **High** thinking modes for complex problem solving.
+- **🎓 Learning Mode**: Adaptive AI that learns from your conversations and remembers preferences.
+- **🔌 MCP Integration**: Extensible **Model Context Protocol** support to connect with external tools.
+- **📎 Smart Attachments**: Full multimodal understanding for **PDFs**, **Images**, and **Text** files.
+
+## 🛠️ Tech Stack
+
+| Component | Technology |
+|-----------|------------|
+| **Framework** | Next.js 16 (App Router) |
+| **Language** | TypeScript |
+| **Runtime** | Bun |
+| **Styling** | Tailwind CSS v4 |
+| **AI SDK** | Vercel AI SDK Core |
+| **Model Provider** | Google Generative AI (Gemini API) |
+| **Database** | PostgreSQL (Neon) + Drizzle ORM |
+| **State** | React Context + URL State |
+
+## 🚀 Quick Start
+
+### Prerequisites
+- [Bun](https://bun.sh/) (v1.0+)
+- PostgreSQL Database
+- Google AI API Key
+
+### Installation
+
+```bash
+# 1. Clone
+git clone <repo-url>
+cd testchatgpt
+
+# 2. Install
+bun install
+
+# 3. Setup Env
+cp .env.example .env
+```
+
+### Environment Setup
+
+Add your keys to `.env`:
+
+```env
+# Database
+DATABASE_URL=postgresql://user:pass@host/db
+
+# Google Gemini API (Required)
+GOOGLE_GENERATIVE_AI_API_KEY=your_api_key_here
+
+# Optional: Search Tools
+TAVILY_API_KEY=...
+BRAVE_API_KEY=...
+```
+
+### Run
+
+```bash
+# Start development server
+bun dev
+
+# Run database migrations
+bun run db:push
+```
+
+## 🏗️ Architecture
+
+```mermaid
+graph TD
+    User[User] -->|Chat| UI[Next.js UI]
+    UI -->|Stream| API[API Interface]
+    API -->|Prompt| SDK[Vercel AI SDK]
+    SDK -->|Generate| Gemini[Gemini API]
+    
+    subgraph Tools
+    Gemini -->|Call| MCP[MCP Client]
+    MCP -->|Search| Brave[Brave API]
+    end
+    
+    subgraph Data
+    UI -->|Persist| DB[(PostgreSQL)]
+    end
+```
+
+## 📱 Mobile App (Android)
+
+This project includes a capacitor configuration for Android.
+
+```bash
+# Build Android APK
+bun run build
+npx cap sync android
+npx cap open android
+```
+
+---
+
+<p align="center">
+  <sub>Built with ❤️ by Max</sub>
+</p>
