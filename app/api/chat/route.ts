@@ -6,6 +6,7 @@ import { eq, desc, and } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { getEnabledBraveTools } from "@/lib/tools/brave-tools";
 import { getEnabledYouTubeTools } from "@/lib/tools/youtube-tools";
+import { getOrCreateChatDek, encryptContent } from "@/lib/encryption";
 
 export const maxDuration = 300; // 5 minutes max for responses
 
@@ -852,10 +853,14 @@ export async function POST(req: Request) {
             }
 
             if (contentParts.length > 0) {
+              // Encrypt content before saving
+              const dek = await getOrCreateChatDek(chatId);
+              const encryptedContent = encryptContent(contentParts, dek);
+
               await db.insert(messagesTable).values({
                 chatId,
                 role: 'assistant',
-                content: contentParts,
+                content: encryptedContent,
                 model: modelId,
                 learningSubMode: subMode, // Save the mode used
                 tokensPerSecond: tps > 0 ? String(Math.round(tps * 10) / 10) : null,

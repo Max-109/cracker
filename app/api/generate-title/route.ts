@@ -4,6 +4,7 @@ import { getDb } from '@/db';
 import { chats } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
+import { getOrCreateChatDek, encryptTitle } from '@/lib/encryption';
 
 // Initialize Google Generative AI with API key
 const google = createGoogleGenerativeAI({
@@ -38,12 +39,17 @@ export async function POST(req: Request) {
     const title = text.trim().replace(/^["']|["']$/g, ''); // Remove quotes if any
 
     if (chatId) {
-      await db.update(chats).set({ title }).where(eq(chats.id, chatId));
+      // Encrypt the title before saving
+      const dek = await getOrCreateChatDek(chatId);
+      const encryptedTitle = encryptTitle(title, dek);
+      await db.update(chats).set({ title: encryptedTitle }).where(eq(chats.id, chatId));
     }
 
+    // Return plaintext title to frontend (they don't need to know about encryption)
     return NextResponse.json({ title });
   } catch (error) {
     console.error("Title generation error:", error);
     return NextResponse.json({ error: 'Failed to generate title' }, { status: 500 });
   }
 }
+

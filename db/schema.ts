@@ -39,6 +39,14 @@ export const chats = pgTable('chats', {
   index('chats_user_id_idx').on(table.userId),
 ]);
 
+// Per-chat encryption keys (DEKs wrapped by KEK)
+export const chatKeys = pgTable('chat_keys', {
+  chatId: uuid('chat_id').references(() => chats.id, { onDelete: 'cascade' }).primaryKey(),
+  encryptedDek: text('encrypted_dek').notNull(),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+});
+
+
 // User settings - per-user preferences
 export const userSettings = pgTable('user_settings', {
   id: uuid('id').primaryKey().defaultRandom(),

@@ -4,6 +4,7 @@ import { eq, asc, and } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/auth';
 import { classifyDbError } from '@/lib/db-errors';
+import { getChatDek, decryptContent, getOrCreateChatDek, encryptTitle } from '@/lib/encryption';
 
 // Helper to verify chat ownership
 async function verifyChatOwnership(chatId: string, userId: string): Promise<boolean> {
@@ -41,7 +42,14 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       return NextResponse.json({ error: 'Chat not found' }, { status: 404 });
     }
 
-    return NextResponse.json(chatMessages);
+    // Decrypt messages
+    const dek = await getChatDek(id);
+    const decryptedMessages = chatMessages.map(msg => ({
+      ...msg,
+      content: dek ? decryptContent(msg.content, dek) : msg.content,
+    }));
+
+    return NextResponse.json(decryptedMessages);
   } catch (error) {
     const classified = classifyDbError(error);
     if (classified.kind === 'quota_exceeded') {
@@ -71,9 +79,13 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
       return NextResponse.json({ error: 'Chat not found' }, { status: 404 });
     }
 
+    // Encrypt title before saving
+    const dek = await getOrCreateChatDek(id);
+    const encryptedTitle = encryptTitle(title, dek);
+
     await db
       .update(chats)
-      .set({ title })
+      .set({ title: encryptedTitle })
       .where(and(eq(chats.id, id), eq(chats.userId, user.id)));
     return NextResponse.json({ success: true });
   } catch (error) {

@@ -4,6 +4,7 @@ import { desc, eq, inArray, asc } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/auth';
 import { classifyDbError } from '@/lib/db-errors';
+import { getChatDek, decryptContent, decryptTitle } from '@/lib/encryption';
 
 // Default page size - enough to fill the visible sidebar
 const DEFAULT_LIMIT = 15;
@@ -32,31 +33,53 @@ export async function GET(request: Request) {
       .limit(limit)
       .offset(offset);
 
+    const chatIds = paginatedChats.map(chat => chat.id);
+
+    // Pre-fetch all DEKs for efficiency
+    const dekMap = new Map<string, Buffer | null>();
+    for (const chatId of chatIds) {
+      dekMap.set(chatId, await getChatDek(chatId));
+    }
+
+    // Decrypt chat titles
+    const decryptedChats = paginatedChats.map(chat => ({
+      ...chat,
+      title: decryptTitle(chat.title, dekMap.get(chat.id) || null),
+    }));
+
     if (!includeMessages) {
       return NextResponse.json({
-        chats: paginatedChats,
+        chats: decryptedChats,
         hasMore: paginatedChats.length === limit,
         offset,
         limit,
       });
     }
 
-    const chatIds = paginatedChats.map(chat => chat.id);
     const allMessages =
       chatIds.length > 0
         ? await db
-            .select()
-            .from(messages)
-            .where(inArray(messages.chatId, chatIds))
-            .orderBy(asc(messages.createdAt))
+          .select()
+          .from(messages)
+          .where(inArray(messages.chatId, chatIds))
+          .orderBy(asc(messages.createdAt))
         : [];
 
-    const messagesByChatId: Record<string, typeof allMessages> = {};
-    for (const message of allMessages) {
+    // Decrypt all messages
+    const decryptedMessages = allMessages.map(msg => {
+      const dek = dekMap.get(msg.chatId);
+      return {
+        ...msg,
+        content: dek ? decryptContent(msg.content, dek) : msg.content,
+      };
+    });
+
+    const messagesByChatId: Record<string, typeof decryptedMessages> = {};
+    for (const message of decryptedMessages) {
       (messagesByChatId[message.chatId] ||= []).push(message);
     }
 
-    const result = paginatedChats.map(chat => ({
+    const result = decryptedChats.map(chat => ({
       ...chat,
       messages: messagesByChatId[chat.id] || [],
     }));
@@ -64,7 +87,7 @@ export async function GET(request: Request) {
     // Return with pagination info
     return NextResponse.json({
       chats: result,
-      hasMore: paginatedChats.length === limit, // If we got full page, there might be more
+      hasMore: paginatedChats.length === limit,
       offset: offset,
       limit: limit
     });
@@ -79,3 +102,4 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: 'Failed to fetch chats with messages', code: classified.code }, { status: classified.status });
   }
 }
+

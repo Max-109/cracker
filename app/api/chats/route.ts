@@ -4,6 +4,7 @@ import { desc, eq, inArray } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/auth';
 import { classifyDbError } from '@/lib/db-errors';
+import { getChatDek, decryptTitle } from '@/lib/encryption';
 
 export async function GET(request: Request) {
   try {
@@ -24,7 +25,19 @@ export async function GET(request: Request) {
       .where(eq(chats.userId, user.id))
       .orderBy(desc(chats.createdAt))
       .limit(limit);
-    return NextResponse.json(allChats);
+
+    // Decrypt titles
+    const decryptedChats = await Promise.all(
+      allChats.map(async (chat) => {
+        const dek = await getChatDek(chat.id);
+        return {
+          ...chat,
+          title: decryptTitle(chat.title, dek),
+        };
+      })
+    );
+
+    return NextResponse.json(decryptedChats);
   } catch (error) {
     const classified = classifyDbError(error);
     if (classified.kind === 'quota_exceeded') {
