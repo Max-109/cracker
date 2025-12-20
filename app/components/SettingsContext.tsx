@@ -198,6 +198,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     const currentAccentColor = getAccentColorFromStorage();
 
     if (!user) {
+      console.log('[Settings] No user, using defaults - enabledMcpServers:', DEFAULT_ACCOUNT_SETTINGS.enabledMcpServers);
       setSettings({
         ...DEFAULT_ACCOUNT_SETTINGS,
         accentColor: getAccentColorFromStorage(),
@@ -211,6 +212,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       const res = await fetch('/api/settings');
       if (res.ok) {
         const data = await res.json();
+        console.log('[Settings] Loaded from DB - enabledMcpServers:', data.enabledMcpServers);
         // Derive chatMode from learningMode if not explicitly set (backward compatibility)
         let chatMode: ChatMode = data.chatMode || DEFAULT_ACCOUNT_SETTINGS.chatMode;
         if (!data.chatMode && data.learningMode) {
@@ -274,7 +276,12 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     if (Object.keys(updates).length === 0) return;
 
     // For account settings, require authentication
-    if (!user) return;
+    if (!user) {
+      console.log('[Settings] No user - skipping API update');
+      return;
+    }
+
+    console.log('[Settings] Updating:', updates);
 
     // Optimistically update local state
     setSettings(prev => ({ ...prev, ...updates }));
@@ -287,15 +294,18 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
       });
 
       if (!res.ok) {
+        console.error('[Settings] API update failed:', res.status);
         // Revert on failure
         await fetchSettings();
+      } else {
+        console.log('[Settings] API update success');
       }
     } catch (error) {
       console.error('Failed to update settings:', error);
       // Revert on failure
       await fetchSettings();
     }
-  }, [user, fetchSettings]);
+  }, [user, fetchSettings, settings.learningMode, settings.learningSubMode]);
 
   useEffect(() => {
     if (!authLoading) {

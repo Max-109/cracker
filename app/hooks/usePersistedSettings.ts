@@ -168,10 +168,15 @@ export function useEnabledMcpServers() {
 
   const toggleMcpServer = useCallback((serverSlug: string, enabled: boolean) => {
     const current = settings.enabledMcpServers || [];
+    console.log('[Tools] Toggle:', serverSlug, enabled, 'current:', current);
     if (enabled && !current.includes(serverSlug)) {
-      updateSettings({ enabledMcpServers: [...current, serverSlug] });
+      const updated = [...current, serverSlug];
+      console.log('[Tools] Adding, new list:', updated);
+      updateSettings({ enabledMcpServers: updated });
     } else if (!enabled && current.includes(serverSlug)) {
-      updateSettings({ enabledMcpServers: current.filter(s => s !== serverSlug) });
+      const updated = current.filter(s => s !== serverSlug);
+      console.log('[Tools] Removing, new list:', updated);
+      updateSettings({ enabledMcpServers: updated });
     }
   }, [settings.enabledMcpServers, updateSettings]);
 

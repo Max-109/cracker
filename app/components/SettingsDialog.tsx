@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { HexColorPicker } from "react-colorful";
-import { Settings2, User, Pencil, Palette, Sparkles, GaugeCircle, MessageSquareText, Search, Globe, Youtube, Sliders } from 'lucide-react';
+import { Settings2, User, Pencil, Palette, Sparkles, GaugeCircle, MessageSquareText, Search, Globe, Youtube, Sliders, Brain, X, Trash2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Dialog } from '@/components/ui';
 
@@ -81,7 +81,7 @@ export function SettingsDialog({
   autoScroll,
   onAutoScrollChange,
 }: SettingsDialogProps) {
-  const [activeSection, setActiveSection] = useState<'response' | 'profile' | 'appearance' | 'tools' | 'behavior'>('response');
+  const [activeSection, setActiveSection] = useState<'response' | 'profile' | 'appearance' | 'tools' | 'behavior' | 'memory'>('response');
   // Initialize local state from props
   const [localResponseLength, setLocalResponseLength] = useState(responseLength);
   const [localCustomInstructions, setLocalCustomInstructions] = useState(customInstructions);
@@ -148,6 +148,7 @@ export function SettingsDialog({
             { id: 'tools' as const, icon: Globe, label: 'Tools' },
             { id: 'appearance' as const, icon: Palette, label: 'Appearance' },
             { id: 'behavior' as const, icon: Sliders, label: 'Behavior' },
+            { id: 'memory' as const, icon: Brain, label: 'Memory' },
           ].map(({ id, icon: Icon, label }) => (
             <button
               key={id}
@@ -203,6 +204,9 @@ export function SettingsDialog({
               autoScroll={autoScroll}
               onAutoScrollChange={onAutoScrollChange}
             />
+          )}
+          {activeSection === 'memory' && (
+            <MemorySection />
           )}
         </div>
       </div>
@@ -825,6 +829,285 @@ function ToolsSection({ enabledServers, onToggleServer }: ToolsSectionProps) {
       <p className="text-[9px] text-[var(--text-secondary)]/60 leading-relaxed">
         When enabled, the AI can search the web to find current information and answer questions about recent events.
       </p>
+    </div>
+  );
+}
+
+// Memory Section - User facts management
+interface UserFact {
+  id: string;
+  fact: string;
+  category: string;
+  createdAt: string;
+}
+
+function MemorySection() {
+  const [facts, setFacts] = useState<UserFact[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [memoryEnabled, setMemoryEnabled] = useState(true);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  // Fetch facts on mount
+  useEffect(() => {
+    const fetchFacts = async () => {
+      try {
+        const res = await fetch('/api/user-facts');
+        if (res.ok) {
+          const data = await res.json();
+          setFacts(data.facts || []);
+        }
+      } catch (err) {
+        console.error('Failed to fetch facts:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    const fetchSettings = async () => {
+      try {
+        const res = await fetch('/api/settings');
+        if (res.ok) {
+          const data = await res.json();
+          setMemoryEnabled(data.memoryEnabled !== false);
+        }
+      } catch (err) {
+        console.error('Failed to fetch settings:', err);
+      }
+    };
+
+    fetchFacts();
+    fetchSettings();
+  }, []);
+
+  const handleDeleteFact = async (factId: string) => {
+    setDeletingId(factId);
+    try {
+      const res = await fetch(`/api/user-facts?id=${factId}`, { method: 'DELETE' });
+      if (res.ok) {
+        setFacts(prev => prev.filter(f => f.id !== factId));
+      }
+    } catch (err) {
+      console.error('Failed to delete fact:', err);
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState('');
+
+  const handleStartEdit = (fact: UserFact) => {
+    setEditingId(fact.id);
+    setEditValue(fact.fact);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingId || !editValue.trim()) return;
+
+    try {
+      const res = await fetch('/api/user-facts', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: editingId, fact: editValue.trim() }),
+      });
+      if (res.ok) {
+        setFacts(prev => prev.map(f =>
+          f.id === editingId ? { ...f, fact: editValue.trim() } : f
+        ));
+      }
+    } catch (err) {
+      console.error('Failed to update fact:', err);
+    } finally {
+      setEditingId(null);
+      setEditValue('');
+    }
+  };
+
+  const handleClearAll = async () => {
+    setShowClearConfirm(true);
+  };
+
+  const confirmClearAll = async () => {
+    setShowClearConfirm(false);
+    try {
+      const res = await fetch('/api/user-facts?clearAll=true', { method: 'DELETE' });
+      if (res.ok) {
+        setFacts([]);
+      }
+    } catch (err) {
+      // Silent fail
+    }
+  };
+
+  const handleToggleMemory = async () => {
+    const newValue = !memoryEnabled;
+    setMemoryEnabled(newValue);
+
+    try {
+      await fetch('/api/settings', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ memoryEnabled: newValue }),
+      });
+    } catch (err) {
+      setMemoryEnabled(!newValue); // Revert on error
+    }
+  };
+
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
+
+  return (
+    <div className="space-y-4">
+      {/* Custom confirm dialog */}
+      {showClearConfirm && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50" onClick={() => setShowClearConfirm(false)}>
+          <div className="bg-[#151515] border border-[var(--border-color)] p-5 max-w-sm mx-4" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-2 mb-3">
+              <Trash2 size={16} className="text-red-400" />
+              <span className="text-sm font-semibold text-[var(--text-primary)] uppercase tracking-wider">Clear All Memory</span>
+            </div>
+            <p className="text-xs text-[var(--text-secondary)] mb-4">
+              This will permanently delete all {facts.length} facts. This action cannot be undone.
+            </p>
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => setShowClearConfirm(false)}
+                className="px-3 py-1.5 text-[10px] uppercase tracking-wider text-[var(--text-secondary)] border border-[var(--border-color)] hover:text-[var(--text-primary)] hover:border-[var(--text-secondary)] transition-all"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmClearAll}
+                className="px-3 py-1.5 text-[10px] uppercase tracking-wider bg-red-500/80 text-white border border-red-500 hover:bg-red-500 transition-all font-semibold"
+              >
+                Delete All
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Header with toggle */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Brain size={12} className="text-[var(--text-accent)]" />
+          <span className="text-[10px] uppercase tracking-[0.16em] font-semibold text-[var(--text-secondary)]">
+            Memory
+          </span>
+        </div>
+        <button
+          onClick={handleToggleMemory}
+          className="flex items-center gap-2"
+        >
+          <span className="text-[9px] uppercase tracking-wider text-[var(--text-secondary)]">
+            {memoryEnabled ? 'ON' : 'OFF'}
+          </span>
+          <div
+            className={cn(
+              "w-10 h-5 rounded-full transition-all duration-200 relative",
+              memoryEnabled ? "bg-[var(--text-accent)]" : "bg-[#2a2a2a]"
+            )}
+          >
+            <div className={cn(
+              "absolute top-0.5 w-4 h-4 rounded-full transition-all duration-200",
+              memoryEnabled
+                ? "left-[22px] bg-black"
+                : "left-0.5 bg-[#4a4a4a]"
+            )} />
+          </div>
+        </button>
+      </div>
+
+      {/* Description */}
+      <p className="text-[10px] text-[var(--text-secondary)] leading-relaxed">
+        Memory learns facts about you to personalize responses.
+      </p>
+
+      {loading ? (
+        <div className="text-center py-6 text-[var(--text-secondary)] text-xs">
+          Loading...
+        </div>
+      ) : facts.length === 0 ? (
+        <div className="text-center py-6 border border-dashed border-[var(--border-color)]">
+          <Brain size={20} className="mx-auto mb-2 text-[var(--text-secondary)]/30" />
+          <div className="text-xs text-[var(--text-secondary)]">
+            No facts yet
+          </div>
+          <div className="text-[9px] text-[var(--text-secondary)]/50 mt-1">
+            Start chatting and I&apos;ll learn about you
+          </div>
+        </div>
+      ) : (
+        <>
+          {/* Fact count */}
+          <div className="flex items-center justify-between p-2 bg-[var(--text-accent)]/5 border-l-2 border-l-[var(--text-accent)]">
+            <span className="text-[10px] uppercase tracking-wider text-[var(--text-accent)] font-semibold">
+              {facts.length} fact{facts.length !== 1 ? 's' : ''}
+            </span>
+            <button
+              onClick={handleClearAll}
+              className="text-[9px] uppercase tracking-wider text-red-400/60 hover:text-red-400 transition-colors"
+            >
+              Clear all
+            </button>
+          </div>
+
+          {/* Flat facts list */}
+          <div className="space-y-2 max-h-[280px] overflow-y-auto pr-1">
+            {facts.map(fact => (
+              <div
+                key={fact.id}
+                className="group flex items-start gap-3 p-3 bg-[#131313] border-l-2 border-l-[var(--text-accent)]/40 border-y border-r border-y-[var(--border-color)] border-r-[var(--border-color)] hover:border-l-[var(--text-accent)] hover:bg-[#181818] hover:shadow-[0_0_20px_-5px_var(--text-accent)] transition-all duration-200"
+              >
+                {editingId === fact.id ? (
+                  <div className="flex-1 flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={editValue}
+                      onChange={(e) => setEditValue(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleSaveEdit();
+                        if (e.key === 'Escape') { setEditingId(null); setEditValue(''); }
+                      }}
+                      autoFocus
+                      className="flex-1 bg-[#0f0f0f] border border-[var(--text-accent)] px-2 py-1 text-xs text-[var(--text-primary)] outline-none"
+                    />
+                    <button
+                      onClick={handleSaveEdit}
+                      className="px-2 py-1 text-[9px] uppercase bg-[var(--text-accent)] text-black font-semibold"
+                    >
+                      Save
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <span className="flex-1 text-xs text-[var(--text-primary)] leading-relaxed">
+                      {fact.fact}
+                    </span>
+                    <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-all shrink-0">
+                      <button
+                        onClick={() => handleStartEdit(fact)}
+                        className="p-1 hover:bg-[var(--text-accent)]/10 text-[var(--text-secondary)] hover:text-[var(--text-accent)] transition-all"
+                        title="Edit"
+                      >
+                        <Pencil size={11} />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteFact(fact.id)}
+                        disabled={deletingId === fact.id}
+                        className="p-1 hover:bg-red-500/10 text-[var(--text-secondary)] hover:text-red-400 transition-all"
+                        title="Delete"
+                      >
+                        <X size={11} />
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            ))}
+          </div>
+        </>
+      )}
     </div>
   );
 }

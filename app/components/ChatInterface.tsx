@@ -110,7 +110,9 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
   useEffect(() => { chatModeRef.current = chatMode; }, [chatMode]);
   useEffect(() => { customInstructionsRef.current = customInstructions; }, [customInstructions]);
   const enabledMcpServersRef = useRef(enabledMcpServers);
-  useEffect(() => { enabledMcpServersRef.current = enabledMcpServers; }, [enabledMcpServers]);
+  // Use direct assignment - update ref IMMEDIATELY when value changes, not via effect
+  // This prevents race condition when user toggles a tool and quickly sends a message
+  enabledMcpServersRef.current = enabledMcpServers;
   const learningSubModeRef = useRef(learningSubMode);
   useEffect(() => { learningSubModeRef.current = learningSubMode; }, [learningSubMode]);
 
@@ -180,21 +182,24 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
   // eslint-disable-next-line react-hooks/refs
   const transport = useMemo(() => new DefaultChatTransport({
     api: '/api/chat',
-    body: () => ({
-      // When image mode is selected, use the image generation model
-      model: chatModeRef.current === 'image' ? 'gemini-3-pro-image-preview' : currentModelIdRef.current,
-      reasoningEffort: reasoningEffortRef.current,
-      chatId: chatIdRef.current,
-      responseLength: responseLengthRef.current,
-      imageMode: chatModeRef.current === 'image',
-      userName: userNameRef.current,
-      userGender: userGenderRef.current,
-      learningMode: learningModeRef.current,
-      learningSubMode: learningSubModeRef.current,
-      customInstructions: customInstructionsRef.current,
-      enabledMcpServers: enabledMcpServersRef.current,
-      accentColor: getAccentColorFromStorage(),
-    }),
+    body: () => {
+      console.log('[Chat] Sending with enabledMcpServers:', enabledMcpServersRef.current);
+      return {
+        // When image mode is selected, use the image generation model
+        model: chatModeRef.current === 'image' ? 'gemini-3-pro-image-preview' : currentModelIdRef.current,
+        reasoningEffort: reasoningEffortRef.current,
+        chatId: chatIdRef.current,
+        responseLength: responseLengthRef.current,
+        imageMode: chatModeRef.current === 'image',
+        userName: userNameRef.current,
+        userGender: userGenderRef.current,
+        learningMode: learningModeRef.current,
+        learningSubMode: learningSubModeRef.current,
+        customInstructions: customInstructionsRef.current,
+        enabledMcpServers: enabledMcpServersRef.current,
+        accentColor: getAccentColorFromStorage(),
+      };
+    },
   }), []);
 
   // useChat hook

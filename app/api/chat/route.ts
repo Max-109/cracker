@@ -1,12 +1,13 @@
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { streamText, convertToModelMessages, UIMessage, stepCountIs } from "ai";
 import { getDb } from "@/db";
-import { messages as messagesTable, userSettings } from "@/db/schema";
+import { messages as messagesTable, userSettings, userFacts } from "@/db/schema";
 import { eq, desc, and } from "drizzle-orm";
 import { NextResponse } from "next/server";
 import { getEnabledBraveTools } from "@/lib/tools/brave-tools";
 import { getEnabledYouTubeTools } from "@/lib/tools/youtube-tools";
 import { getOrCreateChatDek, encryptContent } from "@/lib/encryption";
+import { extractFacts, filterDuplicates } from "@/lib/profile-extractor";
 
 export const maxDuration = 300; // 5 minutes max for responses
 
@@ -50,7 +51,7 @@ const google = createGoogleGenerativeAI({
 type LearningSubMode = 'summary' | 'flashcard' | 'teaching';
 
 // Generate system prompt with user settings
-function generateSystemPrompt(responseLength: number, userName: string, userGender: string, learningMode: boolean, learningSubMode: LearningSubMode, customInstructions?: string): string {
+function generateSystemPrompt(responseLength: number, userName: string, userGender: string, learningMode: boolean, learningSubMode: LearningSubMode, customInstructions?: string, userMemoryFacts?: string[]): string {
   // Current date/time context - prevents AI from having outdated knowledge cutoff
   const now = new Date();
   const dateContext = `## Current Date & Time
@@ -74,6 +75,24 @@ Use this information when answering questions about current events, "today", "no
 - Gender: ${genderText}`;
     userPersonalization += `
 - Address the user by ${possessive} name when appropriate (use backticks for the name: \`${userName || 'Name'}\`)`;
+  }
+
+  // User memory facts section
+  let userMemorySection = '';
+  if (userMemoryFacts && userMemoryFacts.length > 0) {
+    userMemorySection = `
+
+## What You Know About This User
+Based on previous conversations, you've learned:
+${userMemoryFacts.map(f => `• ${f}`).join('\n')}
+
+IMPORTANT: Use this context naturally WITHOUT ever mentioning it. NEVER say things like:
+- "Based on your profile..."
+- "I remember you said..."
+- "Using what I know about you..."
+- "I'll use this information to..."
+- Or any similar meta-commentary about memory/profile/context
+Just incorporate the knowledge seamlessly as if you naturally know it.`;
   }
 
   // Response style instructions with length indicator
@@ -463,7 +482,7 @@ After the initial greeting, focus on the task without repeated greetings.
   return `${customInstructionsSection}${dateContext}You are a knowledgeable AI assistant. Be accurate, clear, and helpful.
 
 **CRITICAL**: Always respond in the SAME LANGUAGE as the user's message. If they write in Spanish, respond in Spanish. If they write in Lithuanian, respond in Lithuanian. Never switch languages unless explicitly asked.
-${greetingInstruction}${userPersonalization}
+${greetingInstruction}${userPersonalization}${userMemorySection}
 ${styleInstructions}
 ${formattingRules}
 
@@ -537,6 +556,42 @@ export async function POST(req: Request) {
     // MCP servers enabled by default: brave-search
     const mcpServers: string[] = Array.isArray(enabledMcpServers) ? enabledMcpServers : ['brave-search'];
     console.log('[API] Received enabledMcpServers:', enabledMcpServers, '-> mcpServers:', mcpServers);
+
+    // Fetch user facts for memory injection (if user is authenticated)
+    let userMemoryFacts: string[] = [];
+    let memoryEnabled = true;
+    let userId: string | null = null;
+
+    if (chatId) {
+      // Try to get userId from the chat
+      const [chat] = await db.select({ userId: (await import('@/db/schema')).chats.userId })
+        .from((await import('@/db/schema')).chats)
+        .where(eq((await import('@/db/schema')).chats.id, chatId))
+        .limit(1);
+
+      if (chat?.userId) {
+        userId = chat.userId;
+
+        // Check if memory is enabled
+        const [settings] = await db.select({ memoryEnabled: userSettings.memoryEnabled })
+          .from(userSettings)
+          .where(eq(userSettings.userId, userId))
+          .limit(1);
+
+        memoryEnabled = settings?.memoryEnabled !== false;
+
+        if (memoryEnabled) {
+          // Fetch user facts
+          const facts = await db.select({ fact: userFacts.fact })
+            .from(userFacts)
+            .where(eq(userFacts.userId, userId))
+            .orderBy(desc(userFacts.createdAt))
+            .limit(50);
+
+          userMemoryFacts = facts.map(f => f.fact);
+        }
+      }
+    }
 
     if (!Array.isArray(messages)) {
       throw new Error("Messages must be an array");
@@ -626,7 +681,7 @@ export async function POST(req: Request) {
     console.log('[API] Processed messages:', hydratedMessages.length);
 
     // Generate system prompt
-    const systemPrompt = generateSystemPrompt(respLength, uName, uGender, isLearningMode, subMode, isLearningMode ? undefined : userCustomInstructions);
+    const systemPrompt = generateSystemPrompt(respLength, uName, uGender, isLearningMode, subMode, isLearningMode ? undefined : userCustomInstructions, isLearningMode ? undefined : userMemoryFacts);
 
     // Configure Google provider options for thinking
 
@@ -657,9 +712,7 @@ export async function POST(req: Request) {
     const tools = { ...braveTools, ...youtubeTools };
     const hasTools = Object.keys(tools).length > 0;
 
-    if (hasTools) {
-      console.log('[API] Tools enabled:', Object.keys(tools).join(', '));
-    }
+    console.log('[API] Tools check - mcpServers:', mcpServers, '- resolved tools:', Object.keys(tools));
 
     // Track timing for TPS calculation
     const requestStartTime = Date.now();
@@ -872,6 +925,80 @@ export async function POST(req: Request) {
         }
       },
     });
+
+    // Trigger parallel fact extraction from the last user message (non-blocking)
+    if (memoryEnabled && userId) {
+      const lastUserMessage = messages.findLast((m: { role: string }) => m.role === 'user');
+      if (lastUserMessage) {
+        // Extract text content from the message - handle multiple formats
+        let messageText = '';
+
+        // Format 1: content is a string
+        if (typeof lastUserMessage.content === 'string') {
+          messageText = lastUserMessage.content;
+        }
+        // Format 2: content is an array of parts
+        else if (Array.isArray(lastUserMessage.content)) {
+          messageText = lastUserMessage.content
+            .filter((p: { type?: string; text?: string }) => p.type === 'text' && p.text)
+            .map((p: { text: string }) => p.text)
+            .join(' ');
+        }
+        // Format 3: parts is a separate array (UI message format)
+        else if (Array.isArray(lastUserMessage.parts)) {
+          messageText = lastUserMessage.parts
+            .filter((p: { type?: string; text?: string }) => p.type === 'text' && p.text)
+            .map((p: { text: string }) => p.text)
+            .join(' ');
+        }
+
+        if (messageText.length > 0) {
+          // Fire and forget - don't await
+          (async () => {
+            try {
+              const newFacts = await extractFacts(messageText);
+              if (newFacts.length > 0) {
+                const existingFacts = await db.select({ fact: userFacts.fact })
+                  .from(userFacts)
+                  .where(eq(userFacts.userId, userId!));
+
+                const existingFactStrings = existingFacts.map(f => f.fact);
+                const uniqueFacts = filterDuplicates(newFacts, existingFactStrings);
+
+                if (uniqueFacts.length > 0) {
+                  // Check if we need to remove old facts (50 limit)
+                  const totalAfterAdd = existingFacts.length + uniqueFacts.length;
+                  if (totalAfterAdd > 50) {
+                    const toRemove = totalAfterAdd - 50;
+                    const oldestFacts = await db.select({ id: userFacts.id })
+                      .from(userFacts)
+                      .where(eq(userFacts.userId, userId!))
+                      .orderBy((await import('drizzle-orm')).asc(userFacts.createdAt))
+                      .limit(toRemove);
+
+                    for (const old of oldestFacts) {
+                      await db.delete(userFacts).where(eq(userFacts.id, old.id));
+                    }
+                  }
+
+                  await db.insert(userFacts).values(
+                    uniqueFacts.map(f => ({
+                      userId: userId!,
+                      fact: f.fact,
+                      category: f.category,
+                    }))
+                  );
+
+                  console.log(`[Memory] +${uniqueFacts.length} facts`);
+                }
+              }
+            } catch (err) {
+              console.error('[Memory] Error:', err);
+            }
+          })();
+        }
+      }
+    }
 
     return result.toUIMessageStreamResponse({
       sendReasoning: true,

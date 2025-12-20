@@ -63,6 +63,8 @@ export const userSettings = pgTable('user_settings', {
   customInstructions: text('custom_instructions'), // User's custom instructions (highest priority)
   // MCP settings - which servers are enabled for this user
   enabledMcpServers: jsonb('enabled_mcp_servers').default(['brave-search']), // Array of MCP server slugs
+  // Memory settings
+  memoryEnabled: boolean('memory_enabled').default(true), // Auto-learn facts from conversations
   // Profile settings
   userName: text('user_name'),
   userGender: text('user_gender').default('not-specified'),
@@ -73,6 +75,18 @@ export const userSettings = pgTable('user_settings', {
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 }, (table) => [
   index('user_settings_user_id_idx').on(table.userId),
+]);
+
+// User facts - automatically extracted profile information
+export const userFacts = pgTable('user_facts', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').notNull(),
+  fact: text('fact').notNull(),
+  category: text('category').default('other'), // 'personal', 'tech', 'preferences', 'other'
+  sourceMessageId: uuid('source_message_id'), // Which message this was extracted from
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+}, (table) => [
+  index('user_facts_user_idx').on(table.userId),
 ]);
 
 export const messages = pgTable('messages', {

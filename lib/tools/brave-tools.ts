@@ -180,21 +180,8 @@ export const braveTools = {
  * Get enabled tools based on configuration
  */
 export function getEnabledBraveTools(enabledServers: string[]) {
-    const hasApiKey = !!process.env.BRAVE_API_KEY;
-    const hasBraveSearch = enabledServers.includes('brave-search');
-
-    console.log('[BraveTools] Checking tools:', {
-        enabledServers,
-        hasBraveSearch,
-        hasApiKey,
-        apiKeyLength: process.env.BRAVE_API_KEY?.length || 0,
-    });
-
-    if (hasBraveSearch && hasApiKey) {
-        console.log('[BraveTools] ✓ Tools enabled: brave_web_search, brave_news_search');
+    if (enabledServers.includes('brave-search') && process.env.BRAVE_API_KEY) {
         return braveTools;
     }
-
-    console.log('[BraveTools] ✗ Tools NOT enabled');
     return {};
 }

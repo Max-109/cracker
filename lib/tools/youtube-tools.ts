@@ -348,20 +348,8 @@ export const youtubeTools = {
  * Get enabled YouTube tools based on user settings
  */
 export function getEnabledYouTubeTools(enabledServers: string[]) {
-    const hasYouTube = enabledServers.includes('youtube');
-    const hasApiKey = !!process.env.YOUTUBE_API_KEY;
-
-    console.log('[YouTubeTools] Checking tools:', {
-        enabledServers,
-        hasYouTube,
-        hasApiKey,
-        apiKeyLength: process.env.YOUTUBE_API_KEY?.length || 0,
-    });
-
-    if (hasYouTube && hasApiKey) {
-        console.log('[YouTubeTools] ✓ Tools enabled: youtube_search, youtube_video_details, youtube_get_transcript');
+    if (enabledServers.includes('youtube') && process.env.YOUTUBE_API_KEY) {
         return youtubeTools;
     }
-
     return {};
 }
