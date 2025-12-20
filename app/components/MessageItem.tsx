@@ -155,6 +155,41 @@ function SourceItem({ url, title, index }: { url: string; title?: string; index:
   );
 }
 
+// Custom Rich Link Component for Markdown
+function LinkItem(props: any) {
+  const { href, children } = props;
+  const isExternal = href?.startsWith('http');
+
+  // Clean up the URL for display if it's the same as children
+  let displayText = children;
+  if (typeof children === 'string' && children === href) {
+    try {
+      const urlObj = new URL(href);
+      displayText = urlObj.hostname + (urlObj.pathname.length > 1 ? urlObj.pathname : '');
+      if (displayText.length > 30) displayText = displayText.slice(0, 27) + '...';
+    } catch (e) {
+      // keep original if parsing fails
+    }
+  }
+
+  return (
+    <a
+      href={href}
+      target={isExternal ? "_blank" : undefined}
+      rel={isExternal ? "noopener noreferrer" : undefined}
+      className="inline-flex items-center gap-1.5 align-baseline mx-1 px-1.5 py-0.5 bg-[var(--text-accent)]/10 border border-[var(--text-accent)]/30 text-[var(--text-accent)] hover:bg-[var(--text-accent)]/20 hover:border-[var(--text-accent)]/60 transition-all duration-200 group no-underline"
+    >
+      <span className="font-medium truncate max-w-[250px]">{children}</span>
+      {isExternal && (
+        <ExternalLink
+          size={10}
+          className="opacity-70 group-hover:opacity-100 transition-opacity flex-shrink-0"
+        />
+      )}
+    </a>
+  );
+}
+
 // Deep Research Completed Badge - matches DeepResearchProgress styling
 function DeepResearchCompletedBadge({ sources }: { sources: { url: string; title?: string }[] }) {
   const [isSourcesExpanded, setIsSourcesExpanded] = useState(false);
@@ -517,6 +552,8 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
     th: ({ children }: any) => <th className="px-4 py-3 font-medium">{children}</th>,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     td: ({ children }: any) => <td className="px-4 py-3 align-top">{children}</td>,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    a: LinkItem,
   }), []);
 
   useEffect(() => {
