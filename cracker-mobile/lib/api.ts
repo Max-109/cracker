@@ -1,4 +1,5 @@
 import * as SecureStore from 'expo-secure-store';
+import { supabase } from './supabase';
 
 // Use your deployed Next.js backend URL
 const API_BASE = 'https://cracker.mom';
@@ -12,11 +13,59 @@ export class ApiError extends Error {
 
 /**
  * Get the auth token (guest JWT or Supabase session)
+ * Will attempt to refresh the session if it's expired
  */
 async function getAuthToken(): Promise<string | null> {
     try {
-        return await SecureStore.getItemAsync('guest-jwt');
-    } catch {
+        // 1. Check for guest JWT first
+        const guestJwt = await SecureStore.getItemAsync('guest-jwt');
+        if (guestJwt) {
+            console.log('[Auth] Using guest JWT');
+            return guestJwt;
+        }
+
+        // 2. Try getting Supabase session
+        let { data, error } = await supabase.auth.getSession();
+
+        if (error) {
+            console.error('[Auth] Supabase getSession error:', error);
+        }
+
+        // 3. If no session, try refreshing
+        if (!data.session) {
+            console.log('[Auth] No session, attempting refresh...');
+            const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
+
+            if (refreshError) {
+                console.error('[Auth] Refresh failed:', refreshError);
+                return null;
+            }
+
+            if (refreshed.session) {
+                console.log('[Auth] Session refreshed successfully');
+                return refreshed.session.access_token;
+            }
+
+            console.warn('[Auth] No session after refresh');
+            return null;
+        }
+
+        // 4. Check if session is expired or about to expire (within 60 seconds)
+        const expiresAt = data.session.expires_at;
+        const now = Math.floor(Date.now() / 1000);
+
+        if (expiresAt && expiresAt - now < 60) {
+            console.log('[Auth] Session expiring soon, refreshing...');
+            const { data: refreshed } = await supabase.auth.refreshSession();
+            if (refreshed.session) {
+                return refreshed.session.access_token;
+            }
+        }
+
+        console.log('[Auth] Using Supabase token, expires:', expiresAt);
+        return data.session.access_token;
+    } catch (e) {
+        console.error('[Auth] getAuthToken error:', e);
         return null;
     }
 }
@@ -29,6 +78,8 @@ export async function apiFetch<T = unknown>(
     options: RequestInit = {}
 ): Promise<T> {
     const token = await getAuthToken();
+
+    console.log(`[API] ${options.method || 'GET'} ${path} - Token: ${token ? 'YES' : 'NO'}`);
 
     const headers: HeadersInit = {
         'Content-Type': 'application/json',
@@ -43,6 +94,7 @@ export async function apiFetch<T = unknown>(
 
     if (!response.ok) {
         const errorText = await response.text().catch(() => 'Unknown error');
+        console.error(`[API] Error ${response.status}: ${errorText}`);
         throw new ApiError(response.status, errorText);
     }
 

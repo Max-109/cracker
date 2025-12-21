@@ -1,24 +1,24 @@
 import { useState, useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, TextInput, Dimensions } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, TextInput, Platform } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import Animated, { FadeIn, FadeInDown, SlideInRight } from 'react-native-reanimated';
+import Animated, { FadeIn } from 'react-native-reanimated';
 import { useTheme } from '../../store/theme';
 import { useSettingsStore } from '../../store/settings';
 import { useAuthStore } from '../../store/auth';
 import Toggle from '../../components/ui/Toggle';
 import Slider from '../../components/ui/Slider';
 import ColorPicker from '../../components/ui/ColorPicker';
-import { SettingsSkeleton } from '../../components/ui/Skeleton';
+import MemorySection from '../../components/settings/MemorySection';
+import { COLORS, FONTS } from '../../lib/design';
 
-type SettingsTab = 'response' | 'profile' | 'tools' | 'appearance' | 'behavior';
+type SettingsTab = 'profile' | 'tools' | 'appearance' | 'memory';
 
-const TABS: { id: SettingsTab; icon: string; label: string }[] = [
-    { id: 'response', icon: 'speedometer-outline', label: 'Response' },
+const TABS: { id: SettingsTab; icon: keyof typeof Ionicons.glyphMap; label: string }[] = [
     { id: 'profile', icon: 'person-outline', label: 'Profile' },
-    { id: 'tools', icon: 'globe-outline', label: 'Tools' },
-    { id: 'appearance', icon: 'color-palette-outline', label: 'Appearance' },
-    { id: 'behavior', icon: 'options-outline', label: 'Behavior' },
+    { id: 'tools', icon: 'construct-outline', label: 'Tools' },
+    { id: 'appearance', icon: 'color-palette-outline', label: 'Theme' },
+    { id: 'memory', icon: 'sparkles-outline', label: 'Memory' },
 ];
 
 export default function SettingsScreen() {
@@ -39,11 +39,10 @@ export default function SettingsScreen() {
         setCustomInstructions,
         setEnabledMcpServers,
         setResponseLength,
-        isLoading,
         syncFromServer,
     } = useSettingsStore();
 
-    const [activeTab, setActiveTab] = useState<SettingsTab>('response');
+    const [activeTab, setActiveTab] = useState<SettingsTab>('profile');
     const [isInitializing, setIsInitializing] = useState(true);
 
     useEffect(() => {
@@ -69,11 +68,28 @@ export default function SettingsScreen() {
 
     const renderTabContent = () => {
         switch (activeTab) {
-            case 'response':
+            case 'profile':
                 return (
                     <Animated.View entering={FadeIn.duration(200)} style={{ padding: 20 }}>
-                        <Text style={styles.sectionTitle(theme)}>Response Length</Text>
-                        <View style={styles.card(theme)}>
+                        {/* Display Name */}
+                        <Text style={styles.sectionTitle}>DISPLAY NAME</Text>
+                        <View style={styles.card}>
+                            <TextInput
+                                value={userName}
+                                onChangeText={setUserName}
+                                placeholder="Your name"
+                                placeholderTextColor={COLORS.textDim}
+                                style={{
+                                    fontSize: 16,
+                                    color: COLORS.textPrimary,
+                                    padding: 0,
+                                }}
+                            />
+                        </View>
+
+                        {/* Response Length */}
+                        <Text style={[styles.sectionTitle, { marginTop: 28 }]}>RESPONSE LENGTH</Text>
+                        <View style={styles.card}>
                             <Slider
                                 value={responseLength || 50}
                                 onValueChange={setResponseLength}
@@ -84,57 +100,56 @@ export default function SettingsScreen() {
                                 labelMax="Detailed"
                             />
                         </View>
-                    </Animated.View>
-                );
 
-            case 'profile':
-                return (
-                    <Animated.View entering={FadeIn.duration(200)} style={{ padding: 20 }}>
-                        <Text style={styles.sectionTitle(theme)}>Display Name</Text>
-                        <View style={styles.card(theme)}>
-                            <TextInput
-                                value={userName}
-                                onChangeText={setUserName}
-                                placeholder="Your name"
-                                placeholderTextColor={`${theme.textSecondary}60`}
-                                style={{
-                                    fontSize: 15,
-                                    color: theme.textPrimary,
-                                    padding: 0,
-                                }}
-                            />
-                        </View>
-
-                        <Text style={[styles.sectionTitle(theme), { marginTop: 24 }]}>Custom Instructions</Text>
-                        <View style={styles.card(theme)}>
+                        {/* Custom Instructions */}
+                        <Text style={[styles.sectionTitle, { marginTop: 28 }]}>CUSTOM INSTRUCTIONS</Text>
+                        <View style={styles.card}>
                             <TextInput
                                 value={customInstructions}
                                 onChangeText={setCustomInstructions}
                                 placeholder="Add custom instructions for the AI..."
-                                placeholderTextColor={`${theme.textSecondary}60`}
+                                placeholderTextColor={COLORS.textDim}
                                 multiline
-                                numberOfLines={6}
+                                numberOfLines={5}
                                 style={{
                                     fontSize: 14,
-                                    color: theme.textPrimary,
-                                    minHeight: 120,
+                                    color: COLORS.textPrimary,
+                                    minHeight: 100,
                                     textAlignVertical: 'top',
+                                    lineHeight: 20,
                                 }}
                             />
-                            <Text style={{ fontSize: 10, color: theme.textSecondary, marginTop: 12, lineHeight: 16 }}>
-                                These instructions have the highest priority.{'\n'}
-                                The AI will follow them above all other guidelines.
+                            <Text style={{ fontSize: 11, color: COLORS.textMuted, marginTop: 12, lineHeight: 16 }}>
+                                These instructions have the highest priority and will be followed above all other guidelines.
                             </Text>
                         </View>
 
-                        <Text style={[styles.sectionTitle(theme), { marginTop: 24 }]}>Account</Text>
-                        <View style={styles.card(theme)}>
-                            <Text style={{ fontSize: 11, color: theme.textSecondary, textTransform: 'uppercase', letterSpacing: 1 }}>
-                                Logged in as
-                            </Text>
-                            <Text style={{ fontSize: 15, color: theme.textPrimary, marginTop: 4 }}>
-                                {getUserDisplayName()}
-                            </Text>
+                        {/* Account Info */}
+                        <Text style={[styles.sectionTitle, { marginTop: 28 }]}>ACCOUNT</Text>
+                        <View style={styles.card}>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                                <View style={{
+                                    width: 40,
+                                    height: 40,
+                                    backgroundColor: `${theme.accent}15`,
+                                    borderWidth: 1,
+                                    borderColor: `${theme.accent}30`,
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                }}>
+                                    <Text style={{ color: theme.accent, fontWeight: '700', fontSize: 16 }}>
+                                        {getUserDisplayName().charAt(0).toUpperCase()}
+                                    </Text>
+                                </View>
+                                <View>
+                                    <Text style={{ fontSize: 14, color: COLORS.textPrimary }}>
+                                        {getUserDisplayName()}
+                                    </Text>
+                                    <Text style={{ fontSize: 11, color: COLORS.textMuted, marginTop: 2 }}>
+                                        {user?.isGuest ? 'Guest Account' : 'Registered User'}
+                                    </Text>
+                                </View>
+                            </View>
                         </View>
                     </Animated.View>
                 );
@@ -142,15 +157,29 @@ export default function SettingsScreen() {
             case 'tools':
                 return (
                     <Animated.View entering={FadeIn.duration(200)} style={{ padding: 20 }}>
-                        <Text style={styles.sectionTitle(theme)}>Available Tools</Text>
-                        <View style={styles.card(theme)}>
-                            <View style={styles.settingsRow(theme)}>
-                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                                    <Ionicons name="search" size={18} color={theme.textSecondary} />
-                                    <View>
-                                        <Text style={{ fontSize: 14, color: theme.textPrimary }}>Web Search</Text>
-                                        <Text style={{ fontSize: 11, color: theme.textSecondary, marginTop: 2 }}>
-                                            Search the web for information
+                        <Text style={styles.sectionTitle}>AVAILABLE TOOLS</Text>
+                        <Text style={{ fontSize: 12, color: COLORS.textMuted, marginBottom: 16, lineHeight: 18 }}>
+                            Enable tools to extend Cracker's capabilities. The AI will automatically use enabled tools when helpful.
+                        </Text>
+
+                        <View style={styles.card}>
+                            <View style={styles.settingsRow}>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 }}>
+                                    <View style={{
+                                        width: 36,
+                                        height: 36,
+                                        backgroundColor: '#1a1a1a',
+                                        borderWidth: 1,
+                                        borderColor: COLORS.border,
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                    }}>
+                                        <Ionicons name="search" size={16} color={COLORS.textSecondary} />
+                                    </View>
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={{ fontSize: 14, color: COLORS.textPrimary }}>Web Search</Text>
+                                        <Text style={{ fontSize: 11, color: COLORS.textMuted, marginTop: 2 }}>
+                                            Search the web for current information
                                         </Text>
                                     </View>
                                 </View>
@@ -159,13 +188,24 @@ export default function SettingsScreen() {
                                     onValueChange={() => toggleMcpServer('brave-search')}
                                 />
                             </View>
-                            <View style={[styles.settingsRow(theme), { borderBottomWidth: 0 }]}>
-                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                                    <Ionicons name="logo-youtube" size={18} color={theme.textSecondary} />
-                                    <View>
-                                        <Text style={{ fontSize: 14, color: theme.textPrimary }}>YouTube</Text>
-                                        <Text style={{ fontSize: 11, color: theme.textSecondary, marginTop: 2 }}>
-                                            Search and analyze videos
+
+                            <View style={[styles.settingsRow, { borderBottomWidth: 0 }]}>
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 }}>
+                                    <View style={{
+                                        width: 36,
+                                        height: 36,
+                                        backgroundColor: '#1a1a1a',
+                                        borderWidth: 1,
+                                        borderColor: COLORS.border,
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                    }}>
+                                        <Ionicons name="logo-youtube" size={16} color="#ff0000" />
+                                    </View>
+                                    <View style={{ flex: 1 }}>
+                                        <Text style={{ fontSize: 14, color: COLORS.textPrimary }}>YouTube</Text>
+                                        <Text style={{ fontSize: 11, color: COLORS.textMuted, marginTop: 2 }}>
+                                            Search videos and get transcripts
                                         </Text>
                                     </View>
                                 </View>
@@ -175,95 +215,91 @@ export default function SettingsScreen() {
                                 />
                             </View>
                         </View>
+
+                        {/* Behavior Settings */}
+                        <Text style={[styles.sectionTitle, { marginTop: 28 }]}>BEHAVIOR</Text>
+                        <View style={styles.card}>
+                            <View style={styles.settingsRow}>
+                                <View>
+                                    <Text style={{ fontSize: 14, color: COLORS.textPrimary }}>Wrap Code</Text>
+                                    <Text style={{ fontSize: 11, color: COLORS.textMuted, marginTop: 2 }}>
+                                        Wrap long lines in code blocks
+                                    </Text>
+                                </View>
+                                <Toggle value={codeWrap} onValueChange={setCodeWrap} />
+                            </View>
+                            <View style={[styles.settingsRow, { borderBottomWidth: 0 }]}>
+                                <View>
+                                    <Text style={{ fontSize: 14, color: COLORS.textPrimary }}>Auto-scroll</Text>
+                                    <Text style={{ fontSize: 11, color: COLORS.textMuted, marginTop: 2 }}>
+                                        Scroll to bottom on new messages
+                                    </Text>
+                                </View>
+                                <Toggle value={autoScroll} onValueChange={setAutoScroll} />
+                            </View>
+                        </View>
                     </Animated.View>
                 );
 
             case 'appearance':
                 return (
                     <Animated.View entering={FadeIn.duration(200)} style={{ padding: 20 }}>
-                        <Text style={styles.sectionTitle(theme)}>Accent Color</Text>
-                        <View style={styles.card(theme)}>
+                        <Text style={styles.sectionTitle}>ACCENT COLOR</Text>
+                        <View style={styles.card}>
                             <ColorPicker
                                 value={accentColor}
-                                onValueChange={setAccentColor}
+                                onChange={setAccentColor}
                             />
                         </View>
                     </Animated.View>
                 );
 
-            case 'behavior':
+            case 'memory':
                 return (
-                    <Animated.View entering={FadeIn.duration(200)} style={{ padding: 20 }}>
-                        <Text style={styles.sectionTitle(theme)}>Code Display</Text>
-                        <View style={styles.card(theme)}>
-                            <View style={[styles.settingsRow(theme), { borderBottomWidth: 0 }]}>
-                                <View>
-                                    <Text style={{ fontSize: 14, color: theme.textPrimary }}>Wrap Code</Text>
-                                    <Text style={{ fontSize: 11, color: theme.textSecondary, marginTop: 2 }}>
-                                        Wrap long lines in code blocks
-                                    </Text>
-                                </View>
-                                <Toggle
-                                    value={codeWrap}
-                                    onValueChange={setCodeWrap}
-                                />
-                            </View>
-                        </View>
-
-                        <Text style={[styles.sectionTitle(theme), { marginTop: 24 }]}>Chat Behavior</Text>
-                        <View style={styles.card(theme)}>
-                            <View style={[styles.settingsRow(theme), { borderBottomWidth: 0 }]}>
-                                <View>
-                                    <Text style={{ fontSize: 14, color: theme.textPrimary }}>Auto-scroll</Text>
-                                    <Text style={{ fontSize: 11, color: theme.textSecondary, marginTop: 2 }}>
-                                        Scroll to bottom on new messages
-                                    </Text>
-                                </View>
-                                <Toggle
-                                    value={autoScroll}
-                                    onValueChange={setAutoScroll}
-                                />
-                            </View>
-                        </View>
+                    <Animated.View entering={FadeIn.duration(200)} style={{ padding: 20, flex: 1 }}>
+                        <MemorySection />
                     </Animated.View>
                 );
         }
     };
 
-    if (isInitializing) {
-        return (
-            <View style={{ flex: 1, backgroundColor: theme.bgMain }}>
-                <View style={styles.header(theme)}>
-                    <TouchableOpacity onPress={handleBack} style={{ padding: 8, marginRight: 8 }}>
-                        <Ionicons name="arrow-back" size={24} color={theme.textPrimary} />
-                    </TouchableOpacity>
-                    <Text style={{ fontSize: 17, fontWeight: '600', color: theme.textPrimary }}>Settings</Text>
-                </View>
-                <SettingsSkeleton />
-            </View>
-        );
-    }
-
     return (
-        <View style={{ flex: 1, backgroundColor: theme.bgMain }}>
+        <View style={{ flex: 1, backgroundColor: COLORS.bgMain }}>
             {/* Header */}
-            <View style={styles.header(theme)}>
-                <TouchableOpacity onPress={handleBack} style={{ padding: 8, marginRight: 8 }}>
-                    <Ionicons name="arrow-back" size={24} color={theme.textPrimary} />
+            <View style={styles.header}>
+                <TouchableOpacity
+                    onPress={handleBack}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    style={{
+                        width: 44,
+                        height: 44,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        marginRight: 8,
+                    }}
+                >
+                    <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
                 </TouchableOpacity>
                 <View style={{
                     width: 32,
                     height: 32,
-                    backgroundColor: `${theme.accent}20`,
+                    backgroundColor: `${theme.accent}15`,
                     borderWidth: 1,
-                    borderColor: `${theme.accent}50`,
+                    borderColor: `${theme.accent}30`,
                     alignItems: 'center',
                     justifyContent: 'center',
                     marginRight: 10,
                 }}>
-                    <Ionicons name="settings-outline" size={16} color={theme.accent} />
+                    <Ionicons name="settings-outline" size={14} color={theme.accent} />
                 </View>
-                <Text style={{ fontSize: 11, fontWeight: '600', color: theme.textPrimary, textTransform: 'uppercase', letterSpacing: 2 }}>
+                <Text style={{
+                    fontSize: 12,
+                    fontWeight: '700',
+                    color: COLORS.textPrimary,
+                    textTransform: 'uppercase',
+                    letterSpacing: 2,
+                    fontFamily: FONTS.mono,
+                }}>
                     Settings
                 </Text>
             </View>
@@ -275,8 +311,8 @@ export default function SettingsScreen() {
                 contentContainerStyle={{ paddingHorizontal: 12 }}
                 style={{
                     borderBottomWidth: 1,
-                    borderBottomColor: theme.border,
-                    maxHeight: 56,
+                    borderBottomColor: COLORS.border,
+                    maxHeight: 52,
                 }}
             >
                 {TABS.map((tab) => (
@@ -284,24 +320,24 @@ export default function SettingsScreen() {
                         key={tab.id}
                         onPress={() => setActiveTab(tab.id)}
                         style={{
-                            paddingHorizontal: 16,
-                            paddingVertical: 16,
+                            paddingHorizontal: 14,
+                            paddingVertical: 14,
                             borderBottomWidth: 2,
                             borderBottomColor: activeTab === tab.id ? theme.accent : 'transparent',
                         }}
                     >
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                             <Ionicons
-                                name={tab.icon as any}
-                                size={16}
-                                color={activeTab === tab.id ? theme.accent : theme.textSecondary}
+                                name={tab.icon}
+                                size={15}
+                                color={activeTab === tab.id ? theme.accent : COLORS.textSecondary}
                             />
                             <Text style={{
                                 fontSize: 11,
                                 fontWeight: '600',
-                                color: activeTab === tab.id ? theme.accent : theme.textSecondary,
+                                color: activeTab === tab.id ? theme.accent : COLORS.textSecondary,
                                 textTransform: 'uppercase',
-                                letterSpacing: 1,
+                                letterSpacing: 0.5,
                             }}>
                                 {tab.label}
                             </Text>
@@ -319,35 +355,37 @@ export default function SettingsScreen() {
 }
 
 const styles = {
-    header: (theme: any) => ({
-        paddingTop: 56,
+    header: {
+        paddingTop: Platform.OS === 'ios' ? 56 : 44,
         paddingBottom: 12,
         paddingHorizontal: 16,
         flexDirection: 'row' as const,
         alignItems: 'center' as const,
         borderBottomWidth: 1,
-        borderBottomColor: theme.border,
-    }),
-    sectionTitle: (theme: any) => ({
-        fontSize: 9,
-        fontWeight: '600' as const,
-        color: theme.textSecondary,
+        borderBottomColor: COLORS.border,
+        backgroundColor: COLORS.bgMain,
+    },
+    sectionTitle: {
+        fontSize: 10,
+        fontWeight: '700' as const,
+        color: COLORS.textMuted,
         textTransform: 'uppercase' as const,
-        letterSpacing: 2,
+        letterSpacing: 1.5,
         marginBottom: 12,
-    }),
-    card: (theme: any) => ({
-        backgroundColor: '#1a1a1a',
+        fontFamily: FONTS.mono,
+    },
+    card: {
+        backgroundColor: '#0d0d0d',
         borderWidth: 1,
-        borderColor: theme.border,
+        borderColor: COLORS.border,
         padding: 16,
-    }),
-    settingsRow: (theme: any) => ({
+    },
+    settingsRow: {
         flexDirection: 'row' as const,
         alignItems: 'center' as const,
         justifyContent: 'space-between' as const,
         paddingVertical: 12,
         borderBottomWidth: 1,
-        borderBottomColor: theme.border,
-    }),
+        borderBottomColor: COLORS.border,
+    },
 };

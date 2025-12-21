@@ -26,9 +26,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     initialize: async () => {
         set({ isLoading: true });
         try {
+            console.log('[AuthStore] Initializing auth...');
+
             // First check for Supabase session
-            const { data: { session } } = await supabase.auth.getSession();
+            const { data: { session }, error } = await supabase.auth.getSession();
+
+            if (error) {
+                console.error('[AuthStore] getSession error:', error);
+            }
+
+            console.log('[AuthStore] Session found:', !!session, 'User:', session?.user?.email);
+
             if (session?.user) {
+                console.log('[AuthStore] Setting user from session:', session.user.email);
+                console.log('[AuthStore] Token available:', !!session.access_token);
                 set({
                     user: {
                         id: session.user.id,
@@ -97,7 +108,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     register: async (email: string, password: string, name: string, invitationCode: string) => {
         set({ isLoading: true });
         try {
-            const response = await fetch('https://cracker-six.vercel.app/api/auth/register', {
+            const response = await fetch('https://cracker.mom/api/auth/register', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Text, FlatList, KeyboardAvoidingView, Platform, TouchableOpacity, ScrollView } from 'react-native';
-import { useLocalSearchParams, router } from 'expo-router';
+import { View, Text, FlatList, KeyboardAvoidingView, Platform, TouchableOpacity, StatusBar } from 'react-native';
+import { useLocalSearchParams, router } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { useTheme } from '../../../store/theme';
@@ -9,7 +9,9 @@ import { api, apiStreamFetch } from '../../../lib/api';
 import { ChatMessage, StreamEvent } from '../../../lib/types';
 import MessageItem from '../../../components/chat/MessageItem';
 import ChatInput from '../../../components/ui/ChatInput';
+import ThinkingIndicator from '../../../components/ui/ThinkingIndicator';
 import { MessageSkeleton } from '../../../components/ui/Skeleton';
+import { COLORS } from '../../../lib/design';
 
 export default function ChatScreen() {
     const { id, initialMessage } = useLocalSearchParams<{ id: string; initialMessage?: string }>();
@@ -18,12 +20,17 @@ export default function ChatScreen() {
     const [input, setInput] = useState('');
     const [isLoading, setIsLoading] = useState(true);
     const [isStreaming, setIsStreaming] = useState(false);
+    const [isThinking, setIsThinking] = useState(false);
     const [streamingContent, setStreamingContent] = useState('');
     const [streamingReasoning, setStreamingReasoning] = useState('');
+    const [currentTps, setCurrentTps] = useState<number | undefined>();
     const [hasAutoSent, setHasAutoSent] = useState(false);
     const flatListRef = useRef<FlatList>(null);
+    const abortControllerRef = useRef<AbortController | null>(null);
     const theme = useTheme();
     const { chatMode, reasoningEffort, enabledMcpServers, responseLength } = useSettingsStore();
+
+    const statusBarHeight = Platform.OS === 'android' ? (StatusBar.currentHeight || 24) : 0;
 
     // Load chat messages
     useEffect(() => {
@@ -41,6 +48,8 @@ export default function ChatScreen() {
                     content: msg.content,
                     createdAt: new Date(msg.createdAt),
                     parts: msg.parts,
+                    model: msg.model,
+                    tokensPerSecond: msg.tokensPerSecond,
                 }));
                 setMessages(formattedMessages);
             } catch (error) {
@@ -62,6 +71,16 @@ export default function ChatScreen() {
         }
     }, [messages, streamingContent]);
 
+    // Stop generation
+    const handleStop = useCallback(() => {
+        if (abortControllerRef.current) {
+            abortControllerRef.current.abort();
+            abortControllerRef.current = null;
+        }
+        setIsStreaming(false);
+        setIsThinking(false);
+    }, []);
+
     // Send message function
     const sendMessage = useCallback(async (messageText: string) => {
         if (!messageText.trim() || isStreaming) return;
@@ -76,8 +95,10 @@ export default function ChatScreen() {
         setMessages(prev => [...prev, userMessage]);
         setInput('');
         setIsStreaming(true);
+        setIsThinking(true);
         setStreamingContent('');
         setStreamingReasoning('');
+        setCurrentTps(undefined);
 
         const assistantMessage: ChatMessage = {
             id: `temp-assistant-${Date.now()}`,
@@ -95,6 +116,11 @@ export default function ChatScreen() {
         } catch { }
 
         let accumulated = '';
+        let startTime = Date.now();
+        let tokenCount = 0;
+
+        // Create abort controller
+        abortControllerRef.current = new AbortController();
 
         await apiStreamFetch(
             '/api/chat',
@@ -115,7 +141,16 @@ export default function ChatScreen() {
 
                 switch (e.type) {
                     case 'text-delta':
+                        if (isThinking) setIsThinking(false);
                         accumulated += e.textDelta;
+                        tokenCount++;
+
+                        // Calculate TPS
+                        const elapsed = (Date.now() - startTime) / 1000;
+                        if (elapsed > 0) {
+                            setCurrentTps(tokenCount / elapsed);
+                        }
+
                         setStreamingContent(accumulated);
                         break;
                     case 'reasoning':
@@ -129,20 +164,23 @@ export default function ChatScreen() {
                                 updated[lastIndex] = {
                                     ...updated[lastIndex],
                                     content: accumulated,
+                                    tokensPerSecond: currentTps,
                                 };
                             }
                             return updated;
                         });
                         setIsStreaming(false);
+                        setIsThinking(false);
                         break;
                 }
             },
             (error) => {
                 console.error('Stream error:', error);
                 setIsStreaming(false);
+                setIsThinking(false);
             }
         );
-    }, [id, messages, isStreaming, chatMode, reasoningEffort, enabledMcpServers, responseLength]);
+    }, [id, messages, isStreaming, chatMode, reasoningEffort, enabledMcpServers, responseLength, currentTps, isThinking]);
 
     // Auto-send initial message if provided
     useEffect(() => {
@@ -166,24 +204,41 @@ export default function ChatScreen() {
         const isLastMessage = index === messages.length - 1;
         const isStreamingMessage = isLastMessage && isStreaming && item.role === 'assistant';
 
+        // Get content text
+        let contentText = '';
+        if (isStreamingMessage) {
+            contentText = streamingContent;
+        } else if (typeof item.content === 'string') {
+            contentText = item.content;
+        } else if (Array.isArray(item.content)) {
+            contentText = item.content
+                .filter((p: any) => p.type === 'text')
+                .map((p: any) => p.text)
+                .join('');
+        }
+
         return (
             <MessageItem
-                message={item}
-                streamingContent={isStreamingMessage ? streamingContent : undefined}
-                streamingReasoning={isStreamingMessage ? streamingReasoning : undefined}
+                id={item.id}
+                role={item.role as 'user' | 'assistant'}
+                content={contentText}
+                model={item.model}
+                tokensPerSecond={isStreamingMessage ? currentTps : item.tokensPerSecond}
                 isStreaming={isStreamingMessage}
+                isThinking={isStreamingMessage && isThinking}
+                createdAt={item.createdAt?.toISOString()}
             />
         );
     };
 
     if (isLoading) {
         return (
-            <View style={{ flex: 1, backgroundColor: theme.bgMain }}>
-                <View style={styles.header(theme)}>
+            <View style={{ flex: 1, backgroundColor: COLORS.bgMain }}>
+                <View style={styles.header}>
                     <TouchableOpacity onPress={handleBack} style={{ padding: 8, marginRight: 8 }}>
-                        <Ionicons name="arrow-back" size={24} color={theme.textPrimary} />
+                        <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
                     </TouchableOpacity>
-                    <View style={{ height: 18, width: 100, backgroundColor: theme.border, borderRadius: 2 }} />
+                    <View style={{ height: 18, width: 100, backgroundColor: COLORS.border }} />
                 </View>
                 <View style={{ flex: 1, padding: 16 }}>
                     <MessageSkeleton />
@@ -197,17 +252,42 @@ export default function ChatScreen() {
     return (
         <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            style={{ flex: 1, backgroundColor: theme.bgMain }}
+            style={{ flex: 1, backgroundColor: COLORS.bgMain }}
             keyboardVerticalOffset={0}
         >
             {/* Header */}
-            <View style={styles.header(theme)}>
-                <TouchableOpacity onPress={handleBack} style={{ padding: 8, marginRight: 8 }}>
-                    <Ionicons name="arrow-back" size={24} color={theme.textPrimary} />
+            <View style={[styles.header, { paddingTop: statusBarHeight + 12 }]}>
+                <TouchableOpacity
+                    onPress={handleBack}
+                    style={{
+                        width: 40,
+                        height: 40,
+                        backgroundColor: COLORS.bgCard,
+                        borderWidth: 1,
+                        borderColor: COLORS.border,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        marginRight: 12,
+                    }}
+                >
+                    <Ionicons name="arrow-back" size={20} color={COLORS.textPrimary} />
                 </TouchableOpacity>
-                <Text style={{ fontSize: 16, color: theme.textPrimary, flex: 1 }} numberOfLines={1}>
+                <Text
+                    style={{
+                        fontSize: 15,
+                        fontWeight: '600',
+                        color: COLORS.textPrimary,
+                        flex: 1,
+                    }}
+                    numberOfLines={1}
+                >
                     {chatTitle}
                 </Text>
+
+                {/* Streaming indicator in header */}
+                {isStreaming && (
+                    <ThinkingIndicator isThinking={isThinking} label={isThinking ? 'Thinking' : 'Writing'} />
+                )}
             </View>
 
             {/* Messages */}
@@ -216,7 +296,7 @@ export default function ChatScreen() {
                 data={messages}
                 keyExtractor={(item) => item.id}
                 renderItem={renderMessage}
-                contentContainerStyle={{ padding: 16, paddingBottom: 20 }}
+                contentContainerStyle={{ paddingBottom: 20 }}
                 onContentSizeChange={() => {
                     if (messages.length > 0) {
                         flatListRef.current?.scrollToEnd({ animated: true });
@@ -236,7 +316,7 @@ export default function ChatScreen() {
                         }}>
                             <Ionicons name="chatbubbles-outline" size={24} color={theme.accent} />
                         </View>
-                        <Text style={{ fontSize: 14, color: theme.textSecondary, textAlign: 'center' }}>
+                        <Text style={{ fontSize: 14, color: COLORS.textSecondary, textAlign: 'center' }}>
                             Start the conversation...
                         </Text>
                     </Animated.View>
@@ -248,7 +328,9 @@ export default function ChatScreen() {
                 value={input}
                 onChangeText={setInput}
                 onSend={handleSend}
-                isLoading={isStreaming}
+                onStop={handleStop}
+                isLoading={false}
+                isStreaming={isStreaming}
                 placeholder="Let's crack..."
             />
         </KeyboardAvoidingView>
@@ -256,13 +338,14 @@ export default function ChatScreen() {
 }
 
 const styles = {
-    header: (theme: any) => ({
+    header: {
         paddingTop: 56,
         paddingBottom: 12,
         paddingHorizontal: 16,
         flexDirection: 'row' as const,
         alignItems: 'center' as const,
         borderBottomWidth: 1,
-        borderBottomColor: theme.border,
-    }),
+        borderBottomColor: COLORS.border,
+        backgroundColor: COLORS.bgMain,
+    },
 };

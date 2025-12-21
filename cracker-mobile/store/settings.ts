@@ -9,7 +9,8 @@ let storage: MMKV | null = null;
 function getStorage(): MMKV {
     if (!storage) {
         try {
-            storage = new MMKV();
+            const m = require('react-native-mmkv');
+            storage = new m.MMKV() as MMKV;
         } catch (error) {
             console.error('Failed to initialize MMKV:', error);
             // Return a mock storage that does nothing
@@ -20,7 +21,7 @@ function getStorage(): MMKV {
             } as unknown as MMKV;
         }
     }
-    return storage;
+    return storage as MMKV;
 }
 
 // Default settings
@@ -84,6 +85,7 @@ interface SettingsState {
     setUserGender: (gender: string) => Promise<void>;
     setEnabledMcpServers: (servers: string[]) => Promise<void>;
     setReasoningEffort: (effort: ReasoningEffort) => Promise<void>;
+    setCurrentModelId: (modelId: string) => Promise<void>;
 }
 
 export const useSettingsStore = create<SettingsState>((set) => ({
@@ -206,6 +208,13 @@ export const useSettingsStore = create<SettingsState>((set) => ({
         set({ reasoningEffort: effort });
         try {
             await api.updateSettings({ reasoningEffort: effort });
+        } catch { }
+    },
+
+    setCurrentModelId: async (modelId) => {
+        set({ currentModelId: modelId });
+        try {
+            await api.updateSettings({ currentModelId: modelId });
         } catch { }
     },
 }));

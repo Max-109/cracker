@@ -1,247 +1,240 @@
-import React, { memo } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import Markdown from 'react-native-markdown-display';
-import Animated, { FadeIn } from 'react-native-reanimated';
-import { ChatMessage, MessagePart, TextPart, ReasoningPart } from '../../lib/types';
+import React, { useState, useCallback } from 'react';
+import { View, Text, TouchableOpacity, Platform, Share, Clipboard } from 'react-native';
+import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
+import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../store/theme';
-import ThinkingIndicator from '../indicators/ThinkingIndicator';
+import { COLORS, FONTS } from '../../lib/design';
+import ThinkingIndicator from '../ui/ThinkingIndicator';
+import { StreamingIndicator } from '../ui/ConnectionIndicator';
 
 interface MessageItemProps {
-    message: ChatMessage;
-    streamingContent?: string;
-    streamingReasoning?: string;
+    id: string;
+    role: 'user' | 'assistant';
+    content: string;
+    model?: string;
+    tokensPerSecond?: number;
     isStreaming?: boolean;
+    isThinking?: boolean;
+    createdAt?: string;
 }
 
-function MessageItemComponent({ message, streamingContent, streamingReasoning, isStreaming }: MessageItemProps) {
+/**
+ * MessageItem - Displays individual chat messages
+ */
+export default function MessageItem({
+    id,
+    role,
+    content,
+    model,
+    tokensPerSecond,
+    isStreaming = false,
+    isThinking = false,
+    createdAt,
+}: MessageItemProps) {
     const theme = useTheme();
-    const isUser = message.role === 'user';
-    const isAssistant = message.role === 'assistant';
+    const [copied, setCopied] = useState(false);
 
-    // Get content
-    const getContent = (): string => {
-        // For streaming messages
-        if (isStreaming && streamingContent !== undefined) {
-            return streamingContent;
+    const isUser = role === 'user';
+
+    const handleCopy = useCallback(async () => {
+        try {
+            if (Platform.OS === 'web') {
+                await navigator.clipboard.writeText(content);
+            } else {
+                Clipboard.setString(content);
+            }
+            setCopied(true);
+            setTimeout(() => setCopied(false), 2000);
+        } catch (e) {
+            console.error('Copy failed:', e);
         }
+    }, [content]);
 
-        // For regular messages
-        if (typeof message.content === 'string') {
-            return message.content;
+    const handleShare = useCallback(async () => {
+        try {
+            await Share.share({ message: content });
+        } catch (error) {
+            console.error('Share failed:', error);
         }
-
-        // For array content, extract text parts
-        if (Array.isArray(message.content)) {
-            return message.content
-                .filter((part): part is TextPart => part.type === 'text')
-                .map(part => part.text || '')
-                .join('');
-        }
-
-        // Check parts array
-        if (message.parts) {
-            return message.parts
-                .filter((part): part is TextPart => part.type === 'text')
-                .map(part => part.text || '')
-                .join('');
-        }
-
-        return '';
-    };
-
-    // Get reasoning content
-    const getReasoning = (): string => {
-        if (isStreaming && streamingReasoning) {
-            return streamingReasoning;
-        }
-
-        if (message.parts) {
-            return message.parts
-                .filter((part): part is ReasoningPart => part.type === 'reasoning')
-                .map(part => part.text || part.reasoning || '')
-                .join('');
-        }
-
-        return '';
-    };
-
-    const content = getContent();
-    const reasoning = getReasoning();
-
-    // Markdown styles
-    const markdownStyles = StyleSheet.create({
-        body: {
-            color: theme.textPrimary,
-            fontSize: 15,
-            lineHeight: 22,
-        },
-        paragraph: {
-            marginVertical: 4,
-        },
-        heading1: {
-            color: theme.textPrimary,
-            fontSize: 24,
-            fontWeight: '700',
-            marginVertical: 8,
-        },
-        heading2: {
-            color: theme.textPrimary,
-            fontSize: 20,
-            fontWeight: '600',
-            marginVertical: 6,
-        },
-        heading3: {
-            color: theme.textPrimary,
-            fontSize: 17,
-            fontWeight: '600',
-            marginVertical: 4,
-        },
-        code_inline: {
-            backgroundColor: theme.bgCode,
-            color: theme.accent,
-            fontFamily: 'Menlo',
-            fontSize: 13,
-            paddingHorizontal: 4,
-            paddingVertical: 2,
-        },
-        code_block: {
-            backgroundColor: theme.bgCode,
-            paddingVertical: 12,
-            paddingHorizontal: 16,
-            fontFamily: 'Menlo',
-            fontSize: 13,
-        },
-        fence: {
-            backgroundColor: theme.bgCode,
-            paddingVertical: 12,
-            paddingHorizontal: 16,
-            marginVertical: 8,
-        },
-        blockquote: {
-            backgroundColor: theme.accentLight,
-            borderLeftColor: theme.accent,
-            borderLeftWidth: 3,
-            paddingLeft: 12,
-            paddingVertical: 4,
-            marginVertical: 8,
-        },
-        link: {
-            color: theme.accent,
-            textDecorationLine: 'underline',
-        },
-        list_item: {
-            flexDirection: 'row',
-            justifyContent: 'flex-start',
-        },
-        bullet_list: {
-            marginVertical: 4,
-        },
-        ordered_list: {
-            marginVertical: 4,
-        },
-        strong: {
-            fontWeight: '700',
-        },
-        em: {
-            fontStyle: 'italic',
-        },
-        hr: {
-            backgroundColor: theme.border,
-            height: 1,
-            marginVertical: 12,
-        },
-        table: {
-            borderWidth: 1,
-            borderColor: theme.border,
-            marginVertical: 8,
-        },
-        thead: {
-            backgroundColor: theme.bgCode,
-        },
-        th: {
-            padding: 8,
-            borderWidth: 1,
-            borderColor: theme.border,
-            color: theme.textPrimary,
-            fontWeight: '600',
-        },
-        td: {
-            padding: 8,
-            borderWidth: 1,
-            borderColor: theme.border,
-            color: theme.textPrimary,
-        },
-    });
+    }, [content]);
 
     return (
         <Animated.View
-            entering={FadeIn.duration(200)}
-            className="mb-4"
+            entering={FadeInDown.duration(200)}
             style={{
-                alignSelf: isUser ? 'flex-end' : 'flex-start',
-                maxWidth: '90%',
+                paddingHorizontal: 16,
+                paddingVertical: 16,
+                borderBottomWidth: 1,
+                borderBottomColor: COLORS.border,
             }}
         >
-            {/* Role indicator */}
+            {/* Header Row */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10, gap: 10 }}>
+                {/* Role Icon */}
+                <View
+                    style={{
+                        width: 32,
+                        height: 32,
+                        backgroundColor: isUser ? '#1a1a1a' : theme.accent,
+                        borderWidth: 1,
+                        borderColor: isUser ? COLORS.border : theme.accent,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                    }}
+                >
+                    {isUser ? (
+                        <Ionicons name="person" size={14} color={COLORS.textSecondary} />
+                    ) : (
+                        <Ionicons name="sparkles" size={14} color="#000" />
+                    )}
+                </View>
+
+                {/* Role Label */}
+                <Text
+                    style={{
+                        color: isUser ? COLORS.textSecondary : theme.accent,
+                        fontSize: 12,
+                        fontWeight: '700',
+                        letterSpacing: 1.5,
+                        textTransform: 'uppercase',
+                        fontFamily: FONTS.mono,
+                    }}
+                >
+                    {isUser ? 'You' : 'Cracker'}
+                </Text>
+
+                {/* Streaming/Thinking Indicator */}
+                {!isUser && isThinking && <ThinkingIndicator />}
+                {!isUser && isStreaming && !isThinking && (
+                    <StreamingIndicator tps={tokensPerSecond} />
+                )}
+
+                {/* Spacer */}
+                <View style={{ flex: 1 }} />
+
+                {/* Model Badge */}
+                {!isUser && model && !isStreaming && (
+                    <View
+                        style={{
+                            backgroundColor: '#1a1a1a',
+                            borderWidth: 1,
+                            borderColor: COLORS.border,
+                            paddingHorizontal: 8,
+                            paddingVertical: 4,
+                        }}
+                    >
+                        <Text
+                            style={{
+                                color: COLORS.textSecondary,
+                                fontSize: 10,
+                                fontFamily: FONTS.mono,
+                            }}
+                        >
+                            {model.replace('gemini-', '').replace('-preview', '').slice(0, 10)}
+                        </Text>
+                    </View>
+                )}
+
+                {/* TPS Badge */}
+                {!isUser && tokensPerSecond != null && tokensPerSecond > 0 && !isStreaming && (
+                    <View
+                        style={{
+                            backgroundColor: '#1a1a1a',
+                            borderWidth: 1,
+                            borderColor: COLORS.border,
+                            paddingHorizontal: 8,
+                            paddingVertical: 4,
+                        }}
+                    >
+                        <Text
+                            style={{
+                                color: theme.accent,
+                                fontSize: 10,
+                                fontFamily: FONTS.mono,
+                                fontWeight: '600',
+                            }}
+                        >
+                            {tokensPerSecond.toFixed(0)} t/s
+                        </Text>
+                    </View>
+                )}
+            </View>
+
+            {/* Message Content */}
             <Text
-                className="text-xs uppercase tracking-wider mb-1"
-                style={{ color: isUser ? theme.accent : theme.textSecondary }}
+                style={{
+                    color: COLORS.textPrimary,
+                    fontSize: 16,
+                    lineHeight: 24,
+                }}
+                selectable
             >
-                {isUser ? 'You' : 'Cracker'}
+                {content || ''}
             </Text>
 
-            {/* Message content */}
-            <View
-                style={{
-                    backgroundColor: isUser ? theme.accentLight : theme.bgInput,
-                    borderWidth: 1,
-                    borderColor: isUser ? theme.accentMedium : theme.border,
-                    padding: 12,
-                }}
-            >
-                {/* Show thinking indicator while streaming reasoning */}
-                {isStreaming && streamingReasoning && (
-                    <ThinkingIndicator reasoning={streamingReasoning} />
-                )}
-
-                {/* Show reasoning summary for completed messages */}
-                {!isStreaming && reasoning && (
-                    <View
-                        className="mb-3 pb-3"
-                        style={{ borderBottomWidth: 1, borderBottomColor: theme.border }}
+            {/* Action Buttons */}
+            {!isUser && content && !isStreaming && (
+                <Animated.View
+                    entering={FadeIn.delay(100).duration(150)}
+                    style={{
+                        flexDirection: 'row',
+                        gap: 10,
+                        marginTop: 14,
+                    }}
+                >
+                    {/* Copy Button */}
+                    <TouchableOpacity
+                        onPress={handleCopy}
+                        activeOpacity={0.7}
+                        style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            gap: 6,
+                            backgroundColor: copied ? `${theme.accent}20` : '#1a1a1a',
+                            borderWidth: 1,
+                            borderColor: copied ? theme.accent : COLORS.border,
+                            paddingHorizontal: 14,
+                            paddingVertical: 10,
+                            minWidth: 80,
+                        }}
                     >
-                        <Text className="text-xs uppercase tracking-wider mb-1" style={{ color: theme.textSecondary }}>
-                            Reasoning
-                        </Text>
-                        <Text className="text-sm" style={{ color: theme.textSecondary }} numberOfLines={3}>
-                            {reasoning}
-                        </Text>
-                    </View>
-                )}
-
-                {/* Main content */}
-                {content ? (
-                    isUser ? (
-                        <Text style={{ color: theme.textPrimary, fontSize: 15, lineHeight: 22 }}>
-                            {content}
-                        </Text>
-                    ) : (
-                        <Markdown style={markdownStyles}>
-                            {content}
-                        </Markdown>
-                    )
-                ) : isStreaming ? (
-                    <View className="flex-row items-center">
-                        <View
-                            className="w-2 h-4 mr-1"
-                            style={{ backgroundColor: theme.accent }}
+                        <Ionicons
+                            name={copied ? "checkmark" : "copy-outline"}
+                            size={14}
+                            color={copied ? theme.accent : COLORS.textSecondary}
                         />
-                        <Text className="text-text-secondary text-sm">Generating...</Text>
-                    </View>
-                ) : null}
-            </View>
+                        <Text style={{
+                            color: copied ? theme.accent : COLORS.textSecondary,
+                            fontSize: 12,
+                            fontWeight: '600',
+                        }}>
+                            {copied ? 'Copied!' : 'Copy'}
+                        </Text>
+                    </TouchableOpacity>
+
+                    {/* Share Button */}
+                    <TouchableOpacity
+                        onPress={handleShare}
+                        activeOpacity={0.7}
+                        style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            gap: 6,
+                            backgroundColor: '#1a1a1a',
+                            borderWidth: 1,
+                            borderColor: COLORS.border,
+                            paddingHorizontal: 14,
+                            paddingVertical: 10,
+                            minWidth: 80,
+                        }}
+                    >
+                        <Ionicons name="share-outline" size={14} color={COLORS.textSecondary} />
+                        <Text style={{ color: COLORS.textSecondary, fontSize: 12, fontWeight: '600' }}>
+                            Share
+                        </Text>
+                    </TouchableOpacity>
+                </Animated.View>
+            )}
         </Animated.View>
     );
 }
-
-export default memo(MessageItemComponent);

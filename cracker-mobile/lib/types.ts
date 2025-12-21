@@ -71,6 +71,8 @@ export interface ChatMessage {
     createdAt?: Date;
     parts?: MessagePart[];
     learningSubMode?: 'summary' | 'flashcard' | 'teaching';
+    model?: string;
+    tokensPerSecond?: number;
 }
 
 export interface Chat {

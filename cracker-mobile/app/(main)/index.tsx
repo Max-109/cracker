@@ -1,13 +1,27 @@
 import { useState, useEffect, useCallback } from 'react';
-import { View, Text, FlatList, TouchableOpacity, RefreshControl, KeyboardAvoidingView, Platform } from 'react-native';
+import {
+    View,
+    Text,
+    TouchableOpacity,
+    KeyboardAvoidingView,
+    Platform,
+    SafeAreaView,
+    StatusBar,
+    Alert,
+    ScrollView,
+    Image,
+} from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import Animated, { FadeInRight, FadeInDown, FadeIn } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { useTheme } from '../../store/theme';
 import { api } from '../../lib/api';
 import { useAuthStore } from '../../store/auth';
-import { ChatListSkeleton } from '../../components/ui/Skeleton';
 import ChatInput from '../../components/ui/ChatInput';
+import SuggestionCard, { SUGGESTIONS } from '../../components/ui/SuggestionCard';
+import Drawer from '../../components/navigation/Drawer';
+import { useVoiceRecording, formatDuration } from '../../hooks/useVoiceRecording';
+import { useAttachments } from '../../hooks/useAttachments';
 
 interface ChatItem {
     id: string;
@@ -16,51 +30,28 @@ interface ChatItem {
     createdAt: string;
 }
 
-// Group chats by time
-function groupChatsByTime(chats: ChatItem[]) {
-    const now = new Date();
-    const groups: { label: string; chats: ChatItem[] }[] = [];
-    const today: ChatItem[] = [];
-    const yesterday: ChatItem[] = [];
-    const thisWeek: ChatItem[] = [];
-    const older: ChatItem[] = [];
-
-    chats.forEach(chat => {
-        const date = new Date(chat.createdAt);
-        const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
-
-        if (diffDays === 0) today.push(chat);
-        else if (diffDays === 1) yesterday.push(chat);
-        else if (diffDays < 7) thisWeek.push(chat);
-        else older.push(chat);
-    });
-
-    if (today.length) groups.push({ label: 'Today', chats: today });
-    if (yesterday.length) groups.push({ label: 'Yesterday', chats: yesterday });
-    if (thisWeek.length) groups.push({ label: 'This Week', chats: thisWeek });
-    if (older.length) groups.push({ label: 'Older', chats: older });
-
-    return groups;
-}
-
-export default function ChatListScreen() {
+export default function HomeScreen() {
+    const theme = useTheme();
+    const { user } = useAuthStore();
     const [chats, setChats] = useState<ChatItem[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-    const [refreshing, setRefreshing] = useState(false);
     const [inputValue, setInputValue] = useState('');
     const [isCreating, setIsCreating] = useState(false);
-    const theme = useTheme();
-    const { user, logout } = useAuthStore();
+    const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+    const [isTranscribing, setIsTranscribing] = useState(false);
 
+    // Hooks
+    const { isRecording, recordingDuration, startRecording, stopRecording, cancelRecording } = useVoiceRecording();
+    const { attachments, pickAttachment, removeAttachment, clearAttachments } = useAttachments();
+
+    // Load chats for drawer
     const loadChats = useCallback(async () => {
         try {
-            const data = await api.getChats();
-            setChats(data);
-        } catch (error) {
-            console.error('Failed to load chats:', error);
-        } finally {
-            setIsLoading(false);
-            setRefreshing(false);
+            console.log('[Home] Loading chats...');
+            const response = await api.getChats();
+            console.log('[Home] Chats loaded:', response?.length || 0);
+            setChats(response || []);
+        } catch (error: any) {
+            console.error('[Home] Failed to load chats:', error);
         }
     }, []);
 
@@ -68,31 +59,76 @@ export default function ChatListScreen() {
         loadChats();
     }, [loadChats]);
 
-    const handleStartChat = async () => {
-        if (!inputValue.trim() || isCreating) return;
+    // Voice handling
+    const handleMicPress = async () => {
+        if (isRecording) {
+            // Stop and transcribe
+            setIsTranscribing(true);
+            try {
+                const uri = await stopRecording();
+                if (uri) {
+                    console.log('[Home] Transcribing audio...');
+                    const result = await api.transcribe(uri, 'gemini');
+                    if (result.text) {
+                        setInputValue(prev => prev + (prev ? ' ' : '') + result.text);
+                    }
+                }
+            } catch (error: any) {
+                console.error('[Home] Transcription failed:', error);
+                Alert.alert('Error', 'Failed to transcribe audio');
+            } finally {
+                setIsTranscribing(false);
+            }
+        } else {
+            // Start recording
+            await startRecording();
+        }
+    };
+
+    // Create chat and navigate
+    const handleStartChat = async (initialMessage?: string) => {
+        const message = initialMessage || inputValue.trim();
+        if (!message || isCreating) return;
 
         setIsCreating(true);
         try {
-            const { id } = await api.createChat('New Chat', 'chat');
-            // Navigate to chat and pass the initial message
+            console.log('[Home] Creating chat with message:', message.slice(0, 30));
+            const chat = await api.createChat(message.slice(0, 50), 'cracking');
+            console.log('[Home] Chat created:', chat);
+
+            if (!chat?.id) {
+                Alert.alert('Error', 'Failed to create chat: No ID returned');
+                return;
+            }
+
             router.push({
-                pathname: '/(main)/chat/[id]',
-                params: { id, initialMessage: inputValue.trim() }
+                pathname: `/(main)/chat/${chat.id}`,
+                params: { initialMessage: message },
             });
             setInputValue('');
-        } catch (error) {
-            console.error('Failed to create chat:', error);
+            clearAttachments();
+            loadChats();
+        } catch (error: any) {
+            console.error('[Home] Failed to create chat:', error);
+            Alert.alert('Error', error?.message || 'Failed to create chat');
         } finally {
             setIsCreating(false);
         }
     };
 
+    // Quick new chat (empty)
     const handleNewChat = async () => {
+        setIsCreating(true);
         try {
-            const { id } = await api.createChat('New Chat', 'chat');
-            router.push(`/(main)/chat/${id}`);
-        } catch (error) {
-            console.error('Failed to create chat:', error);
+            const chat = await api.createChat('New Chat', 'cracking');
+            if (chat?.id) {
+                router.push(`/(main)/chat/${chat.id}`);
+                loadChats();
+            }
+        } catch (error: any) {
+            Alert.alert('Error', error?.message || 'Failed to create chat');
+        } finally {
+            setIsCreating(false);
         }
     };
 
@@ -100,221 +136,268 @@ export default function ChatListScreen() {
         router.push(`/(main)/chat/${chatId}`);
     };
 
-    const handleRefresh = () => {
-        setRefreshing(true);
-        loadChats();
+    const handleSuggestionPress = (suggestion: typeof SUGGESTIONS[0]) => {
+        setInputValue(suggestion.subtitle);
     };
 
-    const handleLogout = async () => {
-        await logout();
-        router.replace('/(auth)/login');
-    };
-
-    const getUserDisplayName = () => {
-        if (user?.email) return user.email.split('@')[0];
-        if (user?.loginName) return user.loginName;
-        return 'Guest';
-    };
-
-    const chatGroups = groupChatsByTime(chats);
-
-    // Show skeleton while loading
-    if (isLoading) {
-        return (
-            <View style={{ flex: 1, backgroundColor: theme.bgMain }}>
-                <View style={styles.header(theme)}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                        <View style={styles.logoBox(theme)}>
-                            <Ionicons name="sparkles" size={16} color={theme.accent} />
-                        </View>
-                        <Text style={styles.logoText(theme)}>Cracker</Text>
-                    </View>
-                </View>
-                <ChatListSkeleton />
-            </View>
-        );
-    }
+    const statusBarHeight = Platform.OS === 'android' ? (StatusBar.currentHeight || 24) : 0;
 
     return (
-        <KeyboardAvoidingView
-            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            style={{ flex: 1, backgroundColor: theme.bgMain }}
-        >
-            {/* Header - Cracker Style */}
-            <View style={styles.header(theme)}>
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    <View style={styles.logoBox(theme)}>
-                        <Ionicons name="sparkles" size={16} color={theme.accent} />
-                    </View>
-                    <View style={{ marginLeft: 12 }}>
-                        <Text style={styles.logoText(theme)}>Cracker</Text>
-                        <Text style={{ fontSize: 10, color: theme.textSecondary, marginTop: 1 }}>
-                            {getUserDisplayName()}
-                        </Text>
-                    </View>
-                </View>
-                <View style={{ flexDirection: 'row', gap: 8 }}>
-                    <TouchableOpacity
-                        onPress={() => router.push('/(main)/settings')}
-                        style={styles.headerButton(theme)}
-                    >
-                        <Ionicons name="settings-outline" size={18} color={theme.textSecondary} />
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={handleLogout} style={styles.headerButton(theme)}>
-                        <Ionicons name="log-out-outline" size={18} color={theme.textSecondary} />
-                    </TouchableOpacity>
-                </View>
-            </View>
-
-            {/* New Chat Button */}
-            <TouchableOpacity
-                onPress={handleNewChat}
-                activeOpacity={0.7}
-                style={{
-                    marginHorizontal: 16,
-                    marginTop: 12,
-                    backgroundColor: '#1a1a1a',
-                    borderWidth: 1,
-                    borderColor: theme.border,
-                    padding: 14,
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    gap: 10,
-                }}
+        <SafeAreaView style={{ flex: 1, backgroundColor: theme.bgMain }}>
+            <KeyboardAvoidingView
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                style={{ flex: 1 }}
+                keyboardVerticalOffset={0}
             >
-                <Ionicons name="add" size={18} color={theme.accent} />
-                <Text style={{ fontSize: 12, fontWeight: '600', color: theme.textPrimary, textTransform: 'uppercase', letterSpacing: 1 }}>
-                    New Chat
-                </Text>
-            </TouchableOpacity>
-
-            {/* Chat List or Empty State */}
-            {chats.length === 0 ? (
-                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 40 }}>
-                    <Animated.View entering={FadeIn.duration(600)} style={{ alignItems: 'center' }}>
-                        <View style={{
-                            width: 64,
-                            height: 64,
-                            backgroundColor: `${theme.accent}15`,
-                            borderWidth: 2,
-                            borderColor: `${theme.accent}40`,
+                {/* Header */}
+                <View
+                    style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        paddingHorizontal: 16,
+                        paddingTop: statusBarHeight + 12,
+                        paddingBottom: 12,
+                    }}
+                >
+                    {/* Hamburger Menu - 48px touch target */}
+                    <TouchableOpacity
+                        onPress={() => setIsDrawerOpen(true)}
+                        activeOpacity={0.7}
+                        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                        style={{
+                            width: 48,
+                            height: 48,
+                            backgroundColor: '#1a1a1a',
+                            borderWidth: 1,
+                            borderColor: '#333',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            marginBottom: 20,
-                        }}>
-                            <Ionicons name="chatbubbles-outline" size={28} color={theme.accent} />
-                        </View>
-                        <Text style={{ fontSize: 16, color: theme.textPrimary, textAlign: 'center', marginBottom: 8 }}>
-                            No conversations yet
-                        </Text>
-                        <Text style={{ fontSize: 13, color: theme.textSecondary, textAlign: 'center' }}>
-                            Start typing below to begin
-                        </Text>
-                    </Animated.View>
+                        }}
+                    >
+                        <Ionicons name="menu-outline" size={24} color={theme.textPrimary} />
+                    </TouchableOpacity>
+
+                    {/* Center - App Name */}
+                    <Text
+                        style={{
+                            color: theme.textPrimary,
+                            fontSize: 18,
+                            fontWeight: '600',
+                        }}
+                    >
+                        Cracker
+                    </Text>
+
+                    {/* New Chat Button - 48px, prominent */}
+                    <TouchableOpacity
+                        onPress={handleNewChat}
+                        disabled={isCreating}
+                        activeOpacity={0.7}
+                        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                        style={{
+                            width: 48,
+                            height: 48,
+                            backgroundColor: theme.accent,
+                            borderWidth: 1,
+                            borderColor: theme.accent,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            opacity: isCreating ? 0.5 : 1,
+                            // Subtle glow
+                            shadowColor: theme.accent,
+                            shadowOffset: { width: 0, height: 2 },
+                            shadowOpacity: 0.3,
+                            shadowRadius: 4,
+                            elevation: 4,
+                        }}
+                    >
+                        <Ionicons name="add" size={26} color="#000" />
+                    </TouchableOpacity>
                 </View>
-            ) : (
-                <FlatList
-                    data={chatGroups}
-                    keyExtractor={(item) => item.label}
-                    renderItem={({ item: group }) => (
-                        <View style={{ marginTop: 16 }}>
-                            <Text style={{
-                                fontSize: 10,
-                                fontWeight: '600',
-                                color: theme.textSecondary,
-                                textTransform: 'uppercase',
-                                letterSpacing: 1.5,
-                                paddingHorizontal: 16,
-                                marginBottom: 8,
-                            }}>
-                                {group.label}
-                            </Text>
-                            {group.chats.map((chat, index) => (
-                                <Animated.View key={chat.id} entering={FadeInRight.duration(200).delay(index * 30)}>
-                                    <TouchableOpacity
-                                        onPress={() => handleChatPress(chat.id)}
-                                        activeOpacity={0.7}
+
+                {/* Recording Indicator */}
+                {isRecording && (
+                    <Animated.View
+                        entering={FadeInUp.duration(200)}
+                        style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            paddingVertical: 12,
+                            backgroundColor: '#1a1a1a',
+                            borderWidth: 1,
+                            borderColor: '#333',
+                            marginHorizontal: 16,
+                            marginBottom: 8,
+                        }}
+                    >
+                        <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: '#f87171', marginRight: 8 }} />
+                        <Text style={{ color: theme.textPrimary, fontSize: 14, marginRight: 12 }}>
+                            Recording {formatDuration(recordingDuration)}
+                        </Text>
+                        <TouchableOpacity onPress={cancelRecording}>
+                            <Text style={{ color: theme.textSecondary, fontSize: 12 }}>Cancel</Text>
+                        </TouchableOpacity>
+                    </Animated.View>
+                )}
+
+                {/* Main Content */}
+                <ScrollView
+                    contentContainerStyle={{
+                        flexGrow: 1,
+                        justifyContent: 'center',
+                        paddingHorizontal: 20,
+                        paddingBottom: 20,
+                    }}
+                    keyboardShouldPersistTaps="handled"
+                    showsVerticalScrollIndicator={false}
+                >
+                    {/* Logo Icon */}
+                    <Animated.View
+                        entering={FadeInDown.delay(100).springify()}
+                        style={{ alignItems: 'center', marginBottom: 20 }}
+                    >
+                        <View
+                            style={{
+                                width: 56,
+                                height: 56,
+                                backgroundColor: '#111',
+                                borderWidth: 1,
+                                borderColor: '#333',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                            }}
+                        >
+                            <Ionicons name="sparkles" size={26} color={theme.accent} />
+                        </View>
+                    </Animated.View>
+
+                    {/* Headline */}
+                    <Animated.Text
+                        entering={FadeInDown.delay(200).springify()}
+                        style={{
+                            fontSize: 26,
+                            fontWeight: '300',
+                            color: theme.textPrimary,
+                            textAlign: 'center',
+                            marginBottom: 8,
+                        }}
+                    >
+                        What can I help with?
+                    </Animated.Text>
+
+                    {/* Subheadline */}
+                    <Animated.Text
+                        entering={FadeInDown.delay(300).springify()}
+                        style={{
+                            fontSize: 14,
+                            color: theme.textSecondary,
+                            textAlign: 'center',
+                            marginBottom: 28,
+                        }}
+                    >
+                        Start a conversation or try a suggestion
+                    </Animated.Text>
+
+                    {/* Suggestion Cards Grid */}
+                    <View
+                        style={{
+                            flexDirection: 'row',
+                            flexWrap: 'wrap',
+                            gap: 10,
+                            marginBottom: 24,
+                        }}
+                    >
+                        {SUGGESTIONS.map((suggestion, index) => (
+                            <SuggestionCard
+                                key={suggestion.title}
+                                icon={suggestion.icon}
+                                title={suggestion.title}
+                                subtitle={suggestion.subtitle}
+                                description={suggestion.description}
+                                onPress={() => handleSuggestionPress(suggestion)}
+                                index={index}
+                            />
+                        ))}
+                    </View>
+                </ScrollView>
+
+                {/* Attachments Preview */}
+                {attachments.length > 0 && (
+                    <Animated.View
+                        entering={FadeIn.duration(200)}
+                        style={{
+                            flexDirection: 'row',
+                            paddingHorizontal: 16,
+                            paddingVertical: 8,
+                            gap: 8,
+                        }}
+                    >
+                        {attachments.map(att => (
+                            <View key={att.id} style={{ position: 'relative' }}>
+                                {att.type === 'image' ? (
+                                    <Image
+                                        source={{ uri: att.uri }}
+                                        style={{ width: 60, height: 60 }}
+                                    />
+                                ) : (
+                                    <View
                                         style={{
-                                            marginHorizontal: 16,
-                                            marginBottom: 4,
+                                            width: 60,
+                                            height: 60,
                                             backgroundColor: '#1a1a1a',
                                             borderWidth: 1,
-                                            borderColor: theme.border,
-                                            padding: 14,
-                                            flexDirection: 'row',
+                                            borderColor: '#333',
                                             alignItems: 'center',
+                                            justifyContent: 'center',
                                         }}
                                     >
-                                        <Ionicons name="chatbubble-outline" size={16} color={theme.textSecondary} />
-                                        <Text
-                                            style={{ flex: 1, marginLeft: 12, fontSize: 14, color: theme.textPrimary }}
-                                            numberOfLines={1}
-                                        >
-                                            {chat.title || 'Untitled Chat'}
-                                        </Text>
-                                        <Text style={{ fontSize: 10, color: theme.textSecondary }}>
-                                            ({new Date(chat.createdAt).toLocaleDateString()})
-                                        </Text>
-                                    </TouchableOpacity>
-                                </Animated.View>
-                            ))}
-                        </View>
-                    )}
-                    contentContainerStyle={{ paddingBottom: 20 }}
-                    refreshControl={
-                        <RefreshControl
-                            refreshing={refreshing}
-                            onRefresh={handleRefresh}
-                            tintColor={theme.accent}
-                        />
-                    }
-                />
-            )}
+                                        <Ionicons name="document" size={24} color="#666" />
+                                    </View>
+                                )}
+                                <TouchableOpacity
+                                    onPress={() => removeAttachment(att.id)}
+                                    style={{
+                                        position: 'absolute',
+                                        top: -6,
+                                        right: -6,
+                                        width: 20,
+                                        height: 20,
+                                        backgroundColor: '#333',
+                                        borderWidth: 1,
+                                        borderColor: '#444',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                    }}
+                                >
+                                    <Ionicons name="close" size={12} color="#fff" />
+                                </TouchableOpacity>
+                            </View>
+                        ))}
+                    </Animated.View>
+                )}
 
-            {/* Chat Input at Bottom */}
-            <ChatInput
-                value={inputValue}
-                onChangeText={setInputValue}
-                onSend={handleStartChat}
-                isLoading={isCreating}
-                placeholder="Let's crack..."
+                {/* Bottom Input */}
+                <ChatInput
+                    value={inputValue}
+                    onChangeText={setInputValue}
+                    onSend={() => handleStartChat()}
+                    onAttachment={pickAttachment}
+                    onMic={handleMicPress}
+                    isLoading={isCreating || isTranscribing}
+                    isRecording={isRecording}
+                    placeholder={isRecording ? 'Recording...' : "Let's crack..."}
+                />
+            </KeyboardAvoidingView>
+
+            {/* Drawer */}
+            <Drawer
+                isOpen={isDrawerOpen}
+                onClose={() => setIsDrawerOpen(false)}
+                chats={chats}
+                onChatPress={handleChatPress}
             />
-        </KeyboardAvoidingView>
+        </SafeAreaView>
     );
 }
-
-const styles = {
-    header: (theme: any) => ({
-        paddingTop: 56,
-        paddingBottom: 12,
-        paddingHorizontal: 16,
-        flexDirection: 'row' as const,
-        alignItems: 'center' as const,
-        justifyContent: 'space-between' as const,
-        borderBottomWidth: 1,
-        borderBottomColor: theme.border,
-    }),
-    logoBox: (theme: any) => ({
-        width: 36,
-        height: 36,
-        backgroundColor: `${theme.accent}15`,
-        borderWidth: 1,
-        borderColor: theme.accent,
-        alignItems: 'center' as const,
-        justifyContent: 'center' as const,
-    }),
-    logoText: (theme: any) => ({
-        fontSize: 18,
-        fontWeight: '700' as const,
-        color: theme.textPrimary,
-    }),
-    headerButton: (theme: any) => ({
-        width: 36,
-        height: 36,
-        alignItems: 'center' as const,
-        justifyContent: 'center' as const,
-        backgroundColor: '#1a1a1a',
-        borderWidth: 1,
-        borderColor: theme.border,
-    }),
-};
