@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { View, Text, Platform } from 'react-native';
+import { View, Text } from 'react-native';
 import Animated, {
     useSharedValue,
     useAnimatedStyle,
@@ -15,37 +15,30 @@ import { COLORS, FONTS } from '../../lib/design';
 interface ThinkingIndicatorProps {
     isThinking?: boolean;
     label?: string;
-    variant?: 'dots' | 'spinner' | 'pulse';
 }
 
 /**
- * Thinking Indicator - Shows AI is processing
- * Matches the web's "thinking-flicker" animation
+ * ThinkingIndicator - Shows AI is processing
+ * Matches web's "ANALYZING" box with animated dots
  */
 export default function ThinkingIndicator({
     isThinking = true,
-    label = 'Thinking',
-    variant = 'dots',
+    label = 'ANALYZING',
 }: ThinkingIndicatorProps) {
     const theme = useTheme();
 
-    // Animation values for dots
+    // Animation for dots
     const dot1Opacity = useSharedValue(0.3);
     const dot2Opacity = useSharedValue(0.3);
     const dot3Opacity = useSharedValue(0.3);
 
-    // Animation for pulse
-    const pulseScale = useSharedValue(1);
-    const pulseOpacity = useSharedValue(0.5);
-
     useEffect(() => {
         if (!isThinking) return;
 
-        // Dots animation - sequential fade
         dot1Opacity.value = withRepeat(
             withSequence(
-                withTiming(1, { duration: 300, easing: Easing.inOut(Easing.ease) }),
-                withTiming(0.3, { duration: 300, easing: Easing.inOut(Easing.ease) })
+                withTiming(1, { duration: 400, easing: Easing.inOut(Easing.ease) }),
+                withTiming(0.3, { duration: 400, easing: Easing.inOut(Easing.ease) })
             ),
             -1,
             false
@@ -55,8 +48,8 @@ export default function ThinkingIndicator({
             150,
             withRepeat(
                 withSequence(
-                    withTiming(1, { duration: 300, easing: Easing.inOut(Easing.ease) }),
-                    withTiming(0.3, { duration: 300, easing: Easing.inOut(Easing.ease) })
+                    withTiming(1, { duration: 400, easing: Easing.inOut(Easing.ease) }),
+                    withTiming(0.3, { duration: 400, easing: Easing.inOut(Easing.ease) })
                 ),
                 -1,
                 false
@@ -67,31 +60,12 @@ export default function ThinkingIndicator({
             300,
             withRepeat(
                 withSequence(
-                    withTiming(1, { duration: 300, easing: Easing.inOut(Easing.ease) }),
-                    withTiming(0.3, { duration: 300, easing: Easing.inOut(Easing.ease) })
+                    withTiming(1, { duration: 400, easing: Easing.inOut(Easing.ease) }),
+                    withTiming(0.3, { duration: 400, easing: Easing.inOut(Easing.ease) })
                 ),
                 -1,
                 false
             )
-        );
-
-        // Pulse animation
-        pulseScale.value = withRepeat(
-            withSequence(
-                withTiming(1.1, { duration: 600, easing: Easing.inOut(Easing.ease) }),
-                withTiming(1, { duration: 600, easing: Easing.inOut(Easing.ease) })
-            ),
-            -1,
-            false
-        );
-
-        pulseOpacity.value = withRepeat(
-            withSequence(
-                withTiming(0.8, { duration: 600, easing: Easing.inOut(Easing.ease) }),
-                withTiming(0.5, { duration: 600, easing: Easing.inOut(Easing.ease) })
-            ),
-            -1,
-            false
         );
     }, [isThinking]);
 
@@ -107,64 +81,30 @@ export default function ThinkingIndicator({
         opacity: dot3Opacity.value,
     }));
 
-    const pulseStyle = useAnimatedStyle(() => ({
-        transform: [{ scale: pulseScale.value }],
-        opacity: pulseOpacity.value,
-    }));
-
     if (!isThinking) return null;
 
-    if (variant === 'pulse') {
-        return (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <Animated.View
-                    style={[
-                        {
-                            width: 8,
-                            height: 8,
-                            backgroundColor: theme.accent,
-                        },
-                        pulseStyle,
-                    ]}
-                />
-                <Text
-                    style={{
-                        color: COLORS.textSecondary,
-                        fontSize: 12,
-                        fontFamily: FONTS.mono,
-                        letterSpacing: 1,
-                        textTransform: 'uppercase',
-                    }}
-                >
-                    {label}
-                </Text>
-            </View>
-        );
-    }
-
-    // Default: dots variant
+    // Web-matching box style indicator
     return (
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            {/* Label */}
-            <Text
-                style={{
-                    color: COLORS.textSecondary,
-                    fontSize: 11,
-                    fontFamily: FONTS.mono,
-                    letterSpacing: 1,
-                    textTransform: 'uppercase',
-                }}
-            >
-                {label}
-            </Text>
-
-            {/* Animated Dots */}
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+        <View
+            style={{
+                backgroundColor: '#0d0d0d',
+                borderWidth: 1,
+                borderColor: COLORS.border,
+                paddingHorizontal: 16,
+                paddingVertical: 12,
+                width: '100%',
+                flexDirection: 'row',
+                alignItems: 'center',
+            }}
+        >
+            {/* Animated dots */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2, marginRight: 10 }}>
                 <Animated.View
                     style={[
                         {
                             width: 4,
                             height: 4,
+                            borderRadius: 2,
                             backgroundColor: theme.accent,
                         },
                         dot1Style,
@@ -175,6 +115,7 @@ export default function ThinkingIndicator({
                         {
                             width: 4,
                             height: 4,
+                            borderRadius: 2,
                             backgroundColor: theme.accent,
                         },
                         dot2Style,
@@ -185,43 +126,58 @@ export default function ThinkingIndicator({
                         {
                             width: 4,
                             height: 4,
+                            borderRadius: 2,
                             backgroundColor: theme.accent,
                         },
                         dot3Style,
                     ]}
                 />
             </View>
+
+            {/* Label */}
+            <Text
+                style={{
+                    color: COLORS.textSecondary,
+                    fontSize: 11,
+                    fontFamily: FONTS.mono,
+                    letterSpacing: 2,
+                    textTransform: 'uppercase',
+                }}
+            >
+                {label}
+            </Text>
         </View>
     );
 }
 
 /**
- * ASCII-style thinking spinner (matches web)
+ * Streaming indicator showing tokens per second
  */
-export function ThinkingSpinner({ size = 16 }: { size?: number }) {
+export function StreamingIndicator({ tps }: { tps?: number }) {
     const theme = useTheme();
-    const rotation = useSharedValue(0);
-
-    const FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
-    const frameIndex = useSharedValue(0);
-
-    useEffect(() => {
-        rotation.value = withRepeat(
-            withTiming(360, { duration: 1000, easing: Easing.linear }),
-            -1,
-            false
-        );
-    }, []);
-
-    const animatedStyle = useAnimatedStyle(() => ({
-        transform: [{ rotate: `${rotation.value}deg` }],
-    }));
 
     return (
-        <Animated.View style={animatedStyle}>
-            <Text style={{ color: theme.accent, fontSize: size, fontFamily: FONTS.mono }}>
-                ●
-            </Text>
-        </Animated.View>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <View
+                style={{
+                    width: 6,
+                    height: 6,
+                    backgroundColor: theme.accent,
+                    borderRadius: 3,
+                }}
+            />
+            {tps != null && tps > 0 && (
+                <Text
+                    style={{
+                        color: theme.accent,
+                        fontSize: 10,
+                        fontFamily: FONTS.mono,
+                        fontWeight: '600',
+                    }}
+                >
+                    {tps.toFixed(0)} t/s
+                </Text>
+            )}
+        </View>
     );
 }

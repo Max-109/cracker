@@ -128,7 +128,8 @@ export default function Drawer({
 
     const statusBarHeight = Platform.OS === 'android' ? (StatusBar.currentHeight || 24) : 44;
 
-    if (!isOpen && translateX.value === -DRAWER_WIDTH) return null;
+    // Always render, but hide with pointerEvents when not open
+    // Accessing .value outside worklet can cause issues
 
     return (
         <View

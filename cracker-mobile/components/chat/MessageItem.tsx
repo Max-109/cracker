@@ -5,7 +5,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../store/theme';
 import { COLORS, FONTS } from '../../lib/design';
 import ThinkingIndicator from '../ui/ThinkingIndicator';
-import { StreamingIndicator } from '../ui/ConnectionIndicator';
 
 interface MessageItemProps {
     id: string;
@@ -20,6 +19,7 @@ interface MessageItemProps {
 
 /**
  * MessageItem - Displays individual chat messages
+ * Matches web version styling
  */
 export default function MessageItem({
     id,
@@ -58,9 +58,17 @@ export default function MessageItem({
         }
     }, [content]);
 
+    // Get display model name
+    const getModelDisplay = () => {
+        if (!model) return '';
+        return model
+            .replace('gemini-', '')
+            .replace('-preview', '')
+            .toUpperCase();
+    };
+
     return (
-        <Animated.View
-            entering={FadeInDown.duration(200)}
+        <View
             style={{
                 paddingHorizontal: 16,
                 paddingVertical: 16,
@@ -69,23 +77,36 @@ export default function MessageItem({
             }}
         >
             {/* Header Row */}
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10, gap: 10 }}>
-                {/* Role Icon */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12, gap: 10 }}>
+                {/* Role Icon - Grid pattern for AI like web */}
                 <View
                     style={{
-                        width: 32,
-                        height: 32,
-                        backgroundColor: isUser ? '#1a1a1a' : theme.accent,
+                        width: 28,
+                        height: 28,
+                        backgroundColor: isUser ? 'transparent' : `${theme.accent}15`,
                         borderWidth: 1,
-                        borderColor: isUser ? COLORS.border : theme.accent,
+                        borderColor: isUser ? COLORS.border : `${theme.accent}40`,
                         alignItems: 'center',
                         justifyContent: 'center',
                     }}
                 >
                     {isUser ? (
-                        <Ionicons name="person" size={14} color={COLORS.textSecondary} />
+                        <Ionicons name="person" size={12} color={COLORS.textSecondary} />
                     ) : (
-                        <Ionicons name="sparkles" size={14} color="#000" />
+                        // Grid dots like web
+                        <View style={{ flexDirection: 'row', flexWrap: 'wrap', width: 12, gap: 2 }}>
+                            {[...Array(9)].map((_, i) => (
+                                <View
+                                    key={i}
+                                    style={{
+                                        width: 2,
+                                        height: 2,
+                                        backgroundColor: theme.accent,
+                                        opacity: 0.8,
+                                    }}
+                                />
+                            ))}
+                        </View>
                     )}
                 </View>
 
@@ -93,7 +114,7 @@ export default function MessageItem({
                 <Text
                     style={{
                         color: isUser ? COLORS.textSecondary : theme.accent,
-                        fontSize: 12,
+                        fontSize: 11,
                         fontWeight: '700',
                         letterSpacing: 1.5,
                         textTransform: 'uppercase',
@@ -103,83 +124,77 @@ export default function MessageItem({
                     {isUser ? 'You' : 'Cracker'}
                 </Text>
 
-                {/* Streaming/Thinking Indicator */}
-                {!isUser && isThinking && <ThinkingIndicator />}
-                {!isUser && isStreaming && !isThinking && (
-                    <StreamingIndicator tps={tokensPerSecond} />
-                )}
-
                 {/* Spacer */}
                 <View style={{ flex: 1 }} />
 
-                {/* Model Badge */}
-                {!isUser && model && !isStreaming && (
-                    <View
-                        style={{
-                            backgroundColor: '#1a1a1a',
-                            borderWidth: 1,
-                            borderColor: COLORS.border,
-                            paddingHorizontal: 8,
-                            paddingVertical: 4,
-                        }}
-                    >
-                        <Text
-                            style={{
-                                color: COLORS.textSecondary,
-                                fontSize: 10,
-                                fontFamily: FONTS.mono,
-                            }}
+                {/* User actions - Edit/Copy buttons for user messages */}
+                {isUser && (
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                        <TouchableOpacity
+                            onPress={handleCopy}
+                            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                         >
-                            {model.replace('gemini-', '').replace('-preview', '').slice(0, 10)}
-                        </Text>
+                            <Text style={{ color: COLORS.textMuted, fontSize: 10, fontFamily: FONTS.mono }}>
+                                {copied ? '✓ Copied' : 'Copy'}
+                            </Text>
+                        </TouchableOpacity>
                     </View>
                 )}
 
-                {/* TPS Badge */}
-                {!isUser && tokensPerSecond != null && tokensPerSecond > 0 && !isStreaming && (
-                    <View
+                {/* Model + TPS for completed AI messages */}
+                {!isUser && !isStreaming && model && (
+                    <Text
                         style={{
-                            backgroundColor: '#1a1a1a',
-                            borderWidth: 1,
-                            borderColor: COLORS.border,
-                            paddingHorizontal: 8,
-                            paddingVertical: 4,
+                            color: COLORS.textMuted,
+                            fontSize: 10,
+                            fontFamily: FONTS.mono,
                         }}
                     >
-                        <Text
-                            style={{
-                                color: theme.accent,
-                                fontSize: 10,
-                                fontFamily: FONTS.mono,
-                                fontWeight: '600',
-                            }}
-                        >
-                            {tokensPerSecond.toFixed(0)} t/s
-                        </Text>
-                    </View>
+                        {getModelDisplay()}
+                        {tokensPerSecond != null && tokensPerSecond > 0 && ` | ${tokensPerSecond.toFixed(1)} t/s`}
+                    </Text>
                 )}
             </View>
 
-            {/* Message Content */}
-            <Text
-                style={{
-                    color: COLORS.textPrimary,
-                    fontSize: 16,
-                    lineHeight: 24,
-                }}
-                selectable
-            >
-                {content || ''}
-            </Text>
+            {/* ANALYZING box for thinking state - matches web exactly */}
+            {!isUser && isThinking && (
+                <ThinkingIndicator isThinking={true} label="ANALYZING" />
+            )}
 
-            {/* Action Buttons */}
+            {/* Message Content */}
+            {content ? (
+                <View
+                    style={isUser ? {
+                        // User message in pill/box like web
+                        backgroundColor: '#151515',
+                        borderWidth: 1,
+                        borderColor: COLORS.border,
+                        borderRadius: 4,
+                        paddingHorizontal: 14,
+                        paddingVertical: 10,
+                        alignSelf: 'flex-start',
+                    } : {}}
+                >
+                    <Text
+                        style={{
+                            color: COLORS.textPrimary,
+                            fontSize: 15,
+                            lineHeight: 24,
+                        }}
+                        selectable
+                    >
+                        {content}
+                    </Text>
+                </View>
+            ) : null}
+
+            {/* Action Buttons for AI messages */}
             {!isUser && content && !isStreaming && (
-                <Animated.View
-                    entering={FadeIn.delay(100).duration(150)}
+                <View
                     style={{
                         flexDirection: 'row',
-                        gap: 10,
-                        marginTop: 14,
+                        gap: 16,
+                        marginTop: 16,
                     }}
                 >
                     {/* Copy Button */}
@@ -190,51 +205,43 @@ export default function MessageItem({
                             flexDirection: 'row',
                             alignItems: 'center',
                             gap: 6,
-                            backgroundColor: copied ? `${theme.accent}20` : '#1a1a1a',
-                            borderWidth: 1,
-                            borderColor: copied ? theme.accent : COLORS.border,
-                            paddingHorizontal: 14,
-                            paddingVertical: 10,
-                            minWidth: 80,
                         }}
                     >
                         <Ionicons
                             name={copied ? "checkmark" : "copy-outline"}
                             size={14}
-                            color={copied ? theme.accent : COLORS.textSecondary}
+                            color={copied ? theme.accent : COLORS.textMuted}
                         />
                         <Text style={{
-                            color: copied ? theme.accent : COLORS.textSecondary,
-                            fontSize: 12,
-                            fontWeight: '600',
+                            color: copied ? theme.accent : COLORS.textMuted,
+                            fontSize: 11,
+                            fontFamily: FONTS.mono,
                         }}>
-                            {copied ? 'Copied!' : 'Copy'}
+                            {copied ? 'Copied' : 'Copy'}
                         </Text>
                     </TouchableOpacity>
 
-                    {/* Share Button */}
+                    {/* Re-run Button */}
                     <TouchableOpacity
-                        onPress={handleShare}
+                        onPress={() => { }}
                         activeOpacity={0.7}
                         style={{
                             flexDirection: 'row',
                             alignItems: 'center',
                             gap: 6,
-                            backgroundColor: '#1a1a1a',
-                            borderWidth: 1,
-                            borderColor: COLORS.border,
-                            paddingHorizontal: 14,
-                            paddingVertical: 10,
-                            minWidth: 80,
                         }}
                     >
-                        <Ionicons name="share-outline" size={14} color={COLORS.textSecondary} />
-                        <Text style={{ color: COLORS.textSecondary, fontSize: 12, fontWeight: '600' }}>
-                            Share
+                        <Ionicons name="refresh-outline" size={14} color={COLORS.textMuted} />
+                        <Text style={{
+                            color: COLORS.textMuted,
+                            fontSize: 11,
+                            fontFamily: FONTS.mono,
+                        }}>
+                            Re-run
                         </Text>
                     </TouchableOpacity>
-                </Animated.View>
+                </View>
             )}
-        </Animated.View>
+        </View>
     );
 }
