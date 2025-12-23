@@ -51,7 +51,7 @@ const google = createGoogleGenerativeAI({
 type LearningSubMode = 'summary' | 'flashcard' | 'teaching';
 
 // Generate system prompt with user settings
-function generateSystemPrompt(responseLength: number, userName: string, userGender: string, learningMode: boolean, learningSubMode: LearningSubMode, customInstructions?: string, userMemoryFacts?: string[]): string {
+function generateSystemPrompt(responseLength: number, userName: string, userGender: string, learningMode: boolean, learningSubMode: LearningSubMode, customInstructions?: string, userMemoryFacts?: string[], enabledToolNames?: string[]): string {
   // Current date/time context - prevents AI from having outdated knowledge cutoff
   const now = new Date();
   const dateContext = `## Current Date & Time
@@ -497,42 +497,49 @@ When a user's message contains text wrapped in [QUOTED FROM CONVERSATION] and [E
 - If unsure, say so clearly
 - Acknowledge when information might be outdated
 
-## Tool Usage (IMPORTANT)
+## Tool Usage
 
-You have access to powerful tools. **USE THEM PROACTIVELY** without waiting for explicit permission.
+${(() => {
+      // Only include tool instructions if tools are actually enabled
+      const toolNames = enabledToolNames || [];
+      const hasBrave = toolNames.some(t => t.startsWith('brave_'));
+      const hasYouTube = toolNames.some(t => t.startsWith('youtube_'));
 
-⚠️ **CRITICAL - HOW TO USE TOOLS:**
-- **INVOKE tools directly** through the function calling interface - do NOT write JSON or code to call them
-- **NEVER output text like** \`{ "action": "...", "action_input": "..." }\` or any JSON representation of a tool call
-- **NEVER describe** what tool you're going to use - just USE it silently
-- When you want to search, don't write "I will search..." - just invoke the tool
-- The tool will execute automatically and you'll receive results to incorporate into your response
+      if (!hasBrave && !hasYouTube) {
+        return 'You do not currently have access to any external tools. Answer questions using your knowledge.';
+      }
 
-### Web Search (brave_web_search, brave_news_search)
-**USE IMMEDIATELY when:**
-- Questions about **current events**, news, sports, politics, elections, weather
-- Questions where your training data might be **outdated** (new products, recent releases, "latest", "current", "new")
-- **Factual questions** you're NOT 100% certain about (dates, statistics, specific facts)
-- **Real-time information** (stock prices, exchange rates, what's happening now)
-- User asks "what is" or "who is" about something that may have changed recently
-- Any question containing words like: "today", "now", "latest", "recent", "current", "this year", "2024", "2025"
+      let instructions = `You have access to tools. Use them via the native function calling interface.
 
-### YouTube (youtube_search, youtube_video_details, youtube_get_transcript)
+⚠️ **CRITICAL**:
+- **NEVER output JSON** like \`{ "action": "...", "action_input": "..." }\`
+- Just invoke the tool silently - the result will appear automatically
+- Only use tools that are listed below - do NOT try to use tools that don't exist
+
+`;
+
+      if (hasBrave) {
+        instructions += `### Web Search (brave_web_search, brave_news_search)
 **USE when:**
-- User asks **how to do something** that's best shown visually (tutorials, DIY, cooking, crafts)
-- User wants to **watch** or **learn visually** about a topic
-- Topics commonly covered by video (tech reviews, gaming, music, fitness, makeup)
-- User asks for **video recommendations** or tutorials
-- Questions about **specific YouTube videos** or content creators
+- Current events, news, weather, real-time info
+- Factual questions you're not 100% certain about
+- Anything with "today", "latest", "current", "2024", "2025"
 
-### CRITICAL RULES
-1. **DO NOT ASK PERMISSION** - just use the tool if relevant
-2. **Search first, answer second** - if uncertain about current info, search
-3. **Cite your sources** with clickable links when using search results
-4. **Incorporate findings** naturally into your response
-5. It's **ALWAYS BETTER to search** than to guess with potentially outdated information
+`;
+      }
 
-**Remember**: Your training data has a cutoff. When in doubt, SEARCH!
+      if (hasYouTube) {
+        instructions += `### YouTube (youtube_search, youtube_video_details, youtube_get_transcript)
+**USE when:**
+- User asks for video tutorials or recommendations
+- Visual/video-based learning topics
+- Questions about specific YouTube content
+
+`;
+      }
+
+      return instructions;
+    })()}
 
 ## Emotional Support
 - If the user is struggling, something fails, or the result isn't perfect: **BE ENCOURAGING.**
@@ -687,8 +694,53 @@ export async function POST(req: Request) {
 
     console.log('[API] Processed messages:', hydratedMessages.length);
 
-    // Generate system prompt
-    const systemPrompt = generateSystemPrompt(respLength, uName, uGender, isLearningMode, subMode, isLearningMode ? undefined : userCustomInstructions, isLearningMode ? undefined : userMemoryFacts);
+    // Get enabled tools (Brave Search + YouTube) - must be before system prompt generation
+    const braveTools = getEnabledBraveTools(mcpServers);
+    const youtubeTools = getEnabledYouTubeTools(mcpServers);
+    const tools = { ...braveTools, ...youtubeTools };
+    const hasTools = Object.keys(tools).length > 0;
+
+    console.log('[API] Tools check - mcpServers:', mcpServers, '- resolved tools:', Object.keys(tools));
+
+    // Generate system prompt with enabled tool names
+    const enabledToolNames = Object.keys(tools);
+    const systemPrompt = generateSystemPrompt(respLength, uName, uGender, isLearningMode, subMode, isLearningMode ? undefined : userCustomInstructions, isLearningMode ? undefined : userMemoryFacts, enabledToolNames);
+
+    // ========== DEBUG: Log system prompt ==========
+    console.log('\n========== DEBUG: SYSTEM PROMPT ==========');
+    console.log('System prompt length:', systemPrompt.length);
+    console.log('System prompt (first 2000 chars):', systemPrompt.slice(0, 2000));
+    console.log('System prompt (last 1000 chars):', systemPrompt.slice(-1000));
+    console.log('==========================================\n');
+
+    // ========== DEBUG: Log tools being passed ==========
+    console.log('\n========== DEBUG: TOOLS ==========');
+    console.log('hasTools:', hasTools);
+    console.log('enabledToolNames:', enabledToolNames);
+    if (hasTools) {
+      for (const [name, tool] of Object.entries(tools)) {
+        const t = tool as { description?: string; parameters?: unknown; inputSchema?: unknown };
+        console.log(`Tool "${name}":`);
+        console.log(`  - description: ${t.description?.slice(0, 100)}...`);
+        console.log(`  - has parameters: ${!!t.parameters}`);
+        console.log(`  - has inputSchema: ${!!t.inputSchema}`);
+        console.log(`  - parameters type: ${typeof t.parameters}`);
+        if (t.parameters) {
+          console.log(`  - parameters keys: ${Object.keys(t.parameters as object).join(', ')}`);
+        }
+      }
+    }
+    console.log('===================================\n');
+
+    // ========== DEBUG: Log messages being sent ==========
+    console.log('\n========== DEBUG: MESSAGES ==========');
+    const modelMessages = convertToModelMessages(hydratedMessages as UIMessage[]);
+    console.log('Message count:', modelMessages.length);
+    for (let i = 0; i < modelMessages.length; i++) {
+      const msg = modelMessages[i] as { role: string; content?: unknown };
+      console.log(`Message ${i}: role=${msg.role}, content type=${typeof msg.content}, content length=${JSON.stringify(msg.content).length}`);
+    }
+    console.log('======================================\n');
 
     // Configure Google provider options for thinking
 
@@ -710,16 +762,15 @@ export async function POST(req: Request) {
       } : {}),
     };
 
+    // ========== DEBUG: Log provider options ==========
+    console.log('\n========== DEBUG: PROVIDER OPTIONS ==========');
+    console.log('modelId:', modelId);
+    console.log('cleanModelId:', modelId.replace('google/', ''));
+    console.log('googleProviderOpts:', JSON.stringify(googleProviderOpts, null, 2));
+    console.log('==============================================\n');
+
     // Clean model ID (remove google/ prefix if present)
     const cleanModelId = modelId.replace('google/', '');
-
-    // Get enabled tools (Brave Search + YouTube)
-    const braveTools = getEnabledBraveTools(mcpServers);
-    const youtubeTools = getEnabledYouTubeTools(mcpServers);
-    const tools = { ...braveTools, ...youtubeTools };
-    const hasTools = Object.keys(tools).length > 0;
-
-    console.log('[API] Tools check - mcpServers:', mcpServers, '- resolved tools:', Object.keys(tools));
 
     // Track timing for TPS calculation
     const requestStartTime = Date.now();
@@ -729,7 +780,7 @@ export async function POST(req: Request) {
     const result = streamText({
       model: google(cleanModelId),
       system: systemPrompt,
-      messages: convertToModelMessages(hydratedMessages as UIMessage[]),
+      messages: modelMessages,
       ...(hasTools && { tools, stopWhen: stepCountIs(5), toolCallStreaming: true }), // Enable tool call streaming to send tool parts to client
       providerOptions: {
         google: googleProviderOpts,
@@ -737,6 +788,7 @@ export async function POST(req: Request) {
       onStepFinish: ({ text, toolCalls, toolResults, finishReason }) => {
         console.log(`[Step Finished] finishReason: ${finishReason}`);
         console.log(`  text length: ${text?.length || 0}, toolCalls: ${toolCalls?.length || 0}, toolResults: ${toolResults?.length || 0}`);
+        console.log(`  text preview: ${text?.slice(0, 200) || '(empty)'}...`);
         if (toolCalls && toolCalls.length > 0) {
           console.log(`  Tool called: ${toolCalls.map((tc: { toolName: string }) => tc.toolName).join(', ')}`);
         }
@@ -748,6 +800,13 @@ export async function POST(req: Request) {
         if (!firstChunkTime) {
           firstChunkTime = now;
           console.log(`[CHUNK] First chunk type: ${chunkType}`);
+        }
+        // Log ALL chunks for debugging
+        if (chunkType === 'text-delta') {
+          const textChunk = chunk as { type: string; textDelta?: string };
+          console.log(`[CHUNK] text-delta: "${textChunk.textDelta?.slice(0, 50)}..."`);
+        } else {
+          console.log(`[CHUNK] type: ${chunkType}`);
         }
         // Track reasoning chunks specifically - check both possible types
         // Some models use 'reasoning-delta', others might use 'reasoning'

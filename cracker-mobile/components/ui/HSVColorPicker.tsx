@@ -94,12 +94,18 @@ export function HSVColorPicker({ onColorChange }: HSVColorPickerProps) {
     const currentColor = hsvToHex(hue, saturation, brightness);
     const hueColor = hueToColor(hue);
 
-    // SV picker position
-    const svX = (saturation / 100) * PICKER_SIZE;
-    const svY = ((100 - brightness) / 100) * PICKER_SIZE;
+    // Auto-apply color when it changes
+    useEffect(() => {
+        setAccentColor(currentColor);
+        onColorChange?.(currentColor);
+    }, [currentColor, setAccentColor, onColorChange]);
 
-    // Hue slider position
-    const hueX = (hue / 360) * PICKER_SIZE;
+    // SV picker position - clamped within bounds
+    const svX = Math.max(THUMB_SIZE / 2, Math.min(PICKER_SIZE - THUMB_SIZE / 2, (saturation / 100) * PICKER_SIZE));
+    const svY = Math.max(THUMB_SIZE / 2, Math.min(PICKER_SIZE - THUMB_SIZE / 2, ((100 - brightness) / 100) * PICKER_SIZE));
+
+    // Hue slider position - clamped within bounds
+    const hueX = Math.max(THUMB_SIZE / 2, Math.min(PICKER_SIZE - THUMB_SIZE / 2, (hue / 360) * PICKER_SIZE));
 
     // Handle SV picker touch
     const handleSVTouch = useCallback((x: number, y: number) => {
@@ -120,13 +126,7 @@ export function HSVColorPicker({ onColorChange }: HSVColorPickerProps) {
         setHue(newHue);
     }, []);
 
-    // Apply color
-    const handleApply = useCallback(() => {
-        setAccentColor(currentColor);
-        onColorChange?.(currentColor);
-    }, [currentColor, setAccentColor, onColorChange]);
-
-    // Select preset
+    // Select preset - also auto-applies via useEffect
     const handlePresetSelect = useCallback((color: string) => {
         const hsv = hexToHsv(color);
         setHue(hsv.h);
@@ -147,18 +147,32 @@ export function HSVColorPicker({ onColorChange }: HSVColorPickerProps) {
                 <Text style={styles.headerText}>ACCENT COLOR</Text>
             </View>
 
-            {/* Saturation/Brightness Square */}
+            {/* Saturation/Brightness Square - using SVG for proper gradients */}
             <View
-                style={[styles.svPicker, { backgroundColor: hueColor }]}
+                style={styles.svPicker}
                 onStartShouldSetResponder={() => true}
                 onMoveShouldSetResponder={() => true}
                 onResponderGrant={(e) => handleSVTouch(e.nativeEvent.locationX, e.nativeEvent.locationY)}
                 onResponderMove={(e) => handleSVTouch(e.nativeEvent.locationX, e.nativeEvent.locationY)}
             >
-                {/* White gradient (left to right) */}
-                <View style={[StyleSheet.absoluteFill, styles.whiteGradient]} />
-                {/* Black gradient (top to bottom) */}
-                <View style={[StyleSheet.absoluteFill, styles.blackGradient]} />
+                <Svg width={PICKER_SIZE} height={PICKER_SIZE} style={StyleSheet.absoluteFill}>
+                    <Defs>
+                        {/* Saturation gradient: white to hue color (left to right) */}
+                        <LinearGradient id="satGrad" x1="0" y1="0" x2="1" y2="0">
+                            <Stop offset="0%" stopColor="#ffffff" />
+                            <Stop offset="100%" stopColor={hueColor} />
+                        </LinearGradient>
+                        {/* Brightness gradient: transparent to black (top to bottom) */}
+                        <LinearGradient id="briGrad" x1="0" y1="0" x2="0" y2="1">
+                            <Stop offset="0%" stopColor="#000000" stopOpacity="0" />
+                            <Stop offset="100%" stopColor="#000000" stopOpacity="1" />
+                        </LinearGradient>
+                    </Defs>
+                    {/* Base layer: saturation gradient */}
+                    <Rect x="0" y="0" width={PICKER_SIZE} height={PICKER_SIZE} fill="url(#satGrad)" />
+                    {/* Top layer: brightness gradient */}
+                    <Rect x="0" y="0" width={PICKER_SIZE} height={PICKER_SIZE} fill="url(#briGrad)" />
+                </Svg>
 
                 {/* Picker thumb */}
                 <View
@@ -237,21 +251,6 @@ export function HSVColorPicker({ onColorChange }: HSVColorPickerProps) {
                     </View>
                 </View>
             </View>
-
-            {/* Reset Button */}
-            <TouchableOpacity style={styles.resetButton} onPress={handleReset}>
-                <Text style={styles.resetText}>RESET TO DEFAULT</Text>
-            </TouchableOpacity>
-
-            {/* Apply Button */}
-            <TouchableOpacity
-                style={[styles.applyButton, { backgroundColor: currentColor }]}
-                onPress={handleApply}
-            >
-                <Text style={[styles.applyText, { color: brightness > 50 ? '#000' : '#fff' }]}>
-                    APPLY
-                </Text>
-            </TouchableOpacity>
         </Animated.View>
     );
 }

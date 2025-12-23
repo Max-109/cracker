@@ -41,7 +41,7 @@ const defaultUserSettings: Partial<UserSettings> = {
     learningSubMode: 'summary',
     customInstructions: '',
     userName: '',
-    userGender: '',
+    userGender: 'he',
     enabledMcpServers: ['brave-search'],
 };
 

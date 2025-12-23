@@ -6,7 +6,6 @@
  */
 
 import { z } from 'zod';
-import { zodSchema } from 'ai';
 
 const BRAVE_API_BASE = 'https://api.search.brave.com/res/v1';
 
@@ -45,7 +44,7 @@ type NewsSearchParams = z.infer<typeof newsSearchSchema>;
  */
 export const braveWebSearch = {
     description: 'Search the web for current information. Use this when you need to find up-to-date information, facts, news, or any web content.',
-    inputSchema: zodSchema(webSearchSchema),
+    parameters: webSearchSchema,
     execute: async (args: WebSearchParams) => {
         const { query, count = 10 } = args;
         const apiKey = process.env.BRAVE_API_KEY;
@@ -108,7 +107,7 @@ export const braveWebSearch = {
  */
 export const braveNewsSearch = {
     description: 'Search for recent news articles. Use this when you need current news, headlines, or recent events.',
-    inputSchema: zodSchema(newsSearchSchema),
+    parameters: newsSearchSchema,
     execute: async (args: NewsSearchParams) => {
         const { query, count = 10 } = args;
         const apiKey = process.env.BRAVE_API_KEY;

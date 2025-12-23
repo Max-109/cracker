@@ -7,7 +7,6 @@
  */
 
 import { z } from 'zod';
-import { zodSchema } from 'ai';
 import { Innertube } from 'youtubei.js';
 
 const YOUTUBE_API_BASE = 'https://www.googleapis.com/youtube/v3';
@@ -44,7 +43,7 @@ type VideoDetailsParams = z.infer<typeof videoDetailsSchema>;
  */
 export const youtubeSearch = {
     description: 'Search YouTube for videos. Use this when you need to find videos about a topic, tutorial, entertainment, music, or any YouTube content.',
-    inputSchema: zodSchema(videoSearchSchema),
+    parameters: videoSearchSchema,
     execute: async (args: VideoSearchParams) => {
         const { query, maxResults = 10 } = args;
         const apiKey = process.env.YOUTUBE_API_KEY;
@@ -151,7 +150,7 @@ export const youtubeSearch = {
  */
 export const youtubeVideoDetails = {
     description: 'Get detailed information about specific YouTube videos by their IDs. Use this when you need view counts, likes, descriptions, or other metadata for videos.',
-    inputSchema: zodSchema(videoDetailsSchema),
+    parameters: videoDetailsSchema,
     execute: async (args: VideoDetailsParams) => {
         const { videoIds } = args;
         const apiKey = process.env.YOUTUBE_API_KEY;
@@ -241,7 +240,7 @@ type TranscriptParams = z.infer<typeof transcriptSchema>;
 
 export const youtubeGetTranscript = {
     description: 'Get the transcript/captions of a YouTube video. Use this when users ask for the full text, subtitles, or transcription of a YouTube video. Extract the video ID from the URL first.',
-    inputSchema: zodSchema(transcriptSchema),
+    parameters: transcriptSchema,
     execute: async (args: TranscriptParams) => {
         const { videoId, lang } = args;
 
