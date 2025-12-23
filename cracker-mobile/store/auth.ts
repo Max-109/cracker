@@ -40,10 +40,32 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             if (session?.user) {
                 console.log('[AuthStore] Setting user from session:', session.user.email);
                 console.log('[AuthStore] Token available:', !!session.access_token);
+
+                // Fetch profile from API to get name and isAdmin
+                let name: string | undefined;
+                let isAdmin = false;
+                try {
+                    const profileRes = await fetch(`https://cracker.mom/api/auth/profile?userId=${session.user.id}`, {
+                        headers: {
+                            'Authorization': `Bearer ${session.access_token}`,
+                        },
+                    });
+                    if (profileRes.ok) {
+                        const profile = await profileRes.json();
+                        name = profile.name || undefined;
+                        isAdmin = profile.isAdmin === true;
+                        console.log('[AuthStore] Profile fetched:', name, 'isAdmin:', isAdmin);
+                    }
+                } catch (profileError) {
+                    console.error('[AuthStore] Failed to fetch profile:', profileError);
+                }
+
                 set({
                     user: {
                         id: session.user.id,
                         email: session.user.email,
+                        name,
+                        isAdmin,
                         isGuest: false,
                     },
                 });

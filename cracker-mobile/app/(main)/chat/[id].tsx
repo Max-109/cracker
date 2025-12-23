@@ -30,7 +30,17 @@ export default function ChatScreen() {
     const flatListRef = useRef<FlatList>(null);
     const abortControllerRef = useRef<AbortController | null>(null);
     const theme = useTheme();
-    const { chatMode, reasoningEffort, enabledMcpServers, responseLength } = useSettingsStore();
+    const {
+        chatMode,
+        reasoningEffort,
+        enabledMcpServers,
+        responseLength,
+        userName,
+        userGender,
+        customInstructions,
+        learningSubMode,
+    } = useSettingsStore();
+    const learningMode = chatMode === 'learning';
 
     const statusBarHeight = Platform.OS === 'android' ? (StatusBar.currentHeight || 24) : 0;
 
@@ -132,11 +142,16 @@ export default function ChatScreen() {
                     role: m.role,
                     content: m.content,
                 })),
-                modelId: 'gemini-2.5-flash',
+                model: 'gemini-2.5-flash',
                 reasoningEffort: effort,
                 enabledMcpServers,
                 chatMode,
                 responseLength,
+                userName,
+                userGender,
+                learningMode,
+                learningSubMode,
+                customInstructions,
             },
             (event: unknown) => {
                 const e = event as StreamEvent;

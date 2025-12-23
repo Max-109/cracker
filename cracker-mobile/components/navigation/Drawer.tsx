@@ -48,7 +48,6 @@ interface DrawerProps {
     onClose: () => void;
     chats: ChatItem[];
     onChatPress: (id: string) => void;
-    onNewChat?: () => void;
     currentChatId?: string | null;
 }
 
@@ -108,12 +107,11 @@ export default function Drawer({
     onClose,
     chats,
     onChatPress,
-    onNewChat,
     currentChatId,
 }: DrawerProps) {
     const theme = useTheme();
     const { user, logout } = useAuthStore();
-    const isAdmin = (user as any)?.user_metadata?.is_admin === true;
+    const isAdmin = user?.isAdmin === true;
 
     const translateX = useSharedValue(-DRAWER_WIDTH);
     const overlayOpacity = useSharedValue(0);
@@ -155,14 +153,10 @@ export default function Drawer({
         router.replace('/(auth)/login');
     }, [logout, onClose]);
 
-    const handleNewChat = useCallback(() => {
-        onClose();
-        onNewChat?.();
-    }, [onClose, onNewChat]);
-
     const getUserName = () => {
-        const metadata = (user as any)?.user_metadata;
-        if (metadata?.display_name) return metadata.display_name;
+        // Use name from profile API (fetched by auth store)
+        if (user?.name) return user.name;
+        // Fallback to email prefix
         if (user?.email) return user.email.split('@')[0];
         return 'Guest';
     };
@@ -219,50 +213,8 @@ export default function Drawer({
                     drawerStyle,
                 ]}
             >
-                {/* NEW CHAT Button - Top - web: px-2 py-2, gap-2.5 */}
-                <View style={{ paddingTop: statusBarHeight, paddingHorizontal: 8, paddingBottom: 8 }}>
-                    <TouchableOpacity
-                        onPress={handleNewChat}
-                        activeOpacity={0.7}
-                        style={{
-                            flexDirection: 'row',
-                            alignItems: 'center',
-                            paddingVertical: 12,
-                            paddingHorizontal: 10,
-                            backgroundColor: COLORS.bgSidebarSolid,
-                            borderWidth: 1,
-                            borderColor: COLORS.borderColor,
-                        }}
-                    >
-                        {/* Icon box - web: w-7 h-7 = 28px */}
-                        <View
-                            style={{
-                                width: 28,
-                                height: 28,
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                backgroundColor: COLORS.bgMain,
-                                borderWidth: 1,
-                                borderColor: COLORS.borderColor,
-                                marginRight: 10,
-                            }}
-                        >
-                            <Ionicons name="sparkles" size={14} color={theme.accent} />
-                        </View>
-                        <Text
-                            style={{
-                                color: COLORS.textPrimary,
-                                fontSize: 12,
-                                fontWeight: '600',
-                                fontFamily: FONTS.mono,
-                                textTransform: 'uppercase',
-                                letterSpacing: 1.5,
-                            }}
-                        >
-                            New Chat
-                        </Text>
-                    </TouchableOpacity>
-                </View>
+                {/* Top spacing for status bar */}
+                <View style={{ paddingTop: statusBarHeight }} />
 
                 {/* Scrollable Chat List with Time Groups */}
                 <ScrollView

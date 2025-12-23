@@ -81,11 +81,13 @@ interface SettingsState {
     setChatMode: (mode: ChatMode) => Promise<void>;
     setLearningSubMode: (mode: LearningSubMode) => Promise<void>;
     setCustomInstructions: (instructions: string) => Promise<void>;
-    setUserName: (name: string) => Promise<void>;
-    setUserGender: (gender: string) => Promise<void>;
+    setUserName: (name: string) => void;
+    setUserGender: (gender: string) => void;
     setEnabledMcpServers: (servers: string[]) => Promise<void>;
     setReasoningEffort: (effort: ReasoningEffort) => Promise<void>;
     setCurrentModelId: (modelId: string) => Promise<void>;
+    toggleMcpServer: (serverSlug: string, enabled: boolean) => void;
+    saveToServer: () => Promise<void>;
 }
 
 export const useSettingsStore = create<SettingsState>((set) => ({
@@ -183,18 +185,12 @@ export const useSettingsStore = create<SettingsState>((set) => ({
         } catch { }
     },
 
-    setUserName: async (name) => {
+    setUserName: (name) => {
         set({ userName: name });
-        try {
-            await api.updateSettings({ userName: name });
-        } catch { }
     },
 
-    setUserGender: async (gender) => {
+    setUserGender: (gender) => {
         set({ userGender: gender });
-        try {
-            await api.updateSettings({ userGender: gender });
-        } catch { }
     },
 
     setEnabledMcpServers: async (servers) => {
@@ -216,5 +212,31 @@ export const useSettingsStore = create<SettingsState>((set) => ({
         try {
             await api.updateSettings({ currentModelId: modelId });
         } catch { }
+    },
+
+    toggleMcpServer: (serverSlug, enabled) => {
+        set((state) => {
+            const servers = state.enabledMcpServers;
+            if (enabled) {
+                return { enabledMcpServers: [...servers, serverSlug] };
+            } else {
+                return { enabledMcpServers: servers.filter(s => s !== serverSlug) };
+            }
+        });
+    },
+
+    saveToServer: async () => {
+        const state = useSettingsStore.getState();
+        try {
+            await api.updateSettings({
+                userName: state.userName,
+                userGender: state.userGender,
+                enabledMcpServers: state.enabledMcpServers,
+                codeWrap: state.codeWrap,
+                autoScroll: state.autoScroll,
+            });
+        } catch (error) {
+            console.error('Failed to save settings to server:', error);
+        }
     },
 }));
