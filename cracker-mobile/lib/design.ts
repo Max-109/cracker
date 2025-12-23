@@ -19,9 +19,14 @@ export const SPACING = {
     xxxl: 32,
 } as const;
 
-// Typography
+// Typography - EXACT match to web (JetBrains Mono from Google Fonts)
 export const FONTS = {
-    mono: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    // JetBrains Mono - bundled with app, loaded in _layout.tsx
+    mono: 'JetBrainsMono-Regular',
+    monoMedium: 'JetBrainsMono-Medium',
+    monoSemiBold: 'JetBrainsMono-SemiBold',
+    monoBold: 'JetBrainsMono-Bold',
+    // System font for body text (optional)
     system: Platform.OS === 'ios' ? 'System' : 'Roboto',
 } as const;
 
