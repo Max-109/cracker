@@ -1,63 +1,36 @@
 import { useState, useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, TextInput, Platform } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, TextInput, Platform, Linking, Switch } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import Animated, { FadeIn } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { useTheme } from '../../store/theme';
 import { useSettingsStore } from '../../store/settings';
 import { useAuthStore } from '../../store/auth';
-import Toggle from '../../components/ui/Toggle';
-import Slider from '../../components/ui/Slider';
-import ColorPicker from '../../components/ui/ColorPicker';
-import MemorySection from '../../components/settings/MemorySection';
+import HSVColorPicker from '../../components/ui/HSVColorPicker';
 import { COLORS, FONTS } from '../../lib/design';
-
-type SettingsTab = 'profile' | 'tools' | 'appearance' | 'memory';
-
-const TABS: { id: SettingsTab; icon: keyof typeof Ionicons.glyphMap; label: string }[] = [
-    { id: 'profile', icon: 'person-outline', label: 'Profile' },
-    { id: 'tools', icon: 'construct-outline', label: 'Tools' },
-    { id: 'appearance', icon: 'color-palette-outline', label: 'Theme' },
-    { id: 'memory', icon: 'sparkles-outline', label: 'Memory' },
-];
 
 export default function SettingsScreen() {
     const theme = useTheme();
-    const { user } = useAuthStore();
+    const { user, logout } = useAuthStore();
     const {
         accentColor,
-        codeWrap,
-        autoScroll,
-        userName,
-        customInstructions,
-        enabledMcpServers,
-        responseLength,
         setAccentColor,
-        setCodeWrap,
-        setAutoScroll,
-        setUserName,
-        setCustomInstructions,
-        setEnabledMcpServers,
-        setResponseLength,
         syncFromServer,
     } = useSettingsStore();
 
-    const [activeTab, setActiveTab] = useState<SettingsTab>('profile');
-    const [isInitializing, setIsInitializing] = useState(true);
+    const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
 
     useEffect(() => {
-        syncFromServer().finally(() => setIsInitializing(false));
+        syncFromServer().catch(console.error);
     }, []);
 
     const handleBack = () => {
         router.back();
     };
 
-    const toggleMcpServer = async (server: string) => {
-        const newServers = enabledMcpServers.includes(server)
-            ? enabledMcpServers.filter(s => s !== server)
-            : [...enabledMcpServers, server];
-        await setEnabledMcpServers(newServers);
+    const handleLogout = async () => {
+        await logout();
+        router.replace('/(auth)/login');
     };
 
     const getUserDisplayName = () => {
@@ -66,202 +39,57 @@ export default function SettingsScreen() {
         return 'Guest';
     };
 
-    const renderTabContent = () => {
-        switch (activeTab) {
-            case 'profile':
-                return (
-                    <Animated.View entering={FadeIn.duration(200)} style={{ padding: 20 }}>
-                        {/* Display Name */}
-                        <Text style={styles.sectionTitle}>DISPLAY NAME</Text>
-                        <View style={styles.card}>
-                            <TextInput
-                                value={userName}
-                                onChangeText={setUserName}
-                                placeholder="Your name"
-                                placeholderTextColor={COLORS.textDim}
-                                style={{
-                                    fontSize: 16,
-                                    color: COLORS.textPrimary,
-                                    padding: 0,
-                                }}
-                            />
-                        </View>
+    const SectionHeader = ({ title }: { title: string }) => (
+        <Text style={styles.sectionTitle}>{title}</Text>
+    );
 
-                        {/* Response Length */}
-                        <Text style={[styles.sectionTitle, { marginTop: 28 }]}>RESPONSE LENGTH</Text>
-                        <View style={styles.card}>
-                            <Slider
-                                value={responseLength || 50}
-                                onValueChange={setResponseLength}
-                                min={0}
-                                max={100}
-                                presets={[15, 25, 50, 75, 100]}
-                                labelMin="Brief"
-                                labelMax="Detailed"
-                            />
-                        </View>
-
-                        {/* Custom Instructions */}
-                        <Text style={[styles.sectionTitle, { marginTop: 28 }]}>CUSTOM INSTRUCTIONS</Text>
-                        <View style={styles.card}>
-                            <TextInput
-                                value={customInstructions}
-                                onChangeText={setCustomInstructions}
-                                placeholder="Add custom instructions for the AI..."
-                                placeholderTextColor={COLORS.textDim}
-                                multiline
-                                numberOfLines={5}
-                                style={{
-                                    fontSize: 14,
-                                    color: COLORS.textPrimary,
-                                    minHeight: 100,
-                                    textAlignVertical: 'top',
-                                    lineHeight: 20,
-                                }}
-                            />
-                            <Text style={{ fontSize: 11, color: COLORS.textMuted, marginTop: 12, lineHeight: 16 }}>
-                                These instructions have the highest priority and will be followed above all other guidelines.
-                            </Text>
-                        </View>
-
-                        {/* Account Info */}
-                        <Text style={[styles.sectionTitle, { marginTop: 28 }]}>ACCOUNT</Text>
-                        <View style={styles.card}>
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                                <View style={{
-                                    width: 40,
-                                    height: 40,
-                                    backgroundColor: `${theme.accent}15`,
-                                    borderWidth: 1,
-                                    borderColor: `${theme.accent}30`,
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                }}>
-                                    <Text style={{ color: theme.accent, fontWeight: '700', fontSize: 16 }}>
-                                        {getUserDisplayName().charAt(0).toUpperCase()}
-                                    </Text>
-                                </View>
-                                <View>
-                                    <Text style={{ fontSize: 14, color: COLORS.textPrimary }}>
-                                        {getUserDisplayName()}
-                                    </Text>
-                                    <Text style={{ fontSize: 11, color: COLORS.textMuted, marginTop: 2 }}>
-                                        {user?.isGuest ? 'Guest Account' : 'Registered User'}
-                                    </Text>
-                                </View>
-                            </View>
-                        </View>
-                    </Animated.View>
-                );
-
-            case 'tools':
-                return (
-                    <Animated.View entering={FadeIn.duration(200)} style={{ padding: 20 }}>
-                        <Text style={styles.sectionTitle}>AVAILABLE TOOLS</Text>
-                        <Text style={{ fontSize: 12, color: COLORS.textMuted, marginBottom: 16, lineHeight: 18 }}>
-                            Enable tools to extend Cracker's capabilities. The AI will automatically use enabled tools when helpful.
-                        </Text>
-
-                        <View style={styles.card}>
-                            <View style={styles.settingsRow}>
-                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 }}>
-                                    <View style={{
-                                        width: 36,
-                                        height: 36,
-                                        backgroundColor: '#1a1a1a',
-                                        borderWidth: 1,
-                                        borderColor: COLORS.border,
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                    }}>
-                                        <Ionicons name="search" size={16} color={COLORS.textSecondary} />
-                                    </View>
-                                    <View style={{ flex: 1 }}>
-                                        <Text style={{ fontSize: 14, color: COLORS.textPrimary }}>Web Search</Text>
-                                        <Text style={{ fontSize: 11, color: COLORS.textMuted, marginTop: 2 }}>
-                                            Search the web for current information
-                                        </Text>
-                                    </View>
-                                </View>
-                                <Toggle
-                                    value={enabledMcpServers.includes('brave-search')}
-                                    onValueChange={() => toggleMcpServer('brave-search')}
-                                />
-                            </View>
-
-                            <View style={[styles.settingsRow, { borderBottomWidth: 0 }]}>
-                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 }}>
-                                    <View style={{
-                                        width: 36,
-                                        height: 36,
-                                        backgroundColor: '#1a1a1a',
-                                        borderWidth: 1,
-                                        borderColor: COLORS.border,
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                    }}>
-                                        <Ionicons name="logo-youtube" size={16} color="#ff0000" />
-                                    </View>
-                                    <View style={{ flex: 1 }}>
-                                        <Text style={{ fontSize: 14, color: COLORS.textPrimary }}>YouTube</Text>
-                                        <Text style={{ fontSize: 11, color: COLORS.textMuted, marginTop: 2 }}>
-                                            Search videos and get transcripts
-                                        </Text>
-                                    </View>
-                                </View>
-                                <Toggle
-                                    value={enabledMcpServers.includes('youtube')}
-                                    onValueChange={() => toggleMcpServer('youtube')}
-                                />
-                            </View>
-                        </View>
-
-                        {/* Behavior Settings */}
-                        <Text style={[styles.sectionTitle, { marginTop: 28 }]}>BEHAVIOR</Text>
-                        <View style={styles.card}>
-                            <View style={styles.settingsRow}>
-                                <View>
-                                    <Text style={{ fontSize: 14, color: COLORS.textPrimary }}>Wrap Code</Text>
-                                    <Text style={{ fontSize: 11, color: COLORS.textMuted, marginTop: 2 }}>
-                                        Wrap long lines in code blocks
-                                    </Text>
-                                </View>
-                                <Toggle value={codeWrap} onValueChange={setCodeWrap} />
-                            </View>
-                            <View style={[styles.settingsRow, { borderBottomWidth: 0 }]}>
-                                <View>
-                                    <Text style={{ fontSize: 14, color: COLORS.textPrimary }}>Auto-scroll</Text>
-                                    <Text style={{ fontSize: 11, color: COLORS.textMuted, marginTop: 2 }}>
-                                        Scroll to bottom on new messages
-                                    </Text>
-                                </View>
-                                <Toggle value={autoScroll} onValueChange={setAutoScroll} />
-                            </View>
-                        </View>
-                    </Animated.View>
-                );
-
-            case 'appearance':
-                return (
-                    <Animated.View entering={FadeIn.duration(200)} style={{ padding: 20 }}>
-                        <Text style={styles.sectionTitle}>ACCENT COLOR</Text>
-                        <View style={styles.card}>
-                            <ColorPicker
-                                value={accentColor}
-                                onChange={setAccentColor}
-                            />
-                        </View>
-                    </Animated.View>
-                );
-
-            case 'memory':
-                return (
-                    <Animated.View entering={FadeIn.duration(200)} style={{ padding: 20, flex: 1 }}>
-                        <MemorySection />
-                    </Animated.View>
-                );
-        }
-    };
+    const MenuItem = ({
+        icon,
+        label,
+        value,
+        onPress,
+        showChevron = true,
+        textColor = COLORS.textPrimary,
+        isDestructive = false
+    }: {
+        icon: keyof typeof Ionicons.glyphMap,
+        label: string,
+        value?: string,
+        onPress?: () => void,
+        showChevron?: boolean,
+        textColor?: string,
+        isDestructive?: boolean
+    }) => (
+        <TouchableOpacity
+            style={styles.menuItem}
+            onPress={onPress}
+            activeOpacity={0.7}
+            disabled={!onPress}
+        >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                <Ionicons
+                    name={icon}
+                    size={20}
+                    color={isDestructive ? '#ef4444' : theme.accent}
+                />
+                <Text style={{
+                    fontSize: 15,
+                    color: isDestructive ? '#ef4444' : textColor,
+                    fontWeight: isDestructive ? '600' : '400'
+                }}>
+                    {label}
+                </Text>
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                {value && (
+                    <Text style={{ fontSize: 14, color: COLORS.textMuted }}>{value}</Text>
+                )}
+                {showChevron && (
+                    <Ionicons name="chevron-forward" size={16} color={COLORS.textMuted} />
+                )}
+            </View>
+        </TouchableOpacity>
+    );
 
     return (
         <View style={{ flex: 1, backgroundColor: COLORS.bgMain }}>
@@ -271,84 +99,149 @@ export default function SettingsScreen() {
                     onPress={handleBack}
                     hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                     style={{
-                        width: 44,
-                        height: 44,
+                        width: 40,
+                        height: 40,
                         alignItems: 'center',
                         justifyContent: 'center',
-                        marginRight: 8,
+                        borderRadius: 20,
+                        backgroundColor: '#222',
                     }}
                 >
-                    <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
+                    <Ionicons name="chevron-back" size={24} color={COLORS.textPrimary} />
                 </TouchableOpacity>
-                <View style={{
-                    width: 32,
-                    height: 32,
-                    backgroundColor: `${theme.accent}15`,
-                    borderWidth: 1,
-                    borderColor: `${theme.accent}30`,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    marginRight: 10,
-                }}>
-                    <Ionicons name="settings-outline" size={14} color={theme.accent} />
-                </View>
-                <Text style={{
-                    fontSize: 12,
-                    fontWeight: '700',
-                    color: COLORS.textPrimary,
-                    textTransform: 'uppercase',
-                    letterSpacing: 2,
-                    fontFamily: FONTS.mono,
-                }}>
-                    Settings
-                </Text>
+                <Text style={styles.headerTitle}>Settings</Text>
+                <View style={{ width: 40 }} />
             </View>
 
-            {/* Tab Bar */}
-            <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={{ paddingHorizontal: 12 }}
-                style={{
-                    borderBottomWidth: 1,
-                    borderBottomColor: COLORS.border,
-                    maxHeight: 52,
-                }}
-            >
-                {TABS.map((tab) => (
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 40 }}>
+                {/* Account Section */}
+                <View style={styles.section}>
+                    <SectionHeader title="Account" />
+
+                    <MenuItem
+                        icon="mail-outline"
+                        label="Email"
+                        value={getUserDisplayName()}
+                        showChevron={false}
+                    />
+                    <MenuItem
+                        icon="business-outline"
+                        label="Organization"
+                        value="Cracker Corp"
+                        showChevron={false}
+                    />
+                    <MenuItem
+                        icon="rocket-outline"
+                        label="Subscription"
+                        value="Free Plan"
+                        showChevron={false}
+                    />
+
+                    <View style={styles.divider} />
+
+                    <MenuItem
+                        icon="arrow-up-circle-outline"
+                        label="Upgrade now"
+                        textColor={theme.accent}
+                    />
+                    <MenuItem
+                        icon="shield-checkmark-outline"
+                        label="Data & Account Control"
+                    />
+                </View>
+
+                {/* App Section */}
+                <View style={styles.section}>
+                    <SectionHeader title="App" />
+
                     <TouchableOpacity
-                        key={tab.id}
-                        onPress={() => setActiveTab(tab.id)}
-                        style={{
-                            paddingHorizontal: 14,
-                            paddingVertical: 14,
-                            borderBottomWidth: 2,
-                            borderBottomColor: activeTab === tab.id ? theme.accent : 'transparent',
-                        }}
+                        style={styles.menuItem}
+                        onPress={() => setIsColorPickerOpen(!isColorPickerOpen)}
+                        activeOpacity={0.7}
                     >
-                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                            <Ionicons name="color-palette-outline" size={20} color={theme.accent} />
+                            <Text style={{ fontSize: 15, color: COLORS.textPrimary }}>Color Scheme</Text>
+                        </View>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                            <View style={{
+                                width: 16,
+                                height: 16,
+                                borderRadius: 8,
+                                backgroundColor: accentColor,
+                                borderWidth: 1,
+                                borderColor: '#fff'
+                            }} />
                             <Ionicons
-                                name={tab.icon}
-                                size={15}
-                                color={activeTab === tab.id ? theme.accent : COLORS.textSecondary}
+                                name={isColorPickerOpen ? "chevron-up" : "chevron-down"}
+                                size={16}
+                                color={COLORS.textMuted}
                             />
-                            <Text style={{
-                                fontSize: 11,
-                                fontWeight: '600',
-                                color: activeTab === tab.id ? theme.accent : COLORS.textSecondary,
-                                textTransform: 'uppercase',
-                                letterSpacing: 0.5,
-                            }}>
-                                {tab.label}
-                            </Text>
                         </View>
                     </TouchableOpacity>
-                ))}
-            </ScrollView>
 
-            {/* Content */}
-            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 40 }}>
-                {renderTabContent()}
+                    {isColorPickerOpen && (
+                        <Animated.View
+                            entering={FadeInDown.duration(200)}
+                            style={{
+                                marginTop: 0,
+                                marginBottom: 16,
+                                marginHorizontal: 16,
+                                borderRadius: 12,
+                                overflow: 'hidden',
+                                borderWidth: 1,
+                                borderColor: COLORS.border
+                            }}
+                        >
+                            <HSVColorPicker />
+                        </Animated.View>
+                    )}
+
+                    <MenuItem
+                        icon="finger-print-outline"
+                        label="Haptic feedback"
+                        showChevron={false}
+                        // Placeholder for toggle switch visual
+                        value="On"
+                    />
+                </View>
+
+                {/* About Section */}
+                <View style={styles.section}>
+                    <SectionHeader title="About" />
+
+                    <MenuItem
+                        icon="help-circle-outline"
+                        label="Help Center"
+                    />
+                    <MenuItem
+                        icon="document-text-outline"
+                        label="Terms of Service"
+                    />
+                    <MenuItem
+                        icon="lock-closed-outline"
+                        label="Privacy Policy"
+                    />
+                    <MenuItem
+                        icon="information-circle-outline"
+                        label="Cracker Mobile"
+                        value="v1.0.0"
+                        showChevron={false}
+                    />
+                </View>
+
+                {/* Logout Button */}
+                <View style={[styles.section, { marginTop: 20 }]}>
+                    <TouchableOpacity
+                        style={styles.logoutButton}
+                        onPress={handleLogout}
+                    >
+                        <Ionicons name="log-out-outline" size={20} color="#ef4444" />
+                        <Text style={{ fontSize: 15, color: "#ef4444", fontWeight: '600' }}>Log out</Text>
+                    </TouchableOpacity>
+                </View>
+
+                <View style={{ height: 40 }} />
             </ScrollView>
         </View>
     );
@@ -356,36 +249,54 @@ export default function SettingsScreen() {
 
 const styles = {
     header: {
-        paddingTop: Platform.OS === 'ios' ? 56 : 44,
-        paddingBottom: 12,
-        paddingHorizontal: 16,
-        flexDirection: 'row' as const,
-        alignItems: 'center' as const,
-        borderBottomWidth: 1,
-        borderBottomColor: COLORS.border,
-        backgroundColor: COLORS.bgMain,
-    },
-    sectionTitle: {
-        fontSize: 10,
-        fontWeight: '700' as const,
-        color: COLORS.textMuted,
-        textTransform: 'uppercase' as const,
-        letterSpacing: 1.5,
-        marginBottom: 12,
-        fontFamily: FONTS.mono,
-    },
-    card: {
-        backgroundColor: '#0d0d0d',
-        borderWidth: 1,
-        borderColor: COLORS.border,
-        padding: 16,
-    },
-    settingsRow: {
+        paddingTop: Platform.OS === 'ios' ? 60 : 44,
+        paddingBottom: 16,
+        paddingHorizontal: 20,
         flexDirection: 'row' as const,
         alignItems: 'center' as const,
         justifyContent: 'space-between' as const,
-        paddingVertical: 12,
-        borderBottomWidth: 1,
-        borderBottomColor: COLORS.border,
     },
+    headerTitle: {
+        fontSize: 17,
+        fontWeight: '600' as const,
+        color: COLORS.textPrimary,
+        fontFamily: FONTS.monoSemiBold,
+    },
+    section: {
+        marginBottom: 24,
+    },
+    sectionTitle: {
+        fontSize: 13,
+        fontWeight: '600' as const,
+        color: COLORS.textMuted,
+        marginBottom: 8,
+        marginLeft: 20,
+        fontFamily: FONTS.monoMedium,
+    },
+    menuItem: {
+        flexDirection: 'row' as const,
+        alignItems: 'center' as const,
+        justifyContent: 'space-between' as const,
+        paddingVertical: 16,
+        paddingHorizontal: 20,
+        // Using transparent background for clean look
+    },
+    divider: {
+        height: 1,
+        backgroundColor: '#222',
+        marginHorizontal: 20,
+        marginVertical: 4,
+    },
+    logoutButton: {
+        flexDirection: 'row' as const,
+        alignItems: 'center' as const,
+        gap: 12,
+        paddingVertical: 16,
+        paddingHorizontal: 20,
+        borderWidth: 1,
+        borderColor: '#222',
+        borderRadius: 12,
+        marginHorizontal: 16,
+        backgroundColor: 'rgba(239, 68, 68, 0.05)',
+    }
 };

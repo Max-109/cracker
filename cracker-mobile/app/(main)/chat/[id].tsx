@@ -11,6 +11,7 @@ import MessageItem from '../../../components/chat/MessageItem';
 import ChatInput from '../../../components/ui/ChatInput';
 import ChatBackground from '../../../components/ui/ChatBackground';
 import ThinkingIndicator from '../../../components/ui/ThinkingIndicator';
+import { ModelSelector, AccentColorPicker } from '../../../components/ui/ModelSelector';
 import { MessageSkeleton } from '../../../components/ui/Skeleton';
 import { COLORS } from '../../../lib/design';
 
@@ -261,6 +262,7 @@ export default function ChatScreen() {
 
             {/* Header */}
             <View style={[styles.header, { paddingTop: statusBarHeight + 12 }]}>
+                {/* Back Button */}
                 <TouchableOpacity
                     onPress={handleBack}
                     style={{
@@ -271,27 +273,19 @@ export default function ChatScreen() {
                         borderColor: COLORS.border,
                         alignItems: 'center',
                         justifyContent: 'center',
-                        marginRight: 12,
+                        marginRight: 8,
                     }}
                 >
                     <Ionicons name="arrow-back" size={20} color={COLORS.textPrimary} />
                 </TouchableOpacity>
-                <Text
-                    style={{
-                        fontSize: 15,
-                        fontWeight: '600',
-                        color: COLORS.textPrimary,
-                        flex: 1,
-                    }}
-                    numberOfLines={1}
-                >
-                    {chatTitle}
-                </Text>
 
-                {/* Streaming indicator in header */}
-                {isStreaming && (
-                    <ThinkingIndicator isThinking={isThinking} label={isThinking ? 'Thinking' : 'Writing'} />
-                )}
+                {/* Model Selector - Replaces Title */}
+                <View style={{ flex: 1, marginRight: 8 }}>
+                    <ModelSelector small />
+                </View>
+
+                {/* Accent Color Picker */}
+                <AccentColorPicker />
             </View>
 
             {/* Messages */}

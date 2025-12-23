@@ -29,9 +29,10 @@ const TIER_CONFIG = {
 
 interface ModelSelectorProps {
     onModelChange?: (id: string, name: string) => void;
+    small?: boolean;
 }
 
-export function ModelSelector({ onModelChange }: ModelSelectorProps) {
+export function ModelSelector({ onModelChange, small = false }: ModelSelectorProps) {
     const theme = useTheme();
     const { currentModelId, setCurrentModelId } = useSettingsStore();
     const [isOpen, setIsOpen] = useState(false);
@@ -50,9 +51,18 @@ export function ModelSelector({ onModelChange }: ModelSelectorProps) {
             <TouchableOpacity
                 activeOpacity={0.7}
                 onPress={() => setIsOpen(true)}
-                style={styles.trigger}
+                style={[
+                    styles.trigger,
+                    small && {
+                        height: 40,
+                        backgroundColor: COLORS.bgCard,
+                        borderWidth: 1,
+                        borderColor: COLORS.border,
+                        paddingHorizontal: 12
+                    }
+                ]}
             >
-                <Text style={styles.triggerText}>
+                <Text style={[styles.triggerText, small && { fontSize: 13 }]}>
                     {currentModel.name}
                 </Text>
                 <Ionicons name="chevron-down" size={16} color={COLORS.textSecondary} />
