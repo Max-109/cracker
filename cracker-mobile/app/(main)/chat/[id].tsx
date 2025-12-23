@@ -9,6 +9,7 @@ import { api, apiStreamFetch } from '../../../lib/api';
 import { ChatMessage, StreamEvent } from '../../../lib/types';
 import MessageItem from '../../../components/chat/MessageItem';
 import ChatInput from '../../../components/ui/ChatInput';
+import ChatBackground from '../../../components/ui/ChatBackground';
 import ThinkingIndicator from '../../../components/ui/ThinkingIndicator';
 import { MessageSkeleton } from '../../../components/ui/Skeleton';
 import { COLORS } from '../../../lib/design';
@@ -255,6 +256,9 @@ export default function ChatScreen() {
             style={{ flex: 1, backgroundColor: COLORS.bgMain }}
             keyboardVerticalOffset={0}
         >
+            {/* Background Grid Pattern - MUST be on every screen like web */}
+            <ChatBackground />
+
             {/* Header */}
             <View style={[styles.header, { paddingTop: statusBarHeight + 12 }]}>
                 <TouchableOpacity

@@ -594,25 +594,7 @@ export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose
                     </div>
                 )}
 
-                {/* Brand Footer */}
-                <div className="flex items-center justify-between px-2 py-2 border-t border-[var(--border-color)]">
-                    <div className="flex items-center gap-2">
-                        <div className="w-5 h-5 flex items-center justify-center border border-[var(--text-accent)]/30 bg-[var(--text-accent)]/10 flex-shrink-0">
-                            <Sparkles size={10} className="text-[var(--text-accent)]" />
-                        </div>
-                        <span className="text-[9px] font-semibold uppercase tracking-[0.14em] text-[var(--text-secondary)]">
-                            Cracker
-                        </span>
-                    </div>
-
-                    <button
-                        onClick={() => setShowDeleteAllDialog(true)}
-                        className="px-1.5 py-0.5 text-[8px] uppercase tracking-wider border border-[var(--border-color)] text-[var(--text-secondary)] hover:border-red-400/50 hover:text-red-400 transition-all duration-150 cursor-pointer truncated max-w-[60px]"
-                        title="Delete all chats"
-                    >
-                        {process.env.NODE_ENV === 'development' ? 'DEV' : 'v1.0'}
-                    </button>
-                </div>
+                {/* Brand Footer removed per user request */}
             </div>
         </div>
     );

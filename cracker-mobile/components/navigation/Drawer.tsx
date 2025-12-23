@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect } from 'react';
+import React, { useCallback, useEffect, useMemo } from 'react';
 import {
     View,
     Text,
@@ -14,20 +14,33 @@ import Animated, {
     useAnimatedStyle,
     withTiming,
     Easing,
-    runOnJS,
 } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../store/theme';
 import { useAuthStore } from '../../store/auth';
 import { router } from 'expo-router';
+import { FONTS } from '../../lib/design';
 
-const DRAWER_WIDTH = Dimensions.get('window').width * 0.85;
+// Web colors from globals.css - EXACT values
+const COLORS = {
+    bgMain: '#1a1a1a',
+    bgSidebarSolid: '#141414',
+    bgInput: '#1e1e1e',
+    bgHover: '#252525',
+    textPrimary: '#FFFFFF',
+    textSecondary: '#555555',
+    borderColor: '#333333',
+    sidebarPrimary: '#1f1f1f',
+};
+
+const DRAWER_WIDTH = Dimensions.get('window').width * 0.82;
 const ANIMATION_DURATION = 250;
 
 interface ChatItem {
     id: string;
     title: string;
     createdAt: string;
+    mode?: string;
 }
 
 interface DrawerProps {
@@ -35,37 +48,56 @@ interface DrawerProps {
     onClose: () => void;
     chats: ChatItem[];
     onChatPress: (id: string) => void;
+    onNewChat?: () => void;
+    currentChatId?: string | null;
 }
 
-// Group chats by relative time
-function groupChatsByTime(chats: ChatItem[]) {
+// Time grouping function - EXACT copy from web Sidebar.tsx
+function groupChatsByDate(chats: ChatItem[]) {
     const now = new Date();
-    const groups: { [key: string]: ChatItem[] } = {};
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const yesterdayStart = new Date(todayStart);
+    yesterdayStart.setDate(yesterdayStart.getDate() - 1);
 
-    chats.forEach((chat) => {
-        const date = new Date(chat.createdAt);
-        const diff = now.getTime() - date.getTime();
-        const minutes = Math.floor(diff / 60000);
-        const hours = Math.floor(minutes / 60);
-        const days = Math.floor(hours / 24);
+    const sorted = [...chats].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    const groups: { label: string; chats: ChatItem[], order: number }[] = [];
+    const groupMap = new Map<string, { label: string; chats: ChatItem[], order: number }>();
 
-        let groupKey: string;
-        if (minutes < 60) {
-            groupKey = `${minutes}m ago`;
-        } else if (hours < 24) {
-            groupKey = `${hours}h ago`;
-        } else if (days === 1) {
-            groupKey = 'Yesterday';
-        } else if (days < 7) {
-            groupKey = `${days}d ago`;
+    sorted.forEach(chat => {
+        const chatDate = new Date(chat.createdAt);
+        let label = '';
+        let order = 0;
+
+        if (chatDate >= todayStart) {
+            const diffMs = now.getTime() - chatDate.getTime();
+            const diffMins = Math.floor(diffMs / 60000);
+
+            if (diffMins === 0) {
+                label = 'Just now';
+                order = 100;
+            } else if (diffMins < 60) {
+                label = `${diffMins} minute${diffMins === 1 ? '' : 's'} ago`;
+                order = 90 - diffMins;
+            } else {
+                const diffHours = Math.floor(diffMins / 60);
+                if (diffHours === 1) label = '1 hour ago';
+                else label = `${diffHours} hours ago`;
+                order = 50 - diffHours;
+            }
+        } else if (chatDate >= yesterdayStart) {
+            label = chatDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+            order = 10;
         } else {
-            groupKey = date.toLocaleDateString();
+            label = chatDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+            order = 0;
         }
 
-        if (!groups[groupKey]) {
-            groups[groupKey] = [];
+        if (!groupMap.has(label)) {
+            const group = { label, chats: [] as ChatItem[], order };
+            groupMap.set(label, group);
+            groups.push(group);
         }
-        groups[groupKey].push(chat);
+        groupMap.get(label)!.chats.push(chat);
     });
 
     return groups;
@@ -76,12 +108,18 @@ export default function Drawer({
     onClose,
     chats,
     onChatPress,
+    onNewChat,
+    currentChatId,
 }: DrawerProps) {
     const theme = useTheme();
     const { user, logout } = useAuthStore();
+    const isAdmin = (user as any)?.user_metadata?.is_admin === true;
 
     const translateX = useSharedValue(-DRAWER_WIDTH);
     const overlayOpacity = useSharedValue(0);
+
+    // Group chats by time
+    const groupedChats = useMemo(() => groupChatsByDate(chats), [chats]);
 
     useEffect(() => {
         if (isOpen) {
@@ -89,7 +127,7 @@ export default function Drawer({
                 duration: ANIMATION_DURATION,
                 easing: Easing.out(Easing.cubic),
             });
-            overlayOpacity.value = withTiming(0.6, {
+            overlayOpacity.value = withTiming(0.5, {
                 duration: ANIMATION_DURATION,
             });
         } else {
@@ -111,13 +149,16 @@ export default function Drawer({
         opacity: overlayOpacity.value,
     }));
 
-    const groupedChats = groupChatsByTime(chats);
-
     const handleLogout = useCallback(async () => {
         onClose();
         await logout();
         router.replace('/(auth)/login');
     }, [logout, onClose]);
+
+    const handleNewChat = useCallback(() => {
+        onClose();
+        onNewChat?.();
+    }, [onClose, onNewChat]);
 
     const getUserName = () => {
         const metadata = (user as any)?.user_metadata;
@@ -126,10 +167,12 @@ export default function Drawer({
         return 'Guest';
     };
 
-    const statusBarHeight = Platform.OS === 'android' ? (StatusBar.currentHeight || 24) : 44;
+    const getUserInitials = () => {
+        const name = getUserName();
+        return name.split(' ').map((n: string) => n[0]).slice(0, 2).join('').toUpperCase();
+    };
 
-    // Always render, but hide with pointerEvents when not open
-    // Accessing .value outside worklet can cause issues
+    const statusBarHeight = Platform.OS === 'android' ? (StatusBar.currentHeight || 24) : 47;
 
     return (
         <View
@@ -169,185 +212,333 @@ export default function Drawer({
                         top: 0,
                         bottom: 0,
                         width: DRAWER_WIDTH,
-                        backgroundColor: '#0a0a0a',
+                        backgroundColor: COLORS.bgSidebarSolid,
                         borderRightWidth: 1,
-                        borderRightColor: '#222',
+                        borderRightColor: COLORS.borderColor,
                     },
                     drawerStyle,
                 ]}
             >
-                {/* Header */}
-                <View
-                    style={{
-                        paddingTop: statusBarHeight + 8,
-                        paddingHorizontal: 16,
-                        paddingBottom: 16,
-                        borderBottomWidth: 1,
-                        borderBottomColor: '#222',
-                    }}
-                >
-                    <Text
+                {/* NEW CHAT Button - Top - web: px-2 py-2, gap-2.5 */}
+                <View style={{ paddingTop: statusBarHeight, paddingHorizontal: 8, paddingBottom: 8 }}>
+                    <TouchableOpacity
+                        onPress={handleNewChat}
+                        activeOpacity={0.7}
                         style={{
-                            fontSize: 18,
-                            fontWeight: '600',
-                            color: theme.textPrimary,
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            paddingVertical: 12,
+                            paddingHorizontal: 10,
+                            backgroundColor: COLORS.bgSidebarSolid,
+                            borderWidth: 1,
+                            borderColor: COLORS.borderColor,
                         }}
                     >
-                        Chat History
-                    </Text>
+                        {/* Icon box - web: w-7 h-7 = 28px */}
+                        <View
+                            style={{
+                                width: 28,
+                                height: 28,
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                backgroundColor: COLORS.bgMain,
+                                borderWidth: 1,
+                                borderColor: COLORS.borderColor,
+                                marginRight: 10,
+                            }}
+                        >
+                            <Ionicons name="sparkles" size={14} color={theme.accent} />
+                        </View>
+                        <Text
+                            style={{
+                                color: COLORS.textPrimary,
+                                fontSize: 12,
+                                fontWeight: '600',
+                                fontFamily: FONTS.mono,
+                                textTransform: 'uppercase',
+                                letterSpacing: 1.5,
+                            }}
+                        >
+                            New Chat
+                        </Text>
+                    </TouchableOpacity>
                 </View>
 
-                {/* Chat List */}
+                {/* Scrollable Chat List with Time Groups */}
                 <ScrollView
                     style={{ flex: 1 }}
-                    contentContainerStyle={{ padding: 16 }}
+                    contentContainerStyle={{ paddingBottom: 20 }}
                     showsVerticalScrollIndicator={false}
                 >
-                    {Object.entries(groupedChats).map(([timeGroup, groupChats]) => (
-                        <View key={timeGroup} style={{ marginBottom: 20 }}>
-                            {/* Time Group Header */}
-                            <Text
-                                style={{
-                                    color: theme.textSecondary,
-                                    fontSize: 11,
-                                    fontWeight: '600',
-                                    letterSpacing: 0.5,
-                                    marginBottom: 8,
-                                    textTransform: 'uppercase',
-                                }}
-                            >
-                                {timeGroup}
-                            </Text>
-
-                            {/* Chat Items */}
-                            {groupChats.map((chat) => (
-                                <TouchableOpacity
-                                    key={chat.id}
-                                    onPress={() => {
-                                        onClose();
-                                        onChatPress(chat.id);
-                                    }}
-                                    activeOpacity={0.6}
-                                    style={{
-                                        flexDirection: 'row',
-                                        alignItems: 'center',
-                                        paddingVertical: 12,
-                                        paddingHorizontal: 12,
-                                        backgroundColor: '#111',
-                                        borderWidth: 1,
-                                        borderColor: '#222',
-                                        marginBottom: 6,
-                                    }}
-                                >
-                                    <Ionicons
-                                        name="chatbubble-outline"
-                                        size={16}
-                                        color="#666"
-                                        style={{ marginRight: 12 }}
-                                    />
-                                    <Text
-                                        style={{
-                                            color: theme.textPrimary,
-                                            fontSize: 14,
-                                            flex: 1,
-                                        }}
-                                        numberOfLines={1}
-                                    >
-                                        {chat.title || 'Untitled'}
+                    {groupedChats.map(({ label, chats: groupChats }) => (
+                        groupChats.length > 0 && (
+                            <View key={label} style={{ marginBottom: 12 }}>
+                                {/* Group Header - web: gap-2, px-2 py-2 */}
+                                <View style={{
+                                    flexDirection: 'row',
+                                    alignItems: 'center',
+                                    paddingHorizontal: 12,
+                                    paddingVertical: 8,
+                                    gap: 8,
+                                }}>
+                                    {/* Clock icon - web: size={10}, text-[var(--text-accent)] */}
+                                    <Ionicons name="time-outline" size={12} color={theme.accent} />
+                                    {/* Label - web: text-[10px] font-semibold uppercase tracking-[0.14em] text-primary */}
+                                    <Text style={{
+                                        fontSize: 11,
+                                        fontWeight: '600',
+                                        textTransform: 'uppercase',
+                                        letterSpacing: 1.4,
+                                        color: COLORS.textPrimary,
+                                        fontFamily: FONTS.mono,
+                                    }}>
+                                        {label}
                                     </Text>
-                                </TouchableOpacity>
-                            ))}
-                        </View>
+                                    {/* Count - web: text-[9px] text-accent opacity-70 */}
+                                    <Text style={{
+                                        fontSize: 10,
+                                        color: theme.accent,
+                                        opacity: 0.7,
+                                        fontFamily: FONTS.mono,
+                                    }}>
+                                        ({groupChats.length})
+                                    </Text>
+                                </View>
+
+                                {/* Chat Items in this group */}
+                                {groupChats.map((chat) => {
+                                    const isSelected = currentChatId === chat.id;
+
+                                    return (
+                                        <TouchableOpacity
+                                            key={chat.id}
+                                            onPress={() => {
+                                                onClose();
+                                                onChatPress(chat.id);
+                                            }}
+                                            activeOpacity={0.7}
+                                            style={{
+                                                flexDirection: 'row',
+                                                alignItems: 'center',
+                                                paddingVertical: 10,
+                                                paddingHorizontal: 10,
+                                                marginHorizontal: 8,
+                                                marginBottom: 2,
+                                                // Web: border-l-2 for selected
+                                                borderLeftWidth: 2,
+                                                borderLeftColor: isSelected ? theme.accent : 'transparent',
+                                                backgroundColor: isSelected ? `${theme.accent}1A` : 'transparent',
+                                            }}
+                                        >
+                                            {/* Icon box - web: w-6 h-6 = 24px */}
+                                            <View
+                                                style={{
+                                                    width: 24,
+                                                    height: 24,
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    borderWidth: 1,
+                                                    backgroundColor: isSelected ? theme.accent : COLORS.bgMain,
+                                                    borderColor: isSelected ? theme.accent : COLORS.borderColor,
+                                                    marginRight: 10,
+                                                }}
+                                            >
+                                                <Ionicons
+                                                    name={
+                                                        chat.mode === 'deep-search'
+                                                            ? 'search'
+                                                            : chat.mode === 'learning'
+                                                                ? 'school'
+                                                                : 'chatbubble-outline'
+                                                    }
+                                                    size={12}
+                                                    color={isSelected ? '#000' : COLORS.textSecondary}
+                                                />
+                                            </View>
+                                            {/* Title - web: text-xs truncate */}
+                                            <Text
+                                                style={{
+                                                    flex: 1,
+                                                    fontSize: 13,
+                                                    fontFamily: FONTS.mono,
+                                                    color: isSelected ? theme.accent : COLORS.textSecondary,
+                                                    fontWeight: isSelected ? '500' : '400',
+                                                }}
+                                                numberOfLines={1}
+                                            >
+                                                {chat.title || 'New Chat'}
+                                            </Text>
+                                        </TouchableOpacity>
+                                    );
+                                })}
+                            </View>
+                        )
                     ))}
 
                     {chats.length === 0 && (
-                        <View style={{ alignItems: 'center', paddingVertical: 40 }}>
-                            <Ionicons name="chatbubbles-outline" size={32} color="#444" />
-                            <Text style={{ color: '#666', fontSize: 13, marginTop: 12 }}>
-                                No chat history yet
+                        <View style={{ alignItems: 'center', paddingVertical: 60 }}>
+                            <Ionicons name="chatbubbles-outline" size={40} color={COLORS.textSecondary} />
+                            <Text style={{ color: COLORS.textSecondary, fontSize: 13, marginTop: 16, fontFamily: FONTS.mono }}>
+                                No conversations yet
                             </Text>
                         </View>
                     )}
                 </ScrollView>
 
-                {/* User Section */}
+                {/* Footer - User Info + Branding */}
                 <View
                     style={{
                         borderTopWidth: 1,
-                        borderTopColor: '#222',
-                        padding: 16,
-                        paddingBottom: Platform.OS === 'ios' ? 32 : 16,
+                        borderTopColor: COLORS.borderColor,
+                        paddingBottom: Platform.OS === 'ios' ? 34 : 16,
+                        backgroundColor: COLORS.bgSidebarSolid,
                     }}
                 >
-                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
-                        <View
-                            style={{
-                                width: 40,
-                                height: 40,
-                                backgroundColor: theme.accent,
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                marginRight: 12,
-                            }}
-                        >
-                            <Text style={{ color: '#000', fontWeight: '700', fontSize: 16 }}>
-                                {getUserName().charAt(0).toUpperCase()}
-                            </Text>
+                    {/* User Profile Section - web: px-2 py-2 */}
+                    <View style={{ paddingHorizontal: 10, paddingVertical: 10 }}>
+                        {/* User Info Row - web: gap-2 */}
+                        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
+                            {/* Avatar - web: w-8 h-8 = 32px */}
+                            <View
+                                style={{
+                                    width: 32,
+                                    height: 32,
+                                    backgroundColor: COLORS.bgMain,
+                                    borderWidth: 1,
+                                    borderColor: COLORS.borderColor,
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    marginRight: 10,
+                                }}
+                            >
+                                <Text
+                                    style={{
+                                        color: theme.accent,
+                                        fontSize: 11,
+                                        fontWeight: '600',
+                                        fontFamily: FONTS.mono,
+                                        textTransform: 'uppercase',
+                                        letterSpacing: 0.5,
+                                    }}
+                                >
+                                    {getUserInitials()}
+                                </Text>
+                            </View>
+                            <View style={{ flex: 1 }}>
+                                {/* Name with ADMIN badge - web: text-[11px] font-semibold */}
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                                    <Text
+                                        style={{
+                                            color: COLORS.textPrimary,
+                                            fontSize: 12,
+                                            fontWeight: '600',
+                                            fontFamily: FONTS.mono,
+                                        }}
+                                        numberOfLines={1}
+                                    >
+                                        {getUserName()}
+                                    </Text>
+                                    {isAdmin && (
+                                        <View style={{
+                                            paddingHorizontal: 4,
+                                            paddingVertical: 2,
+                                            backgroundColor: `${theme.accent}26`,
+                                            borderWidth: 1,
+                                            borderColor: `${theme.accent}4D`,
+                                        }}>
+                                            <Text style={{
+                                                fontSize: 8,
+                                                fontWeight: '700',
+                                                color: theme.accent,
+                                                textTransform: 'uppercase',
+                                                letterSpacing: 0.8,
+                                                fontFamily: FONTS.mono,
+                                            }}>
+                                                Admin
+                                            </Text>
+                                        </View>
+                                    )}
+                                </View>
+                                {/* Email - web: text-[9px] text-secondary */}
+                                <Text
+                                    style={{
+                                        color: COLORS.textSecondary,
+                                        fontSize: 10,
+                                        marginTop: 2,
+                                        fontFamily: FONTS.mono,
+                                    }}
+                                    numberOfLines={1}
+                                >
+                                    {user?.email || ''}
+                                </Text>
+                            </View>
                         </View>
-                        <View style={{ flex: 1 }}>
-                            <Text style={{ color: theme.textPrimary, fontSize: 14, fontWeight: '600' }}>
-                                {getUserName()}
-                            </Text>
-                            <Text style={{ color: '#666', fontSize: 12, marginTop: 2 }}>
-                                {user?.email || 'Guest'}
-                            </Text>
+
+                        {/* Action Buttons - web: flex gap-1 */}
+                        <View style={{ flexDirection: 'row', gap: 6 }}>
+                            {isAdmin && (
+                                <TouchableOpacity
+                                    onPress={() => {
+                                        onClose();
+                                        // Navigate to admin dashboard if exists
+                                    }}
+                                    activeOpacity={0.7}
+                                    style={{
+                                        flex: 1,
+                                        flexDirection: 'row',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        paddingVertical: 8,
+                                        borderWidth: 1,
+                                        borderColor: COLORS.borderColor,
+                                    }}
+                                >
+                                    <Text
+                                        style={{
+                                            color: COLORS.textSecondary,
+                                            fontSize: 10,
+                                            fontWeight: '600',
+                                            fontFamily: FONTS.mono,
+                                            textTransform: 'uppercase',
+                                            letterSpacing: 0.8,
+                                        }}
+                                    >
+                                        Dashboard
+                                    </Text>
+                                </TouchableOpacity>
+                            )}
+                            <TouchableOpacity
+                                onPress={handleLogout}
+                                activeOpacity={0.7}
+                                style={{
+                                    flex: 1,
+                                    flexDirection: 'row',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: 6,
+                                    paddingVertical: 8,
+                                    borderWidth: 1,
+                                    borderColor: COLORS.borderColor,
+                                }}
+                            >
+                                <Ionicons name="log-out-outline" size={12} color={COLORS.textSecondary} />
+                                <Text
+                                    style={{
+                                        color: COLORS.textSecondary,
+                                        fontSize: 10,
+                                        fontWeight: '600',
+                                        fontFamily: FONTS.mono,
+                                        textTransform: 'uppercase',
+                                        letterSpacing: 0.8,
+                                    }}
+                                >
+                                    Logout
+                                </Text>
+                            </TouchableOpacity>
                         </View>
                     </View>
 
-                    <View style={{ flexDirection: 'row', gap: 10 }}>
-                        <TouchableOpacity
-                            onPress={() => {
-                                onClose();
-                                router.push('/(main)/settings');
-                            }}
-                            style={{
-                                flex: 1,
-                                backgroundColor: '#1a1a1a',
-                                borderWidth: 1,
-                                borderColor: '#333',
-                                paddingVertical: 12,
-                                flexDirection: 'row',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: 6,
-                            }}
-                        >
-                            <Ionicons name="settings-outline" size={14} color="#888" />
-                            <Text style={{ color: '#888', fontSize: 12, fontWeight: '500' }}>
-                                Settings
-                            </Text>
-                        </TouchableOpacity>
 
-                        <TouchableOpacity
-                            onPress={handleLogout}
-                            style={{
-                                flex: 1,
-                                backgroundColor: '#1a1a1a',
-                                borderWidth: 1,
-                                borderColor: '#333',
-                                paddingVertical: 12,
-                                flexDirection: 'row',
-                                alignItems: 'center',
-                                justifyContent: 'center',
-                                gap: 6,
-                            }}
-                        >
-                            <Ionicons name="log-out-outline" size={14} color="#888" />
-                            <Text style={{ color: '#888', fontSize: 12, fontWeight: '500' }}>
-                                Log out
-                            </Text>
-                        </TouchableOpacity>
-                    </View>
                 </View>
             </Animated.View>
         </View>

@@ -37,29 +37,33 @@ export const FONT_SIZES = {
     xxxl: 32,
 } as const;
 
-// Dark theme colors
+// Dark theme colors - EXACT match from web globals.css
 export const COLORS = {
-    // Backgrounds
-    bgMain: '#0a0a0a',
-    bgSidebar: '#0f0f0f',
-    bgCard: '#1a1a1a',
-    bgInput: '#1a1a1a',
-    bgElevated: '#111111',
-    bgHover: '#1e1e1e',
+    // Backgrounds (from --bg-main, --bg-sidebar-solid, etc.)
+    bgMain: '#1a1a1a',           // Web: --bg-main
+    bgSidebar: '#141414',        // Web: --bg-sidebar-solid  (was #0f0f0f)
+    bgSidebarSolid: '#141414',   // Web: --bg-sidebar-solid
+    bgCard: '#1a1a1a',           // Web: matches bgMain
+    bgInput: '#1e1e1e',          // Web: --bg-input
+    bgElevated: '#141414',       // Web: sidebar-primary
+    bgHover: '#252525',          // Web: --bg-hover
+    bgCode: '#222222',           // Web: --bg-code
 
-    // Borders
-    border: '#222222',
-    borderLight: '#333333',
-    borderActive: '#444444',
+    // Borders (from --border-color, --border-active)
+    border: '#333333',           // Web: --border-color (was #222222)
+    borderColor: '#333333',      // Alias for consistency
+    borderLight: '#333333',      // Same as border
+    borderActive: '#af8787',     // Web: --border-active (accent)
 
-    // Text
-    textPrimary: '#f5f5f5',
-    textSecondary: '#888888',
-    textMuted: '#666666',
-    textDim: '#555555',
+    // Text (from --text-primary, --text-secondary)
+    textPrimary: '#FFFFFF',      // Web: --text-primary (was #f5f5f5)
+    textSecondary: '#555555',    // Web: --text-secondary (was #888888)
+    textMuted: '#555555',        // Web: same as secondary
+    textDim: '#555555',          // Web: same as secondary
+    textAccent: '#af8787',       // Web: --text-accent (default rose)
 
     // States
-    error: '#f87171',
+    error: '#ef4444',            // Web: --destructive (was #f87171)
     success: '#4ade80',
     warning: '#fbbf24',
 
