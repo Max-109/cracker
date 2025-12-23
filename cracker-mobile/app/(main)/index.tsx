@@ -190,7 +190,7 @@ export default function HomeScreen() {
                                 justifyContent: 'center',
                             }}
                         >
-                            <Ionicons name="menu-outline" size={18} color={COLORS.textSecondary} />
+                            <Ionicons name="reorder-two-outline" size={18} color={COLORS.textSecondary} />
                         </TouchableOpacity>
 
                         {/* Settings Button - web: w-10 h-10 */}
@@ -207,7 +207,7 @@ export default function HomeScreen() {
                                 justifyContent: 'center',
                             }}
                         >
-                            <Ionicons name="settings-outline" size={18} color={COLORS.textSecondary} />
+                            <Ionicons name="options-outline" size={18} color={COLORS.textSecondary} />
                         </TouchableOpacity>
                     </View>
 
