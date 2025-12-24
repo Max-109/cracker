@@ -90,15 +90,21 @@ export function HSVColorPicker({ onColorChange }: HSVColorPickerProps) {
     const [saturation, setSaturation] = useState(initialHsv.s);
     const [brightness, setBrightness] = useState(initialHsv.v);
 
+    // Track if user has interacted - prevent overwriting on mount
+    const [hasInteracted, setHasInteracted] = useState(false);
+
     // Current color derived from HSV
     const currentColor = hsvToHex(hue, saturation, brightness);
     const hueColor = hueToColor(hue);
 
-    // Auto-apply color when it changes
+    // Only apply color when user has actually interacted with the picker
     useEffect(() => {
-        setAccentColor(currentColor);
-        onColorChange?.(currentColor);
-    }, [currentColor, setAccentColor, onColorChange]);
+        if (hasInteracted) {
+            console.log('[HSVColorPicker] User changed color to:', currentColor);
+            setAccentColor(currentColor);
+            onColorChange?.(currentColor);
+        }
+    }, [currentColor, hasInteracted, setAccentColor, onColorChange]);
 
     // SV picker position - clamped within bounds
     const svX = Math.max(THUMB_SIZE / 2, Math.min(PICKER_SIZE - THUMB_SIZE / 2, (saturation / 100) * PICKER_SIZE));
@@ -109,6 +115,7 @@ export function HSVColorPicker({ onColorChange }: HSVColorPickerProps) {
 
     // Handle SV picker touch
     const handleSVTouch = useCallback((x: number, y: number) => {
+        setHasInteracted(true); // Mark user interaction
         const clampedX = Math.max(0, Math.min(PICKER_SIZE, x));
         const clampedY = Math.max(0, Math.min(PICKER_SIZE, y));
 
@@ -121,6 +128,7 @@ export function HSVColorPicker({ onColorChange }: HSVColorPickerProps) {
 
     // Handle Hue slider touch  
     const handleHueTouch = useCallback((x: number) => {
+        setHasInteracted(true); // Mark user interaction
         const clampedX = Math.max(0, Math.min(PICKER_SIZE, x));
         const newHue = (clampedX / PICKER_SIZE) * 360;
         setHue(newHue);
@@ -128,6 +136,7 @@ export function HSVColorPicker({ onColorChange }: HSVColorPickerProps) {
 
     // Select preset - also auto-applies via useEffect
     const handlePresetSelect = useCallback((color: string) => {
+        setHasInteracted(true); // Mark user interaction
         const hsv = hexToHsv(color);
         setHue(hsv.h);
         setSaturation(hsv.s);

@@ -207,7 +207,12 @@ export function AccentColorPicker({ }: AccentColorPickerProps) {
                         entering={ZoomIn.duration(150)}
                         style={styles.colorDropdown}
                     >
-                        <HSVColorPicker onColorChange={() => { }} />
+                        {/* 
+                            Pass empty handler since HSVColorPicker handles store updates internally 
+                            We just need to close the modal when done, but user might want to try multiple colors
+                            so we leave it open until they tap outside
+                        */}
+                        <HSVColorPicker />
                     </Animated.View>
                 </TouchableOpacity>
             </Modal>
