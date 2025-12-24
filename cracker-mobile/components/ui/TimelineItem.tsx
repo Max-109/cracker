@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../store/theme';
+import { FONTS } from '../../lib/design';
 import Animated, { FadeInUp } from 'react-native-reanimated';
 
 interface TimelineItemProps {
@@ -68,13 +69,13 @@ export default function TimelineItem({ id, title, timestamp, isLast, onPress, in
                     style={{
                         color: theme.textSecondary,
                         fontSize: 15,
-                        fontFamily: 'Menlo', // Matching the code aesthetic
+                        fontFamily: FONTS.mono,
                         marginBottom: 4,
                     }}
                 >
                     {title || "New Chat"}
                 </Text>
-                <Text style={{ color: '#444', fontSize: 11, textTransform: 'uppercase', letterSpacing: 1 }}>
+                <Text style={{ color: '#444', fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, fontFamily: FONTS.mono }}>
                     {timestamp}
                 </Text>
             </TouchableOpacity>

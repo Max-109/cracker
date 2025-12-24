@@ -132,7 +132,7 @@ export default function SettingsScreen() {
     };
 
     const SectionHeader = ({ icon, title }: { icon: keyof typeof Ionicons.glyphMap, title: string }) => (
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12, marginHorizontal: 20 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12, paddingHorizontal: 20 }}>
             <Ionicons name={icon} size={14} color={theme.accent} />
             <Text style={styles.sectionTitle}>{title}</Text>
         </View>
@@ -458,8 +458,6 @@ const styles = {
         fontSize: 11,
         fontWeight: '600' as const,
         color: COLORS.textMuted,
-        marginBottom: 12,
-        marginLeft: 20,
         fontFamily: FONTS.monoMedium,
         textTransform: 'uppercase' as const,
         letterSpacing: 1.5,

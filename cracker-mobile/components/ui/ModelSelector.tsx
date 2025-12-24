@@ -5,6 +5,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../store/theme';
 import { useSettingsStore } from '../../store/settings';
 import { COLORS, FONTS, ACCENT_PRESETS } from '../../lib/design';
+import HSVColorPicker from './HSVColorPicker';
 
 // Model options - EXACT match to web ModelSelector.tsx
 type ModelOption = {
@@ -16,7 +17,7 @@ type ModelOption = {
 };
 
 const MODEL_OPTIONS: ModelOption[] = [
-    { id: "gemini-3-pro-preview", name: "Expert", description: "Gemini 3 Pro", tier: 'expert', icon: 'brain-outline' as any },
+    { id: "gemini-3-pro-preview", name: "Expert", description: "Gemini 3 Pro", tier: 'expert', icon: 'bulb-outline' },
     { id: "gemini-3-flash-preview", name: "Balanced", description: "Gemini 3 Flash", tier: 'balanced', icon: 'sparkles' },
     { id: "gemini-2.5-flash-lite-preview-09-2025", name: "Ultra Fast", description: "Gemini 2.5 Flash Lite", tier: 'fast', icon: 'flash' },
 ];
@@ -177,36 +178,7 @@ interface AccentColorPickerProps { }
 
 export function AccentColorPicker({ }: AccentColorPickerProps) {
     const theme = useTheme();
-    const { setAccentColor } = useSettingsStore();
     const [isOpen, setIsOpen] = useState(false);
-    const [localColor, setLocalColor] = useState(theme.accent);
-    const [hexInput, setHexInput] = useState(theme.accent);
-
-    // Sync local color when opening
-    useEffect(() => {
-        if (isOpen) {
-            setLocalColor(theme.accent);
-            setHexInput(theme.accent);
-        }
-    }, [isOpen, theme.accent]);
-
-    const handlePresetSelect = (color: string) => {
-        setLocalColor(color);
-        setHexInput(color);
-    };
-
-    const handleSave = () => {
-        setAccentColor(localColor);
-        setIsOpen(false);
-    };
-
-    const handleHexChange = (text: string) => {
-        setHexInput(text);
-        // Validate and apply if valid hex
-        if (/^#[0-9A-Fa-f]{6}$/.test(text)) {
-            setLocalColor(text);
-        }
-    };
 
     return (
         <>
@@ -219,7 +191,7 @@ export function AccentColorPicker({ }: AccentColorPickerProps) {
                 <View style={[styles.colorDot, { backgroundColor: theme.accent }]} />
             </TouchableOpacity>
 
-            {/* Modal Picker */}
+            {/* Modal Picker with full HSVColorPicker */}
             <Modal
                 visible={isOpen}
                 transparent
@@ -235,63 +207,7 @@ export function AccentColorPicker({ }: AccentColorPickerProps) {
                         entering={ZoomIn.duration(150)}
                         style={styles.colorDropdown}
                     >
-                        {/* Header */}
-                        <View style={styles.header}>
-                            <View style={[styles.headerDot, { backgroundColor: localColor }]} />
-                            <Text style={styles.headerText}>ACCENT COLOR</Text>
-                        </View>
-
-                        {/* Preset Colors - EXACT match to web */}
-                        <View style={styles.presetsSection}>
-                            <Text style={styles.presetsLabel}>PRESETS</Text>
-                            <View style={styles.presetsGrid}>
-                                {ACCENT_PRESETS.map((color) => (
-                                    <TouchableOpacity
-                                        key={color}
-                                        style={[
-                                            styles.presetButton,
-                                            { backgroundColor: color },
-                                            localColor.toLowerCase() === color.toLowerCase() && styles.presetSelected,
-                                        ]}
-                                        onPress={() => handlePresetSelect(color)}
-                                    />
-                                ))}
-                            </View>
-                        </View>
-
-                        {/* Hex Input */}
-                        <View style={styles.hexSection}>
-                            <View style={[styles.hexPreview, { backgroundColor: localColor }]} />
-                            <View style={styles.hexInputContainer}>
-                                <Text style={styles.hexLabel}>HEX CODE</Text>
-                                <TextInput
-                                    style={styles.hexInput}
-                                    value={hexInput}
-                                    onChangeText={handleHexChange}
-                                    autoCapitalize="characters"
-                                    maxLength={7}
-                                    placeholderTextColor={COLORS.textSecondary}
-                                />
-                            </View>
-                        </View>
-
-                        {/* Footer */}
-                        <View style={styles.colorFooter}>
-                            <TouchableOpacity
-                                style={styles.resetButton}
-                                onPress={() => handlePresetSelect('#af8787')}
-                            >
-                                <Text style={styles.resetText}>RESET TO DEFAULT</Text>
-                            </TouchableOpacity>
-                        </View>
-
-                        {/* Apply Button */}
-                        <TouchableOpacity
-                            style={[styles.applyButton, { backgroundColor: localColor }]}
-                            onPress={handleSave}
-                        >
-                            <Text style={styles.applyText}>APPLY</Text>
-                        </TouchableOpacity>
+                        <HSVColorPicker onColorChange={() => { }} />
                     </Animated.View>
                 </TouchableOpacity>
             </Modal>

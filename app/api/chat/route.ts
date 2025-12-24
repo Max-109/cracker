@@ -51,7 +51,7 @@ const google = createGoogleGenerativeAI({
 type LearningSubMode = 'summary' | 'flashcard' | 'teaching';
 
 // Generate system prompt with user settings
-function generateSystemPrompt(responseLength: number, userName: string, userGender: string, learningMode: boolean, learningSubMode: LearningSubMode, customInstructions?: string, userMemoryFacts?: string[], enabledToolNames?: string[]): string {
+function generateSystemPrompt(responseLength: number, userName: string, userGender: string, learningMode: boolean, learningSubMode: LearningSubMode, customInstructions?: string, userMemoryFacts?: string[]): string {
   // Current date/time context - prevents AI from having outdated knowledge cutoff
   const now = new Date();
   const dateContext = `## Current Date & Time
@@ -497,50 +497,6 @@ When a user's message contains text wrapped in [QUOTED FROM CONVERSATION] and [E
 - If unsure, say so clearly
 - Acknowledge when information might be outdated
 
-## Tool Usage
-
-${(() => {
-      // Only include tool instructions if tools are actually enabled
-      const toolNames = enabledToolNames || [];
-      const hasBrave = toolNames.some(t => t.startsWith('brave_'));
-      const hasYouTube = toolNames.some(t => t.startsWith('youtube_'));
-
-      if (!hasBrave && !hasYouTube) {
-        return 'You do not currently have access to any external tools. Answer questions using your knowledge.';
-      }
-
-      let instructions = `You have access to tools. Use them via the native function calling interface.
-
-⚠️ **CRITICAL**:
-- **NEVER output JSON** like \`{ "action": "...", "action_input": "..." }\`
-- Just invoke the tool silently - the result will appear automatically
-- Only use tools that are listed below - do NOT try to use tools that don't exist
-
-`;
-
-      if (hasBrave) {
-        instructions += `### Web Search (brave_web_search, brave_news_search)
-**USE when:**
-- Current events, news, weather, real-time info
-- Factual questions you're not 100% certain about
-- Anything with "today", "latest", "current", "2024", "2025"
-
-`;
-      }
-
-      if (hasYouTube) {
-        instructions += `### YouTube (youtube_search, youtube_video_details, youtube_get_transcript)
-**USE when:**
-- User asks for video tutorials or recommendations
-- Visual/video-based learning topics
-- Questions about specific YouTube content
-
-`;
-      }
-
-      return instructions;
-    })()}
-
 ## Emotional Support
 - If the user is struggling, something fails, or the result isn't perfect: **BE ENCOURAGING.**
 - Use supportive phrases: "Don't worry, we'll fix this", "It happens", "We're making progress".
@@ -700,11 +656,20 @@ export async function POST(req: Request) {
     const tools = { ...braveTools, ...youtubeTools };
     const hasTools = Object.keys(tools).length > 0;
 
-    console.log('[API] Tools check - mcpServers:', mcpServers, '- resolved tools:', Object.keys(tools));
+    // IMPORTANT: Gemini 3 Preview models have a known incompatibility with tools in AI SDK
+    // They output internal JSON structures instead of proper tool calls or text
+    // Fall back to gemini-2.5-flash when tools are enabled
+    let effectiveModelId = modelId;
+    if (hasTools && modelId.includes('gemini-3')) {
+      console.log('[API] WARNING: Gemini 3 Preview has known tool incompatibility, falling back to gemini-2.5-flash');
+      effectiveModelId = 'gemini-2.5-flash';
+    }
 
-    // Generate system prompt with enabled tool names
-    const enabledToolNames = Object.keys(tools);
-    const systemPrompt = generateSystemPrompt(respLength, uName, uGender, isLearningMode, subMode, isLearningMode ? undefined : userCustomInstructions, isLearningMode ? undefined : userMemoryFacts, enabledToolNames);
+    console.log('[API] Tools check - mcpServers:', mcpServers, '- resolved tools:', Object.keys(tools));
+    console.log('[API] Model:', modelId, '-> effective:', effectiveModelId);
+
+    // Generate system prompt
+    const systemPrompt = generateSystemPrompt(respLength, uName, uGender, isLearningMode, subMode, isLearningMode ? undefined : userCustomInstructions, isLearningMode ? undefined : userMemoryFacts);
 
     // ========== DEBUG: Log system prompt ==========
     console.log('\n========== DEBUG: SYSTEM PROMPT ==========');
@@ -716,17 +681,24 @@ export async function POST(req: Request) {
     // ========== DEBUG: Log tools being passed ==========
     console.log('\n========== DEBUG: TOOLS ==========');
     console.log('hasTools:', hasTools);
-    console.log('enabledToolNames:', enabledToolNames);
+    console.log('Tool names:', Object.keys(tools));
     if (hasTools) {
-      for (const [name, tool] of Object.entries(tools)) {
-        const t = tool as { description?: string; parameters?: unknown; inputSchema?: unknown };
-        console.log(`Tool "${name}":`);
-        console.log(`  - description: ${t.description?.slice(0, 100)}...`);
-        console.log(`  - has parameters: ${!!t.parameters}`);
-        console.log(`  - has inputSchema: ${!!t.inputSchema}`);
-        console.log(`  - parameters type: ${typeof t.parameters}`);
-        if (t.parameters) {
-          console.log(`  - parameters keys: ${Object.keys(t.parameters as object).join(', ')}`);
+      for (const [name, toolDef] of Object.entries(tools)) {
+        console.log(`\n=== Tool "${name}" FULL STRUCTURE ===`);
+        // Try to safely stringify the tool
+        try {
+          const toolObj = toolDef as Record<string, unknown>;
+          console.log('Keys on tool object:', Object.keys(toolObj));
+          console.log('description:', toolObj.description);
+          console.log('parameters:', toolObj.parameters);
+          console.log('execute type:', typeof toolObj.execute);
+          // Check if it has the expected AI SDK tool structure
+          if (toolObj.parameters && typeof toolObj.parameters === 'object') {
+            const params = toolObj.parameters as Record<string, unknown>;
+            console.log('parameters._def:', (params as { _def?: unknown })._def ? 'EXISTS (Zod)' : 'NOT ZOD');
+          }
+        } catch (e) {
+          console.log('Error inspecting tool:', e);
         }
       }
     }
@@ -750,11 +722,14 @@ export async function POST(req: Request) {
     if (effort === 'low') thinkingBudget = 2048;
     if (effort === 'high') thinkingBudget = 24576;
 
+    // TEMPORARY: Force disable thinkingConfig to debug
+    const forceDisableThinking = true;
+
     const googleProviderOpts = {
-      ...(!modelId.includes('image') ? {
+      ...(!effectiveModelId.includes('image') && !forceDisableThinking ? {
         thinkingConfig: {
           includeThoughts: true,
-          ...(modelId.includes('gemini-3')
+          ...(effectiveModelId.includes('gemini-3')
             ? { thinkingLevel: effort === 'low' ? 'low' : 'high' }
             : { thinkingBudget }
           ),
@@ -762,26 +737,35 @@ export async function POST(req: Request) {
       } : {}),
     };
 
+    console.log('[API] thinkingConfig enabled:', !effectiveModelId.includes('image'));
+
     // ========== DEBUG: Log provider options ==========
     console.log('\n========== DEBUG: PROVIDER OPTIONS ==========');
     console.log('modelId:', modelId);
-    console.log('cleanModelId:', modelId.replace('google/', ''));
+    console.log('effectiveModelId:', effectiveModelId);
+    console.log('cleanModelId:', effectiveModelId.replace('google/', ''));
     console.log('googleProviderOpts:', JSON.stringify(googleProviderOpts, null, 2));
     console.log('==============================================\n');
 
     // Clean model ID (remove google/ prefix if present)
-    const cleanModelId = modelId.replace('google/', '');
+    const cleanModelId = effectiveModelId.replace('google/', '');
 
     // Track timing for TPS calculation
     const requestStartTime = Date.now();
     let firstChunkTime: number | null = null;
     let firstReasoningTime: number | null = null;
 
+    // TEMPORARY: Force disable tools to debug the issue
+    const forceDisableTools = true;
+    const useTools = hasTools && !forceDisableTools;
+
     const result = streamText({
       model: google(cleanModelId),
       system: systemPrompt,
       messages: modelMessages,
-      ...(hasTools && { tools, stopWhen: stepCountIs(5), toolCallStreaming: true }), // Enable tool call streaming to send tool parts to client
+      tools: useTools ? tools : undefined,
+      stopWhen: useTools ? stepCountIs(5) : undefined,
+      toolCallStreaming: useTools ? true : undefined,
       providerOptions: {
         google: googleProviderOpts,
       },

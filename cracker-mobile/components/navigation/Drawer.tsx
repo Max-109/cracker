@@ -278,7 +278,7 @@ export default function Drawer({
                                                 marginBottom: 2,
                                                 // Web: border-l-2 for selected
                                                 borderLeftWidth: 2,
-                                                borderLeftColor: isSelected ? theme.accent : 'transparent',
+                                                borderLeftColor: isSelected ? theme.accent : `${theme.accent}66`,
                                                 backgroundColor: isSelected ? `${theme.accent}1A` : 'transparent',
                                             }}
                                         >

@@ -6,6 +6,7 @@
  */
 
 import { z } from 'zod';
+import { zodSchema } from 'ai';
 
 const BRAVE_API_BASE = 'https://api.search.brave.com/res/v1';
 
@@ -44,7 +45,7 @@ type NewsSearchParams = z.infer<typeof newsSearchSchema>;
  */
 export const braveWebSearch = {
     description: 'Search the web for current information. Use this when you need to find up-to-date information, facts, news, or any web content.',
-    parameters: webSearchSchema,
+    inputSchema: zodSchema(webSearchSchema),
     execute: async (args: WebSearchParams) => {
         const { query, count = 10 } = args;
         const apiKey = process.env.BRAVE_API_KEY;
@@ -107,7 +108,7 @@ export const braveWebSearch = {
  */
 export const braveNewsSearch = {
     description: 'Search for recent news articles. Use this when you need current news, headlines, or recent events.',
-    parameters: newsSearchSchema,
+    inputSchema: zodSchema(newsSearchSchema),
     execute: async (args: NewsSearchParams) => {
         const { query, count = 10 } = args;
         const apiKey = process.env.BRAVE_API_KEY;
@@ -179,8 +180,21 @@ export const braveTools = {
  * Get enabled tools based on configuration
  */
 export function getEnabledBraveTools(enabledServers: string[]) {
-    if (enabledServers.includes('brave-search') && process.env.BRAVE_API_KEY) {
+    const hasApiKey = !!process.env.BRAVE_API_KEY;
+    const hasBraveSearch = enabledServers.includes('brave-search');
+
+    console.log('[BraveTools] Checking tools:', {
+        enabledServers,
+        hasBraveSearch,
+        hasApiKey,
+        apiKeyLength: process.env.BRAVE_API_KEY?.length || 0,
+    });
+
+    if (hasBraveSearch && hasApiKey) {
+        console.log('[BraveTools] ✓ Tools enabled: brave_web_search, brave_news_search');
         return braveTools;
     }
+
+    console.log('[BraveTools] ✗ Tools NOT enabled');
     return {};
 }

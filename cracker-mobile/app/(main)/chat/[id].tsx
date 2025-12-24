@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Text, FlatList, KeyboardAvoidingView, Platform, TouchableOpacity, StatusBar } from 'react-native';
+import { View, Text, FlatList, KeyboardAvoidingView, Platform, TouchableOpacity, StatusBar, ScrollView } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
@@ -11,9 +11,18 @@ import MessageItem from '../../../components/chat/MessageItem';
 import ChatInput from '../../../components/ui/ChatInput';
 import ChatBackground from '../../../components/ui/ChatBackground';
 import ThinkingIndicator from '../../../components/ui/ThinkingIndicator';
+import { DotGridIndicator } from '../../../components/ui/ConnectionIndicator';
 import { ModelSelector, AccentColorPicker } from '../../../components/ui/ModelSelector';
 import { MessageSkeleton } from '../../../components/ui/Skeleton';
-import { COLORS } from '../../../lib/design';
+import Drawer from '../../../components/navigation/Drawer';
+import { COLORS, FONTS } from '../../../lib/design';
+
+interface ChatItem {
+    id: string;
+    title: string;
+    mode: string;
+    createdAt: string;
+}
 
 export default function ChatScreen() {
     const { id, initialMessage } = useLocalSearchParams<{ id: string; initialMessage?: string }>();
@@ -23,10 +32,23 @@ export default function ChatScreen() {
     const [isLoading, setIsLoading] = useState(true);
     const [isStreaming, setIsStreaming] = useState(false);
     const [isThinking, setIsThinking] = useState(false);
+    const [isConnecting, setIsConnecting] = useState(false);
+    const [thinkingLabel, setThinkingLabel] = useState('ANALYZING');
     const [streamingContent, setStreamingContent] = useState('');
     const [streamingReasoning, setStreamingReasoning] = useState('');
     const [currentTps, setCurrentTps] = useState<number | undefined>();
     const [hasAutoSent, setHasAutoSent] = useState(false);
+    const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+    const [chats, setChats] = useState<ChatItem[]>([]);
+
+    // Debug state
+    const [debugInfo, setDebugInfo] = useState({
+        lastEvent: '',
+        eventCount: 0,
+        error: '',
+        status: 'idle',
+    });
+
     const flatListRef = useRef<FlatList>(null);
     const abortControllerRef = useRef<AbortController | null>(null);
     const theme = useTheme();
@@ -39,10 +61,21 @@ export default function ChatScreen() {
         userGender,
         customInstructions,
         learningSubMode,
+        currentModelId,
     } = useSettingsStore();
     const learningMode = chatMode === 'learning';
 
     const statusBarHeight = Platform.OS === 'android' ? (StatusBar.currentHeight || 24) : 0;
+
+    // Load chats for drawer
+    const loadChats = useCallback(async () => {
+        try {
+            const response = await api.getChats();
+            setChats(response || []);
+        } catch (error) {
+            console.error('[Chat] Failed to load chats:', error);
+        }
+    }, []);
 
     // Load chat messages
     useEffect(() => {
@@ -66,13 +99,15 @@ export default function ChatScreen() {
                 setMessages(formattedMessages);
             } catch (error) {
                 console.error('Failed to load chat:', error);
+                setDebugInfo(prev => ({ ...prev, error: String(error) }));
             } finally {
                 setIsLoading(false);
             }
         };
 
         loadChat();
-    }, [id]);
+        loadChats();
+    }, [id, loadChats]);
 
     // Auto-scroll to bottom
     useEffect(() => {
@@ -91,6 +126,7 @@ export default function ChatScreen() {
         }
         setIsStreaming(false);
         setIsThinking(false);
+        setIsConnecting(false);
     }, []);
 
     // Send message function
@@ -106,11 +142,13 @@ export default function ChatScreen() {
 
         setMessages(prev => [...prev, userMessage]);
         setInput('');
+        setIsConnecting(true);
         setIsStreaming(true);
-        setIsThinking(true);
+        setIsThinking(false);
         setStreamingContent('');
         setStreamingReasoning('');
         setCurrentTps(undefined);
+        setDebugInfo({ lastEvent: '', eventCount: 0, error: '', status: 'connecting' });
 
         const assistantMessage: ChatMessage = {
             id: `temp-assistant-${Date.now()}`,
@@ -142,7 +180,7 @@ export default function ChatScreen() {
                     role: m.role,
                     content: m.content,
                 })),
-                model: 'gemini-2.5-flash',
+                model: currentModelId || 'gemini-2.5-flash',
                 reasoningEffort: effort,
                 enabledMcpServers,
                 chatMode,
@@ -155,10 +193,23 @@ export default function ChatScreen() {
             },
             (event: unknown) => {
                 const e = event as StreamEvent;
+                setDebugInfo(prev => ({
+                    ...prev,
+                    lastEvent: e.type,
+                    eventCount: prev.eventCount + 1,
+                    status: 'streaming',
+                }));
 
                 switch (e.type) {
+                    case 'status':
+                        // Handle status events like "routing", "compiling"
+                        setIsConnecting(false);
+                        setIsThinking(true);
+                        setThinkingLabel((e as any).status?.toUpperCase() || 'PROCESSING');
+                        break;
                     case 'text-delta':
-                        if (isThinking) setIsThinking(false);
+                        setIsConnecting(false);
+                        setIsThinking(false);
                         accumulated += e.textDelta;
                         tokenCount++;
 
@@ -188,16 +239,20 @@ export default function ChatScreen() {
                         });
                         setIsStreaming(false);
                         setIsThinking(false);
+                        setIsConnecting(false);
+                        setDebugInfo(prev => ({ ...prev, status: 'done' }));
                         break;
                 }
             },
             (error) => {
                 console.error('Stream error:', error);
+                setDebugInfo(prev => ({ ...prev, error: String(error), status: 'error' }));
                 setIsStreaming(false);
                 setIsThinking(false);
+                setIsConnecting(false);
             }
         );
-    }, [id, messages, isStreaming, chatMode, reasoningEffort, enabledMcpServers, responseLength, currentTps, isThinking]);
+    }, [id, messages, isStreaming, chatMode, reasoningEffort, enabledMcpServers, responseLength, currentTps, currentModelId, userName, userGender, customInstructions, learningSubMode, learningMode]);
 
     // Auto-send initial message if provided
     useEffect(() => {
@@ -213,15 +268,16 @@ export default function ChatScreen() {
         sendMessage(input);
     };
 
-    const handleBack = () => {
-        router.back();
+    const handleChatPress = (chatId: string) => {
+        setIsDrawerOpen(false);
+        if (chatId !== id) {
+            router.push(`/(main)/chat/${chatId}`);
+        }
     };
 
     const renderMessage = ({ item, index }: { item: ChatMessage; index: number }) => {
-        const isLastMessage = index === messages.length - 1;
-        const isStreamingMessage = isLastMessage && isStreaming && item.role === 'assistant';
+        const isStreamingMessage = isStreaming && index === messages.length - 1 && item.role === 'assistant';
 
-        // Get content text
         let contentText = '';
         if (isStreamingMessage) {
             contentText = streamingContent;
@@ -242,7 +298,7 @@ export default function ChatScreen() {
                 model={item.model}
                 tokensPerSecond={isStreamingMessage ? currentTps : item.tokensPerSecond}
                 isStreaming={isStreamingMessage}
-                isThinking={isStreamingMessage && isThinking}
+                isThinking={isStreamingMessage && (isThinking || isConnecting)}
                 createdAt={item.createdAt?.toISOString()}
             />
         );
@@ -252,10 +308,7 @@ export default function ChatScreen() {
         return (
             <View style={{ flex: 1, backgroundColor: COLORS.bgMain }}>
                 <View style={styles.header}>
-                    <TouchableOpacity onPress={handleBack} style={{ padding: 8, marginRight: 8 }}>
-                        <Ionicons name="arrow-back" size={24} color={COLORS.textPrimary} />
-                    </TouchableOpacity>
-                    <View style={{ height: 18, width: 100, backgroundColor: COLORS.border }} />
+                    <View style={{ width: 40, height: 40, backgroundColor: COLORS.border }} />
                 </View>
                 <View style={{ flex: 1, padding: 16 }}>
                     <MessageSkeleton />
@@ -272,36 +325,84 @@ export default function ChatScreen() {
             style={{ flex: 1, backgroundColor: COLORS.bgMain }}
             keyboardVerticalOffset={0}
         >
-            {/* Background Grid Pattern - MUST be on every screen like web */}
+            {/* Background Grid Pattern */}
             <ChatBackground />
 
-            {/* Header */}
-            <View style={[styles.header, { paddingTop: statusBarHeight + 12 }]}>
-                {/* Back Button */}
-                <TouchableOpacity
-                    onPress={handleBack}
-                    style={{
-                        width: 40,
-                        height: 40,
-                        backgroundColor: COLORS.bgCard,
-                        borderWidth: 1,
-                        borderColor: COLORS.border,
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        marginRight: 8,
-                    }}
-                >
-                    <Ionicons name="arrow-back" size={20} color={COLORS.textPrimary} />
-                </TouchableOpacity>
+            {/* Drawer */}
+            <Drawer
+                isOpen={isDrawerOpen}
+                onClose={() => setIsDrawerOpen(false)}
+                chats={chats}
+                onChatPress={handleChatPress}
+                currentChatId={id}
+            />
 
-                {/* Model Selector - Replaces Title */}
-                <View style={{ flex: 1, marginRight: 8 }}>
-                    <ModelSelector small />
+            {/* Header - MATCHING HOME SCREEN EXACTLY */}
+            <View style={[styles.header, { paddingTop: statusBarHeight + 12 }]}>
+                {/* Left: Drawer + Settings */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    {/* Drawer Button */}
+                    <TouchableOpacity
+                        onPress={() => setIsDrawerOpen(true)}
+                        activeOpacity={0.7}
+                        style={{
+                            width: 40,
+                            height: 40,
+                            backgroundColor: COLORS.bgMain,
+                            borderWidth: 1,
+                            borderColor: COLORS.border,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                        }}
+                    >
+                        <Ionicons name="menu-outline" size={18} color={COLORS.textSecondary} />
+                    </TouchableOpacity>
+
+                    {/* Settings Button */}
+                    <TouchableOpacity
+                        onPress={() => router.push('/(main)/settings')}
+                        activeOpacity={0.7}
+                        style={{
+                            width: 40,
+                            height: 40,
+                            backgroundColor: COLORS.bgMain,
+                            borderWidth: 1,
+                            borderColor: COLORS.border,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                        }}
+                    >
+                        <Ionicons name="options-outline" size={18} color={COLORS.textSecondary} />
+                    </TouchableOpacity>
                 </View>
 
-                {/* Accent Color Picker */}
-                <AccentColorPicker />
+                {/* Right: Model Selector + Accent Color */}
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <ModelSelector />
+                    <AccentColorPicker />
+                </View>
             </View>
+
+            {/* Debug Panel */}
+            {(debugInfo.status !== 'idle' || debugInfo.error) && (
+                <View style={{
+                    backgroundColor: '#1a1a1a',
+                    borderWidth: 1,
+                    borderColor: debugInfo.error ? '#f87171' : COLORS.border,
+                    marginHorizontal: 16,
+                    marginTop: 8,
+                    padding: 8,
+                }}>
+                    <Text style={{ color: COLORS.textSecondary, fontSize: 9, fontFamily: FONTS.mono }}>
+                        Status: {debugInfo.status} | Events: {debugInfo.eventCount} | Last: {debugInfo.lastEvent || 'none'}
+                    </Text>
+                    {debugInfo.error && (
+                        <Text style={{ color: '#f87171', fontSize: 9, fontFamily: FONTS.mono, marginTop: 4 }}>
+                            Error: {debugInfo.error}
+                        </Text>
+                    )}
+                </View>
+            )}
 
             {/* Messages */}
             <FlatList
@@ -334,6 +435,22 @@ export default function ChatScreen() {
                         </Text>
                     </Animated.View>
                 }
+                ListFooterComponent={
+                    // Show connection/thinking indicators
+                    isStreaming && (isConnecting || isThinking) ? (
+                        <View style={{ paddingHorizontal: 16, marginTop: 8 }}>
+                            {isConnecting ? (
+                                // Connection state: 4x4 dot grid
+                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                                    <DotGridIndicator />
+                                </View>
+                            ) : isThinking ? (
+                                // Thinking state: label with animated dots
+                                <ThinkingIndicator label={thinkingLabel} />
+                            ) : null}
+                        </View>
+                    ) : null
+                }
             />
 
             {/* Input */}
@@ -357,6 +474,7 @@ const styles = {
         paddingHorizontal: 16,
         flexDirection: 'row' as const,
         alignItems: 'center' as const,
+        justifyContent: 'space-between' as const,
         borderBottomWidth: 1,
         borderBottomColor: COLORS.border,
         backgroundColor: COLORS.bgMain,

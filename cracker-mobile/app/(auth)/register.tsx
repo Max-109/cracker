@@ -13,6 +13,7 @@ import Animated, { FadeIn, FadeInDown, useSharedValue, useAnimatedStyle, withRep
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../store/auth';
 import { useTheme } from '../../store/theme';
+import { FONTS } from '../../lib/design';
 import AuthBackground from '../../components/auth/AuthBackground';
 import Logo from '../../components/auth/Logo';
 
@@ -342,7 +343,7 @@ export default function RegisterScreen() {
                                         color: theme.accent,
                                         fontSize: 13,
                                         letterSpacing: 2,
-                                        fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+                                        fontFamily: FONTS.mono,
                                     }]}
                                 />
                                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 }}>

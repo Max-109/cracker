@@ -7,6 +7,7 @@
  */
 
 import { z } from 'zod';
+import { zodSchema } from 'ai';
 import { Innertube } from 'youtubei.js';
 
 const YOUTUBE_API_BASE = 'https://www.googleapis.com/youtube/v3';
@@ -43,7 +44,7 @@ type VideoDetailsParams = z.infer<typeof videoDetailsSchema>;
  */
 export const youtubeSearch = {
     description: 'Search YouTube for videos. Use this when you need to find videos about a topic, tutorial, entertainment, music, or any YouTube content.',
-    parameters: videoSearchSchema,
+    inputSchema: zodSchema(videoSearchSchema),
     execute: async (args: VideoSearchParams) => {
         const { query, maxResults = 10 } = args;
         const apiKey = process.env.YOUTUBE_API_KEY;
@@ -150,7 +151,7 @@ export const youtubeSearch = {
  */
 export const youtubeVideoDetails = {
     description: 'Get detailed information about specific YouTube videos by their IDs. Use this when you need view counts, likes, descriptions, or other metadata for videos.',
-    parameters: videoDetailsSchema,
+    inputSchema: zodSchema(videoDetailsSchema),
     execute: async (args: VideoDetailsParams) => {
         const { videoIds } = args;
         const apiKey = process.env.YOUTUBE_API_KEY;
@@ -240,7 +241,7 @@ type TranscriptParams = z.infer<typeof transcriptSchema>;
 
 export const youtubeGetTranscript = {
     description: 'Get the transcript/captions of a YouTube video. Use this when users ask for the full text, subtitles, or transcription of a YouTube video. Extract the video ID from the URL first.',
-    parameters: transcriptSchema,
+    inputSchema: zodSchema(transcriptSchema),
     execute: async (args: TranscriptParams) => {
         const { videoId, lang } = args;
 
@@ -347,8 +348,20 @@ export const youtubeTools = {
  * Get enabled YouTube tools based on user settings
  */
 export function getEnabledYouTubeTools(enabledServers: string[]) {
-    if (enabledServers.includes('youtube') && process.env.YOUTUBE_API_KEY) {
+    const hasYouTube = enabledServers.includes('youtube');
+    const hasApiKey = !!process.env.YOUTUBE_API_KEY;
+
+    console.log('[YouTubeTools] Checking tools:', {
+        enabledServers,
+        hasYouTube,
+        hasApiKey,
+        apiKeyLength: process.env.YOUTUBE_API_KEY?.length || 0,
+    });
+
+    if (hasYouTube && hasApiKey) {
+        console.log('[YouTubeTools] ✓ Tools enabled: youtube_search, youtube_video_details, youtube_get_transcript');
         return youtubeTools;
     }
+
     return {};
 }

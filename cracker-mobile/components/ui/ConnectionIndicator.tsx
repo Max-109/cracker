@@ -1,10 +1,11 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { View, Text, Platform } from 'react-native';
 import Animated, {
     useSharedValue,
     useAnimatedStyle,
     withRepeat,
     withTiming,
+    withSequence,
     Easing,
 } from 'react-native-reanimated';
 import { useTheme } from '../../store/theme';
@@ -128,6 +129,87 @@ export function StreamingIndicator({ tps }: { tps?: number }) {
                     {tps.toFixed(1)} TPS
                 </Text>
             )}
+        </View>
+    );
+}
+
+/**
+ * AnimatedDot - Single dot with independent random blink animation
+ */
+function AnimatedDot({ duration, delay, color }: { duration: number; delay: number; color: string }) {
+    const opacity = useSharedValue(0.15);
+
+    useEffect(() => {
+        // Start the animation after the specified delay
+        const timeout = setTimeout(() => {
+            opacity.value = withRepeat(
+                withSequence(
+                    withTiming(1, { duration: duration * 500, easing: Easing.inOut(Easing.ease) }),
+                    withTiming(0.15, { duration: duration * 500, easing: Easing.inOut(Easing.ease) })
+                ),
+                -1,
+                false
+            );
+        }, Math.abs(delay) * 1000);
+
+        return () => clearTimeout(timeout);
+    }, [duration, delay]);
+
+    const animatedStyle = useAnimatedStyle(() => ({
+        opacity: opacity.value,
+    }));
+
+    return (
+        <Animated.View
+            style={[
+                {
+                    width: 4,
+                    height: 4,
+                    backgroundColor: color,
+                },
+                animatedStyle,
+            ]}
+        />
+    );
+}
+
+/**
+ * DotGridIndicator - 4x4 grid of 16 dots with random blink animation
+ * Matches web's LoadingIndicator exactly
+ */
+export function DotGridIndicator() {
+    const theme = useTheme();
+
+    // Generate 16 dots with random timing (computed once)
+    const dots = useMemo(() => {
+        return Array.from({ length: 16 }).map(() => ({
+            duration: 3 + Math.random() * 3, // 3-6 seconds
+            delay: Math.random() * 3, // 0-3 seconds delay
+        }));
+    }, []);
+
+    return (
+        <View
+            style={{
+                width: 24,
+                height: 24,
+                flexDirection: 'row',
+                flexWrap: 'wrap',
+                gap: 2,
+                borderWidth: 1,
+                borderColor: `${theme.accent}40`,
+                padding: 2,
+                backgroundColor: '#0a0a0a',
+            }}
+        >
+            {dots.map((dot, i) => (
+                <AnimatedDot
+                    key={i}
+                    duration={dot.duration}
+                    delay={dot.delay}
+                    color={theme.accent}
+                />
+            ))}
         </View>
     );
 }

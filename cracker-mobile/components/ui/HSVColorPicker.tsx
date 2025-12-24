@@ -7,7 +7,7 @@ import { useSettingsStore } from '../../store/settings';
 import { COLORS, FONTS, ACCENT_PRESETS } from '../../lib/design';
 import Svg, { Defs, LinearGradient, Stop, Rect, Circle } from 'react-native-svg';
 
-const PICKER_SIZE = Dimensions.get('window').width - 64; // Full width minus padding
+const PICKER_SIZE = 200; // Compact fixed size for mobile
 const HUE_HEIGHT = 32;
 const THUMB_SIZE = 24;
 
@@ -251,6 +251,11 @@ export function HSVColorPicker({ onColorChange }: HSVColorPickerProps) {
                     </View>
                 </View>
             </View>
+
+            {/* Reset to Default Button */}
+            <TouchableOpacity style={styles.resetButton} onPress={handleReset}>
+                <Text style={styles.resetText}>RESET TO DEFAULT</Text>
+            </TouchableOpacity>
         </Animated.View>
     );
 }
