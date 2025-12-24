@@ -118,37 +118,27 @@ export async function apiStreamFetch(
 ): Promise<void> {
     const token = await getAuthToken();
 
-    const response = await fetch(`${API_BASE}${path}`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'text/event-stream',
-            ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify(body),
-    });
+    // React Native's fetch polyfill doesn't support ReadableStream body
+    // Use XMLHttpRequest for SSE streaming instead
+    return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open('POST', `${API_BASE}${path}`);
 
-    if (!response.ok) {
-        const errorText = await response.text().catch(() => 'Unknown error');
-        onError?.(new ApiError(response.status, errorText));
-        return;
-    }
+        xhr.setRequestHeader('Content-Type', 'application/json');
+        xhr.setRequestHeader('Accept', 'text/event-stream');
+        if (token) {
+            xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+        }
 
-    if (!response.body) {
-        onError?.(new Error('No response body'));
-        return;
-    }
+        let buffer = '';
+        let lastProcessedIndex = 0;
 
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
+        xhr.onprogress = () => {
+            // Process new data
+            const newData = xhr.responseText.substring(lastProcessedIndex);
+            lastProcessedIndex = xhr.responseText.length;
 
-    try {
-        while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-
-            buffer += decoder.decode(value, { stream: true });
+            buffer += newData;
 
             // Parse SSE events
             const lines = buffer.split('\n');
@@ -167,10 +157,36 @@ export async function apiStreamFetch(
                     }
                 }
             }
-        }
-    } catch (error) {
-        onError?.(error instanceof Error ? error : new Error(String(error)));
-    }
+        };
+
+        xhr.onload = () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+                // Process any remaining data in buffer
+                if (buffer.startsWith('data: ')) {
+                    const data = buffer.slice(6);
+                    if (data && data !== '[DONE]') {
+                        try {
+                            const event = JSON.parse(data);
+                            onEvent(event);
+                        } catch {
+                            // Skip invalid JSON
+                        }
+                    }
+                }
+                resolve();
+            } else {
+                onError?.(new ApiError(xhr.status, xhr.statusText || 'Request failed'));
+                reject(new Error(`HTTP ${xhr.status}`));
+            }
+        };
+
+        xhr.onerror = () => {
+            onError?.(new Error('Network error'));
+            reject(new Error('Network error'));
+        };
+
+        xhr.send(JSON.stringify(body));
+    });
 }
 
 // API endpoint helpers

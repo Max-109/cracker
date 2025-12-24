@@ -372,7 +372,7 @@ export default function ChatScreen() {
                 model={item.model}
                 tokensPerSecond={isStreamingMessage ? currentTps : item.tokensPerSecond}
                 isStreaming={isStreamingMessage}
-                isThinking={isStreamingMessage && (isThinking || isConnecting)}
+                isThinking={isStreamingMessage && isThinking && !contentText}
                 createdAt={item.createdAt?.toISOString()}
             />
         );
@@ -510,18 +510,13 @@ export default function ChatScreen() {
                     </Animated.View>
                 }
                 ListFooterComponent={
-                    // Show connection/thinking indicators
-                    isStreaming && (isConnecting || isThinking) ? (
+                    // Show connection indicator ONLY when connecting (before first content)
+                    // Once we have content, MessageItem handles its own thinking state
+                    isConnecting && !streamingContent ? (
                         <View style={{ paddingHorizontal: 16, marginTop: 8 }}>
-                            {isConnecting ? (
-                                // Connection state: 4x4 dot grid
-                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                                    <DotGridIndicator />
-                                </View>
-                            ) : isThinking ? (
-                                // Thinking state: label with animated dots
-                                <ThinkingIndicator label={thinkingLabel} />
-                            ) : null}
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                                <DotGridIndicator />
+                            </View>
                         </View>
                     ) : null
                 }
