@@ -82,24 +82,37 @@ export function SettingsDialog({
   onAutoScrollChange,
 }: SettingsDialogProps) {
   const [activeSection, setActiveSection] = useState<'response' | 'profile' | 'appearance' | 'tools' | 'behavior' | 'memory'>('response');
-  // Initialize local state from props
+  const DEFAULT_ACCENT_COLOR = '#af8787';
+
+  // Get reliable accent color - prefer prop, fall back to localStorage
+  const getReliableAccentColor = () => {
+    if (accentColor && accentColor !== '#000000') return accentColor;
+    // Read directly from localStorage if prop is invalid
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('CRACKER_ACCENT_COLOR');
+      if (stored) return stored;
+    }
+    return DEFAULT_ACCENT_COLOR;
+  };
+
+  // Initialize local state from props - with reliable fallback
   const [localResponseLength, setLocalResponseLength] = useState(responseLength);
   const [localCustomInstructions, setLocalCustomInstructions] = useState(customInstructions);
   const [localUserName, setLocalUserName] = useState(userName);
   const [localUserGender, setLocalUserGender] = useState(userGender);
-  const [localAccentColor, setLocalAccentColor] = useState(accentColor);
+  const [localAccentColor, setLocalAccentColor] = useState(getReliableAccentColor);
 
   // Reset local state when dialog opens - sync from props
   const prevOpenRef = useRef(open);
   useEffect(() => {
     if (open && !prevOpenRef.current) {
-      // Dialog just opened - sync from props
+      // Dialog just opened - sync from props, reading directly from storage if needed
       requestAnimationFrame(() => {
         setLocalResponseLength(responseLength);
         setLocalCustomInstructions(customInstructions);
         setLocalUserName(userName);
         setLocalUserGender(userGender);
-        setLocalAccentColor(accentColor);
+        setLocalAccentColor(getReliableAccentColor());
       });
     }
     prevOpenRef.current = open;

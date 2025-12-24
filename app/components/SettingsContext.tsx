@@ -194,14 +194,14 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const fetchSettings = useCallback(async () => {
-    // Always keep the current accent color from localStorage
-    const currentAccentColor = getAccentColorFromStorage();
+    // Always keep the current accent color from localStorage as initial value
+    const cachedAccentColor = getAccentColorFromStorage();
 
     if (!user) {
       console.log('[Settings] No user, using defaults - enabledMcpServers:', DEFAULT_ACCOUNT_SETTINGS.enabledMcpServers);
       setSettings({
         ...DEFAULT_ACCOUNT_SETTINGS,
-        accentColor: getAccentColorFromStorage(),
+        accentColor: cachedAccentColor,
       });
       setIsLoading(false);
       setIsHydrated(true);
@@ -218,6 +218,17 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         if (!data.chatMode && data.learningMode) {
           chatMode = 'learning';
         }
+
+        // Use server accent color if present (DB is source of truth)
+        // Otherwise fall back to cached/default
+        const serverAccentColor = data.accentColor;
+        const finalAccentColor = serverAccentColor || cachedAccentColor;
+
+        // Update localStorage cache with server value
+        if (serverAccentColor && serverAccentColor !== cachedAccentColor) {
+          saveAccentColor(serverAccentColor);
+        }
+
         setSettings({
           currentModelId: data.currentModelId || DEFAULT_ACCOUNT_SETTINGS.currentModelId,
           currentModelName: data.currentModelName || DEFAULT_ACCOUNT_SETTINGS.currentModelName,
@@ -232,18 +243,12 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
           enabledMcpServers: Array.isArray(data.enabledMcpServers) ? data.enabledMcpServers : DEFAULT_ACCOUNT_SETTINGS.enabledMcpServers,
           codeWrap: data.codeWrap ?? DEFAULT_ACCOUNT_SETTINGS.codeWrap,
           autoScroll: data.autoScroll ?? DEFAULT_ACCOUNT_SETTINGS.autoScroll,
-          accentColor: getAccentColorFromStorage(), // Always use fresh localStorage value
+          accentColor: finalAccentColor,
         });
       }
     } catch (error) {
       console.error('Failed to fetch settings:', error);
     } finally {
-      // Use functional update to ensure we get the latest accent color from storage
-      // This prevents a race condition where accent color changes during the fetch
-      setSettings(prev => ({
-        ...prev,
-        accentColor: getAccentColorFromStorage(),
-      }));
       setIsLoading(false);
       setIsHydrated(true);
     }
@@ -254,14 +259,11 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   }, [fetchSettings]);
 
   const updateSettings = useCallback(async (updates: Partial<Settings>) => {
-    // Handle accent color separately (localStorage only)
+    // Handle accent color - save locally AND to server
     if (updates.accentColor !== undefined) {
       saveAccentColor(updates.accentColor);
       setSettings(prev => ({ ...prev, accentColor: updates.accentColor! }));
-      // Don't send accentColor to the API
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { accentColor: _accentColor, ...accountUpdates } = updates;
-      updates = accountUpdates;
+      // Keep accentColor in updates to save to server (DB is source of truth)
     }
 
     // Handle learning modes persistence (localStorage + DB)
