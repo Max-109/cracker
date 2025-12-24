@@ -38,6 +38,7 @@ export default function RootLayout() {
         loadFonts();
     }, []);
 
+    // Initialize app and sync settings
     useEffect(() => {
         const init = async () => {
             try {
@@ -47,8 +48,9 @@ export default function RootLayout() {
                 // Then initialize auth
                 await initAuth();
 
-                // Try to sync settings from server (non-blocking)
-                syncFromServer().catch(console.error);
+                // Initial sync from server - wait for it to complete
+                await syncFromServer();
+                console.log('[App] Initial settings sync completed');
             } catch (err) {
                 console.error('Initialization error:', err);
                 setError(String(err));
@@ -57,7 +59,18 @@ export default function RootLayout() {
 
         init();
 
-        // Subscribe to auth state changes - critical for session persistence
+        // Poll for settings updates every 5 seconds for real-time sync
+        const pollInterval = setInterval(() => {
+            syncFromServer().catch(console.error);
+        }, 5000);
+
+        return () => {
+            clearInterval(pollInterval);
+        };
+    }, []);
+
+    // Subscribe to auth state changes - critical for session persistence
+    useEffect(() => {
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
             async (event, session) => {
                 console.log('[Auth] State changed:', event, session?.user?.email);
@@ -112,4 +125,3 @@ export default function RootLayout() {
         </GestureHandlerRootView>
     );
 }
-
