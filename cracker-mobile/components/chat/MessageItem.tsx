@@ -64,16 +64,16 @@ const THINKING_LABELS = [
  * - 75%: opacity 1.0 (flash!)
  * - 85-100%: opacity 0.1 (fade out)
  * 
- * Each dot has random duration 3-6s and starts at a random point (negative delay)
+ * Each dot has random duration 1.5-3s (optimized for mobile) and starts at a random point
  */
 function LoadingGrid() {
     const theme = useTheme();
 
-    // Generate 16 dots with random timing (same as web useMemo)
+    // Generate 16 dots with random timing - faster than web for better mobile UX
     const dots = React.useMemo(() => {
         return Array.from({ length: 16 }).map(() => ({
-            duration: 3 + Math.random() * 3, // 3-6 seconds
-            delay: -(Math.random() * 5),     // Negative delay = starts at random point
+            duration: 1.5 + Math.random() * 1.5, // 1.5-3 seconds (optimized)
+            delay: -(Math.random() * 2.5),       // Negative delay = starts at random point
         }));
     }, []);
 
@@ -423,7 +423,7 @@ const styles = StyleSheet.create({
         justifyContent: 'flex-start',
     },
     assistantInner: {
-        maxWidth: '95%',
+        maxWidth: '100%',  // Use full width, parent paddingHorizontal handles spacing
         alignItems: 'flex-start',
     },
     assistantHeader: {

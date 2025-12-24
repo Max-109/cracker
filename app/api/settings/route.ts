@@ -61,7 +61,7 @@ export async function PUT(request: NextRequest) {
       updatedAt: new Date(),
     };
 
-    // Note: accentColor is stored in browser localStorage only, not in the database
+    // accentColor is now stored in the database for cross-device persistence
     const allowedFields = [
       'currentModelId',
       'currentModelName',
@@ -69,11 +69,12 @@ export async function PUT(request: NextRequest) {
       'responseLength',
       'learningMode',
       'chatMode',
-      'learningSubMode', // Add to allowed updates
+      'learningSubMode',
       'customInstructions',
       'userName',
       'userGender',
-      'enabledMcpServers', // MCP servers enabled for tool calling
+      'enabledMcpServers',
+      'accentColor', // Accent color for UI theming
     ];
 
     for (const field of allowedFields) {

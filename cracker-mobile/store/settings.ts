@@ -114,6 +114,16 @@ export const useSettingsStore = create<SettingsState>((set) => ({
         set({ isLoading: true });
         try {
             const settings = await api.getSettings();
+
+            // Apply accent color from server if present (DB is source of truth)
+            const serverAccentColor = settings.accentColor as string | undefined;
+            if (serverAccentColor) {
+                set({ accentColor: serverAccentColor });
+                try {
+                    getStorage().set('accentColor', serverAccentColor);
+                } catch { }
+            }
+
             set({
                 currentModelId: String(settings.currentModelId || defaultUserSettings.currentModelId),
                 currentModelName: String(settings.currentModelName || defaultUserSettings.currentModelName),
@@ -134,12 +144,14 @@ export const useSettingsStore = create<SettingsState>((set) => ({
         }
     },
 
-    // Local setters
+    // Local setters - also save to server for cross-device sync
     setAccentColor: (color) => {
         try {
             getStorage().set('accentColor', color);
         } catch { }
         set({ accentColor: color });
+        // Also save to server for persistence across devices
+        api.updateSettings({ accentColor: color }).catch(() => { });
     },
 
     setCodeWrap: (wrap) => {
