@@ -176,6 +176,7 @@ function AnimatedDot({ duration, delay, color }: { duration: number; delay: numb
 /**
  * DotGridIndicator - 4x4 grid of 16 dots with random blink animation
  * Matches web's LoadingIndicator exactly
+ * Uses explicit rows for proper React Native layout
  */
 export function DotGridIndicator() {
     const theme = useTheme();
@@ -188,27 +189,44 @@ export function DotGridIndicator() {
         }));
     }, []);
 
+    // Split dots into 4 rows of 4
+    const rows = [
+        dots.slice(0, 4),
+        dots.slice(4, 8),
+        dots.slice(8, 12),
+        dots.slice(12, 16),
+    ];
+
     return (
         <View
             style={{
-                width: 24,
-                height: 24,
-                flexDirection: 'row',
-                flexWrap: 'wrap',
-                gap: 2,
                 borderWidth: 1,
                 borderColor: `${theme.accent}40`,
-                padding: 2,
+                padding: 3,
                 backgroundColor: '#0a0a0a',
             }}
         >
-            {dots.map((dot, i) => (
-                <AnimatedDot
-                    key={i}
-                    duration={dot.duration}
-                    delay={dot.delay}
-                    color={theme.accent}
-                />
+            {rows.map((row, rowIndex) => (
+                <View
+                    key={rowIndex}
+                    style={{
+                        flexDirection: 'row',
+                        marginBottom: rowIndex < 3 ? 2 : 0,
+                    }}
+                >
+                    {row.map((dot, colIndex) => (
+                        <View
+                            key={colIndex}
+                            style={{ marginRight: colIndex < 3 ? 2 : 0 }}
+                        >
+                            <AnimatedDot
+                                duration={dot.duration}
+                                delay={dot.delay}
+                                color={theme.accent}
+                            />
+                        </View>
+                    ))}
+                </View>
             ))}
         </View>
     );

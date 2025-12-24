@@ -88,10 +88,13 @@ export type ChatMode = 'chat' | 'image' | 'learning' | 'deep-search';
 export type LearningSubMode = 'summary' | 'flashcard' | 'teaching';
 export type ReasoningEffort = 'low' | 'medium' | 'high';
 
-// SSE Stream events from /api/chat
+// SSE Stream events from /api/chat (AI SDK v4 format)
+// Original format events
 export interface StreamTextDelta {
     type: 'text-delta';
-    textDelta: string;
+    textDelta?: string;
+    delta?: string;
+    id?: string;
 }
 
 export interface StreamReasoning {
@@ -114,7 +117,7 @@ export interface StreamToolResult {
 
 export interface StreamFinish {
     type: 'finish';
-    finishReason: 'stop' | 'tool-calls' | 'length';
+    finishReason?: 'stop' | 'tool-calls' | 'length';
 }
 
 export interface StreamUsage {
@@ -123,7 +126,66 @@ export interface StreamUsage {
     completionTokens: number;
 }
 
-export type StreamEvent = StreamTextDelta | StreamReasoning | StreamToolCall | StreamToolResult | StreamFinish | StreamUsage;
+export interface StreamStatus {
+    type: 'status';
+    status: string;
+}
+
+// AI SDK v4 new event types
+export interface StreamStart {
+    type: 'start';
+}
+
+export interface StreamStartStep {
+    type: 'start-step';
+}
+
+export interface StreamFinishStep {
+    type: 'finish-step';
+}
+
+export interface StreamReasoningStart {
+    type: 'reasoning-start';
+    id: string;
+}
+
+export interface StreamReasoningDelta {
+    type: 'reasoning-delta';
+    id: string;
+    delta: string;
+}
+
+export interface StreamReasoningEnd {
+    type: 'reasoning-end';
+    id: string;
+}
+
+export interface StreamTextStart {
+    type: 'text-start';
+    id: string;
+}
+
+export interface StreamTextEnd {
+    type: 'text-end';
+    id: string;
+}
+
+export type StreamEvent =
+    | StreamTextDelta
+    | StreamReasoning
+    | StreamToolCall
+    | StreamToolResult
+    | StreamFinish
+    | StreamUsage
+    | StreamStatus
+    | StreamStart
+    | StreamStartStep
+    | StreamFinishStep
+    | StreamReasoningStart
+    | StreamReasoningDelta
+    | StreamReasoningEnd
+    | StreamTextStart
+    | StreamTextEnd;
 
 // User settings
 export interface UserSettings {

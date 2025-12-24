@@ -201,16 +201,35 @@ export default function ChatScreen() {
                 }));
 
                 switch (e.type) {
-                    case 'status':
-                        // Handle status events like "routing", "compiling"
+                    // AI SDK v4 new format events
+                    case 'start':
+                        setIsConnecting(true);
+                        break;
+                    case 'start-step':
                         setIsConnecting(false);
                         setIsThinking(true);
-                        setThinkingLabel((e as any).status?.toUpperCase() || 'PROCESSING');
+                        setThinkingLabel('PROCESSING');
+                        break;
+                    case 'reasoning-start':
+                        setIsThinking(true);
+                        setThinkingLabel('THINKING');
+                        break;
+                    case 'reasoning-delta':
+                        setStreamingReasoning(prev => prev + ((e as any).delta || ''));
+                        break;
+                    case 'reasoning-end':
+                        // Reasoning complete, waiting for text
+                        break;
+                    case 'text-start':
+                        setIsConnecting(false);
+                        setIsThinking(false);
                         break;
                     case 'text-delta':
                         setIsConnecting(false);
                         setIsThinking(false);
-                        accumulated += e.textDelta;
+                        // Handle both old format (textDelta) and new format (delta)
+                        const textDelta = (e as any).textDelta || (e as any).delta || '';
+                        accumulated += textDelta;
                         tokenCount++;
 
                         // Calculate TPS
@@ -221,9 +240,33 @@ export default function ChatScreen() {
 
                         setStreamingContent(accumulated);
                         break;
-                    case 'reasoning':
-                        setStreamingReasoning(prev => prev + e.textDelta);
+                    case 'text-end':
+                        // Text segment complete
                         break;
+                    case 'finish-step':
+                        // Step complete, might continue with more steps
+                        break;
+
+                    // Tool events
+                    case 'tool-call':
+                        setIsThinking(true);
+                        setThinkingLabel(`USING ${((e as any).toolName || 'TOOL').toUpperCase()}`);
+                        break;
+                    case 'tool-result':
+                        // Tool completed
+                        break;
+
+                    // Legacy format events
+                    case 'status':
+                        setIsConnecting(false);
+                        setIsThinking(true);
+                        setThinkingLabel((e as any).status?.toUpperCase() || 'PROCESSING');
+                        break;
+                    case 'reasoning':
+                        setStreamingReasoning(prev => prev + ((e as any).textDelta || ''));
+                        break;
+
+                    // Finish events
                     case 'finish':
                         setMessages(prev => {
                             const updated = [...prev];
@@ -339,11 +382,11 @@ export default function ChatScreen() {
 
             {/* Header - MATCHING HOME SCREEN EXACTLY */}
             <View style={[styles.header, { paddingTop: statusBarHeight + 12 }]}>
-                {/* Left: Drawer + Settings */}
+                {/* Left: Back + Settings */}
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    {/* Drawer Button */}
+                    {/* Back Button */}
                     <TouchableOpacity
-                        onPress={() => setIsDrawerOpen(true)}
+                        onPress={() => router.back()}
                         activeOpacity={0.7}
                         style={{
                             width: 40,
@@ -355,7 +398,7 @@ export default function ChatScreen() {
                             justifyContent: 'center',
                         }}
                     >
-                        <Ionicons name="menu-outline" size={18} color={COLORS.textSecondary} />
+                        <Ionicons name="arrow-back" size={18} color={COLORS.textSecondary} />
                     </TouchableOpacity>
 
                     {/* Settings Button */}

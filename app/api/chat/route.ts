@@ -512,7 +512,17 @@ When a user's message contains text wrapped in [QUOTED FROM CONVERSATION] and [E
 export async function POST(req: Request) {
   try {
     const db = getDb();
-    const { messages, model, reasoningEffort, chatId, responseLength, userName, userGender, learningMode, learningSubMode, customInstructions, enabledMcpServers } = await req.json();
+    const body = await req.json();
+    const { messages, model, reasoningEffort, chatId, responseLength, userName, userGender, learningMode, learningSubMode, customInstructions, enabledMcpServers } = body;
+
+    // EARLY VALIDATION - check messages immediately
+    if (!messages || !Array.isArray(messages)) {
+      console.error('[API] Invalid messages:', typeof messages, messages);
+      return new Response(
+        JSON.stringify({ error: 'Bad Request', details: 'messages must be a non-empty array' }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
 
     const modelId = model || "gemini-3-flash-preview";
     const effort = reasoningEffort || "medium";
@@ -533,33 +543,38 @@ export async function POST(req: Request) {
     let userId: string | null = null;
 
     if (chatId) {
-      // Try to get userId from the chat
-      const [chat] = await db.select({ userId: (await import('@/db/schema')).chats.userId })
-        .from((await import('@/db/schema')).chats)
-        .where(eq((await import('@/db/schema')).chats.id, chatId))
-        .limit(1);
-
-      if (chat?.userId) {
-        userId = chat.userId;
-
-        // Check if memory is enabled
-        const [settings] = await db.select({ memoryEnabled: userSettings.memoryEnabled })
-          .from(userSettings)
-          .where(eq(userSettings.userId, userId))
+      try {
+        // Try to get userId from the chat
+        const [chat] = await db.select({ userId: (await import('@/db/schema')).chats.userId })
+          .from((await import('@/db/schema')).chats)
+          .where(eq((await import('@/db/schema')).chats.id, chatId))
           .limit(1);
 
-        memoryEnabled = settings?.memoryEnabled !== false;
+        if (chat?.userId) {
+          userId = chat.userId;
 
-        if (memoryEnabled) {
-          // Fetch user facts
-          const facts = await db.select({ fact: userFacts.fact })
-            .from(userFacts)
-            .where(eq(userFacts.userId, userId))
-            .orderBy(desc(userFacts.createdAt))
-            .limit(50);
+          // Check if memory is enabled
+          const [settings] = await db.select({ memoryEnabled: userSettings.memoryEnabled })
+            .from(userSettings)
+            .where(eq(userSettings.userId, userId))
+            .limit(1);
 
-          userMemoryFacts = facts.map(f => f.fact);
+          memoryEnabled = settings?.memoryEnabled !== false;
+
+          if (memoryEnabled) {
+            // Fetch user facts
+            const facts = await db.select({ fact: userFacts.fact })
+              .from(userFacts)
+              .where(eq(userFacts.userId, userId))
+              .orderBy(desc(userFacts.createdAt))
+              .limit(50);
+
+            userMemoryFacts = facts.map(f => f.fact);
+          }
         }
+      } catch (chatLookupError) {
+        // Chat doesn't exist or invalid ID - continue without user context
+        console.log('[API] Chat lookup failed (continuing without user context):', chatId, chatLookupError);
       }
     }
 
@@ -706,7 +721,51 @@ export async function POST(req: Request) {
 
     // ========== DEBUG: Log messages being sent ==========
     console.log('\n========== DEBUG: MESSAGES ==========');
-    const modelMessages = convertToModelMessages(hydratedMessages as UIMessage[]);
+
+    // Ensure messages are in proper UIMessage format for convertToModelMessages
+    // Mobile sends simple {role, content: string} but AI SDK expects content array AND parts
+    const normalizedMessages = hydratedMessages.map((msg: any) => {
+      // If content is a string, convert to proper format
+      if (typeof msg.content === 'string') {
+        const parts = [{ type: 'text', text: msg.content }];
+        return {
+          id: msg.id || `msg-${Date.now()}`,
+          role: msg.role,
+          content: parts,
+          parts: parts,
+        };
+      }
+      // If content is an array, use as-is
+      if (Array.isArray(msg.content)) {
+        return {
+          id: msg.id || `msg-${Date.now()}`,
+          role: msg.role,
+          content: msg.content,
+          parts: msg.content,
+        };
+      }
+      // If parts exist, convert to content format
+      if (msg.parts && Array.isArray(msg.parts)) {
+        return {
+          id: msg.id || `msg-${Date.now()}`,
+          role: msg.role,
+          content: msg.parts,
+          parts: msg.parts,
+        };
+      }
+      // Default: wrap in text part
+      const parts = [{ type: 'text', text: String(msg.content || '') }];
+      return {
+        id: msg.id || `msg-${Date.now()}`,
+        role: msg.role,
+        content: parts,
+        parts: parts,
+      };
+    });
+
+    console.log('[API] Normalized messages:', normalizedMessages.length, 'messages');
+
+    const modelMessages = await convertToModelMessages(normalizedMessages as unknown as UIMessage[]);
     console.log('Message count:', modelMessages.length);
     for (let i = 0; i < modelMessages.length; i++) {
       const msg = modelMessages[i] as { role: string; content?: unknown };
@@ -722,11 +781,8 @@ export async function POST(req: Request) {
     if (effort === 'low') thinkingBudget = 2048;
     if (effort === 'high') thinkingBudget = 24576;
 
-    // TEMPORARY: Force disable thinkingConfig to debug
-    const forceDisableThinking = true;
-
     const googleProviderOpts = {
-      ...(!effectiveModelId.includes('image') && !forceDisableThinking ? {
+      ...(!effectiveModelId.includes('image') ? {
         thinkingConfig: {
           includeThoughts: true,
           ...(effectiveModelId.includes('gemini-3')
@@ -755,17 +811,12 @@ export async function POST(req: Request) {
     let firstChunkTime: number | null = null;
     let firstReasoningTime: number | null = null;
 
-    // TEMPORARY: Force disable tools to debug the issue
-    const forceDisableTools = true;
-    const useTools = hasTools && !forceDisableTools;
-
     const result = streamText({
       model: google(cleanModelId),
       system: systemPrompt,
       messages: modelMessages,
-      tools: useTools ? tools : undefined,
-      stopWhen: useTools ? stepCountIs(5) : undefined,
-      toolCallStreaming: useTools ? true : undefined,
+      tools: hasTools ? tools : undefined,
+      stopWhen: hasTools ? stepCountIs(5) : undefined,
       providerOptions: {
         google: googleProviderOpts,
       },
