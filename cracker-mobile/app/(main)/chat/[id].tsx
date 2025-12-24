@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Text, FlatList, KeyboardAvoidingView, Platform, TouchableOpacity, StatusBar, ScrollView } from 'react-native';
+import { View, Text, FlatList, KeyboardAvoidingView, Platform, TouchableOpacity, StatusBar, ScrollView, Alert } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
@@ -16,6 +16,7 @@ import { ModelSelector, AccentColorPicker } from '../../../components/ui/ModelSe
 import { MessageSkeleton } from '../../../components/ui/Skeleton';
 import Drawer from '../../../components/navigation/Drawer';
 import { COLORS, FONTS } from '../../../lib/design';
+import { useVoiceRecording } from '../../../hooks/useVoiceRecording';
 
 interface ChatItem {
     id: string;
@@ -40,6 +41,10 @@ export default function ChatScreen() {
     const [hasAutoSent, setHasAutoSent] = useState(false);
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
     const [chats, setChats] = useState<ChatItem[]>([]);
+    const [isTranscribing, setIsTranscribing] = useState(false);
+
+    // Voice recording
+    const { isRecording, startRecording, stopRecording } = useVoiceRecording();
 
     // Debug state
     const [debugInfo, setDebugInfo] = useState({
@@ -128,6 +133,32 @@ export default function ChatScreen() {
         setIsThinking(false);
         setIsConnecting(false);
     }, []);
+
+    // Voice handling
+    const handleMicPress = async () => {
+        if (isRecording) {
+            // Stop and transcribe
+            setIsTranscribing(true);
+            try {
+                const uri = await stopRecording();
+                if (uri) {
+                    console.log('[Chat] Transcribing audio...');
+                    const result = await api.transcribe(uri, 'gemini');
+                    if (result.text) {
+                        setInput(prev => prev + (prev ? ' ' : '') + result.text);
+                    }
+                }
+            } catch (error: any) {
+                console.error('[Chat] Transcription failed:', error);
+                Alert.alert('Error', 'Failed to transcribe audio');
+            } finally {
+                setIsTranscribing(false);
+            }
+        } else {
+            // Start recording
+            await startRecording();
+        }
+    };
 
     // Send message function
     const sendMessage = useCallback(async (messageText: string) => {
@@ -502,7 +533,9 @@ export default function ChatScreen() {
                 onChangeText={setInput}
                 onSend={handleSend}
                 onStop={handleStop}
-                isLoading={false}
+                onMic={handleMicPress}
+                isLoading={isTranscribing}
+                isRecording={isRecording}
                 isStreaming={isStreaming}
                 placeholder="Let's crack..."
             />

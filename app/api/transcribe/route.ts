@@ -85,7 +85,7 @@ export async function POST(req: NextRequest) {
 
         console.log(`[Transcribe] Success with ${modelId}${attempt > 0 ? ` on retry ${attempt}` : ''}, transcription length: ${transcription.length}`);
 
-        return NextResponse.json({ transcription });
+        return NextResponse.json({ text: transcription });
       } catch (error) {
         // Check if this is a retryable error
         if (isRetryableError(error)) {
