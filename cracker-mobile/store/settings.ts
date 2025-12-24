@@ -104,6 +104,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
             const accentColor = mmkv.getString('accentColor') || defaultLocalSettings.accentColor;
             const codeWrap = mmkv.getBoolean('codeWrap') ?? defaultLocalSettings.codeWrap;
             const autoScroll = mmkv.getBoolean('autoScroll') ?? defaultLocalSettings.autoScroll;
+            console.log('[Settings Mobile] Initialize - MMKV accentColor:', accentColor);
             set({ accentColor, codeWrap, autoScroll });
         } catch (error) {
             console.error('Failed to initialize settings:', error);
@@ -116,15 +117,20 @@ export const useSettingsStore = create<SettingsState>((set) => ({
             const settings = await api.getSettings();
             console.log('[Settings Mobile] Received from server:', JSON.stringify(settings).slice(0, 200));
 
-            // Apply accent color from server if present (DB is source of truth)
+            // Apply accent color from server ONLY if present and valid
+            // Don't overwrite cached color with null/undefined from server
             const serverAccentColor = settings.accentColor as string | undefined;
             console.log('[Settings Mobile] Server accent color:', serverAccentColor);
-            if (serverAccentColor) {
+            if (serverAccentColor && serverAccentColor !== '#af8787') {
+                // Server has a custom color - use it
                 set({ accentColor: serverAccentColor });
                 try {
                     getStorage().set('accentColor', serverAccentColor);
-                    console.log('[Settings Mobile] Saved to MMKV:', serverAccentColor);
+                    console.log('[Settings Mobile] Updated MMKV with server color:', serverAccentColor);
                 } catch { }
+            } else {
+                // Server has default or no color - keep whatever is in MMKV
+                console.log('[Settings Mobile] Keeping MMKV color, server has default');
             }
 
             set({
@@ -149,12 +155,18 @@ export const useSettingsStore = create<SettingsState>((set) => ({
 
     // Local setters - also save to server for cross-device sync
     setAccentColor: (color) => {
+        console.log('[Settings Mobile] setAccentColor called with:', color);
         try {
             getStorage().set('accentColor', color);
-        } catch { }
+            console.log('[Settings Mobile] Saved to MMKV:', color);
+        } catch (e) {
+            console.error('[Settings Mobile] MMKV save failed:', e);
+        }
         set({ accentColor: color });
         // Also save to server for persistence across devices
-        api.updateSettings({ accentColor: color }).catch(() => { });
+        api.updateSettings({ accentColor: color }).catch((e) => {
+            console.error('[Settings Mobile] Server save failed:', e);
+        });
     },
 
     setCodeWrap: (wrap) => {
