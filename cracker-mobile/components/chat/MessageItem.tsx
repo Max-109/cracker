@@ -12,7 +12,16 @@
 
 import React, { useState, useCallback, useMemo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Clipboard, Share, Platform } from 'react-native';
-import Animated, { FadeIn, FadeInRight, FadeInLeft } from 'react-native-reanimated';
+import Animated, {
+    FadeIn,
+    FadeInRight,
+    FadeInLeft,
+    useSharedValue,
+    withRepeat,
+    withSequence,
+    withTiming,
+    useAnimatedStyle,
+} from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import Markdown from 'react-native-markdown-display';
 import { useTheme } from '../../store/theme';
@@ -45,53 +54,99 @@ const THINKING_LABELS = [
     "CRACKING"
 ];
 
-// 4x4 Grid Loading Indicator - EXACT match to web
+/**
+ * LoadingGrid - EXACT match to web LoadingIndicator with thinking-flicker animation
+ * 
+ * Web CSS animation (thinking-flicker):
+ * - 0-25%: opacity 0.1 (dim idle)
+ * - 30%: opacity 0.4 (small blip)
+ * - 35-70%: opacity 0.1 (long wait)
+ * - 75%: opacity 1.0 (flash!)
+ * - 85-100%: opacity 0.1 (fade out)
+ * 
+ * Each dot has random duration 3-6s and starts at a random point (negative delay)
+ */
 function LoadingGrid() {
     const theme = useTheme();
+
+    // Generate 16 dots with random timing (same as web useMemo)
+    const dots = React.useMemo(() => {
+        return Array.from({ length: 16 }).map(() => ({
+            duration: 3 + Math.random() * 3, // 3-6 seconds
+            delay: -(Math.random() * 5),     // Negative delay = starts at random point
+        }));
+    }, []);
 
     return (
         <View style={styles.loadingGrid}>
             {/* Row 1 */}
             <View style={styles.loadingRow}>
-                {[0, 1, 2, 3].map(i => (
-                    <Animated.View
-                        key={`r1-${i}`}
-                        entering={FadeIn.delay(i * 50).duration(200)}
-                        style={[styles.loadingDot, { backgroundColor: theme.accent, opacity: Math.random() > 0.5 ? 1 : 0.15 }]}
-                    />
+                {dots.slice(0, 4).map((dot, i) => (
+                    <FlickeringDot key={`r1-${i}`} dot={dot} color={theme.accent} />
                 ))}
             </View>
             {/* Row 2 */}
             <View style={styles.loadingRow}>
-                {[0, 1, 2, 3].map(i => (
-                    <Animated.View
-                        key={`r2-${i}`}
-                        entering={FadeIn.delay((i + 4) * 50).duration(200)}
-                        style={[styles.loadingDot, { backgroundColor: theme.accent, opacity: Math.random() > 0.5 ? 1 : 0.15 }]}
-                    />
+                {dots.slice(4, 8).map((dot, i) => (
+                    <FlickeringDot key={`r2-${i}`} dot={dot} color={theme.accent} />
                 ))}
             </View>
             {/* Row 3 */}
             <View style={styles.loadingRow}>
-                {[0, 1, 2, 3].map(i => (
-                    <Animated.View
-                        key={`r3-${i}`}
-                        entering={FadeIn.delay((i + 8) * 50).duration(200)}
-                        style={[styles.loadingDot, { backgroundColor: theme.accent, opacity: Math.random() > 0.5 ? 1 : 0.15 }]}
-                    />
+                {dots.slice(8, 12).map((dot, i) => (
+                    <FlickeringDot key={`r3-${i}`} dot={dot} color={theme.accent} />
                 ))}
             </View>
             {/* Row 4 */}
             <View style={styles.loadingRow}>
-                {[0, 1, 2, 3].map(i => (
-                    <Animated.View
-                        key={`r4-${i}`}
-                        entering={FadeIn.delay((i + 12) * 50).duration(200)}
-                        style={[styles.loadingDot, { backgroundColor: theme.accent, opacity: Math.random() > 0.5 ? 1 : 0.15 }]}
-                    />
+                {dots.slice(12, 16).map((dot, i) => (
+                    <FlickeringDot key={`r4-${i}`} dot={dot} color={theme.accent} />
                 ))}
             </View>
         </View>
+    );
+}
+
+// Single flickering dot with the exact web animation
+function FlickeringDot({ dot, color }: { dot: { duration: number; delay: number }; color: string }) {
+    const opacity = useSharedValue(0.1);
+
+    React.useEffect(() => {
+        // Start animation at a random point (simulating negative delay)
+        const startProgress = Math.abs(dot.delay) / dot.duration;
+
+        // Run the animation loop
+        const runAnimation = () => {
+            // Calculate timing based on web keyframes
+            // Total duration split: 0.25, 0.05, 0.05, 0.35, 0.05, 0.1, 0.15 = 1.0
+            const dur = dot.duration * 1000;
+
+            opacity.value = withRepeat(
+                withSequence(
+                    withTiming(0.1, { duration: dur * 0.25 }),  // 0-25%: dim
+                    withTiming(0.4, { duration: dur * 0.05 }),  // 25-30%: blip up
+                    withTiming(0.1, { duration: dur * 0.05 }),  // 30-35%: fade down
+                    withTiming(0.1, { duration: dur * 0.35 }),  // 35-70%: stay dim
+                    withTiming(1.0, { duration: dur * 0.05 }),  // 70-75%: flash!
+                    withTiming(0.1, { duration: dur * 0.10 }),  // 75-85%: fade down
+                    withTiming(0.1, { duration: dur * 0.15 }),  // 85-100%: stay dim
+                ),
+                -1, // Infinite repeat
+                false // No reverse
+            );
+        };
+
+        // Add initial delay offset
+        const timeout = setTimeout(runAnimation, Math.abs(dot.delay) * 200);
+        return () => clearTimeout(timeout);
+    }, [dot, opacity]);
+
+    const animatedStyle = useAnimatedStyle(() => ({
+        opacity: opacity.value,
+    }));
+
+    return (
+        <Animated.View style={[styles.loadingDot, { backgroundColor: color }, animatedStyle]} />
     );
 }
 
