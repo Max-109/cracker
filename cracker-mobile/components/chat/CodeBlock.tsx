@@ -1,21 +1,15 @@
 /**
- * CodeBlock - Syntax highlighted code blocks
+ * CodeBlock - Code blocks with language label and copy
  * 
- * EXACT PORT from web: app/components/CodeBlock.tsx
- * Uses react-syntax-highlighter with Prism for React Native
+ * Simplified version for React Native (react-syntax-highlighter is web-only)
+ * Uses simple styling without tokenization for now
  * 
- * Features:
- * - Prism tokenizer (same as web)
- * - Language label header
- * - Copy functionality
- * - Dark theme matching web
+ * TODO: Add react-native-syntax-highlighter when needed
  */
 
 import React, { useState, useCallback } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, Clipboard, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import SyntaxHighlighter from 'react-syntax-highlighter';
-import { atomOneDark } from 'react-syntax-highlighter/dist/esm/styles/hljs';
 import { useTheme } from '../../store/theme';
 import { COLORS, FONTS } from '../../lib/design';
 
@@ -23,19 +17,6 @@ interface CodeBlockProps {
     language: string;
     value: string;
 }
-
-/**
- * Custom dark theme matching web CodeBlock styles
- * Web uses: color: '#c9d1d9', background: transparent
- */
-const customTheme = {
-    ...atomOneDark,
-    'hljs': {
-        ...atomOneDark['hljs'],
-        background: 'transparent',
-        color: '#c9d1d9',
-    },
-};
 
 export default function CodeBlock({ language, value }: CodeBlockProps) {
     const theme = useTheme();
@@ -83,16 +64,12 @@ export default function CodeBlock({ language, value }: CodeBlockProps) {
                 horizontal
                 showsHorizontalScrollIndicator={false}
                 style={styles.codeScroll}
-                contentContainerStyle={styles.codeContent}
             >
-                <SyntaxHighlighter
-                    language={language || 'text'}
-                    style={customTheme}
-                    customStyle={styles.highlighter}
-                    codeTagProps={{ style: styles.code }}
-                >
-                    {value}
-                </SyntaxHighlighter>
+                <View style={styles.codeContent}>
+                    <Text style={styles.codeText} selectable>
+                        {value}
+                    </Text>
+                </View>
             </ScrollView>
         </View>
     );
@@ -145,14 +122,10 @@ const styles = StyleSheet.create({
     codeContent: {
         padding: 16,
     },
-    highlighter: {
-        margin: 0,
-        padding: 0,
-        backgroundColor: 'transparent',
-    },
-    code: {
+    codeText: {
         fontFamily: FONTS.mono,
         fontSize: 14,
         lineHeight: 22,
+        color: '#c9d1d9', // Match web base color
     },
 });
