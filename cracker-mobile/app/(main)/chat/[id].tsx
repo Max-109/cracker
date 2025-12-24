@@ -88,11 +88,13 @@ export default function ChatScreen() {
 
         const loadChat = async () => {
             try {
-                const data = await api.getChat(id);
-                const chat = data.chat as any;
-                setChatTitle(chat?.title || 'Chat');
+                // Web API returns messages array directly, not { chat, messages }
+                const messagesData = await api.getChat(id);
 
-                const formattedMessages = (data.messages || []).map((msg: any): ChatMessage => ({
+                // Ensure we have an array
+                const messagesArray = Array.isArray(messagesData) ? messagesData : [];
+
+                const formattedMessages = messagesArray.map((msg: any): ChatMessage => ({
                     id: msg.id,
                     role: msg.role,
                     content: msg.content,
@@ -102,6 +104,15 @@ export default function ChatScreen() {
                     tokensPerSecond: msg.tokensPerSecond,
                 }));
                 setMessages(formattedMessages);
+
+                // Set title from first user message if available
+                const firstUserMsg = formattedMessages.find(m => m.role === 'user');
+                if (firstUserMsg?.content) {
+                    const content = typeof firstUserMsg.content === 'string'
+                        ? firstUserMsg.content
+                        : '';
+                    setChatTitle(content.slice(0, 40) || 'Chat');
+                }
             } catch (error) {
                 console.error('Failed to load chat:', error);
                 setDebugInfo(prev => ({ ...prev, error: String(error) }));

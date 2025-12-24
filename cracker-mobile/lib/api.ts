@@ -237,7 +237,8 @@ export const api = {
         });
     },
 
-    async getChat(id: string): Promise<{ chat: unknown; messages: unknown[] }> {
+    // Get messages for a chat - web returns array of messages directly
+    async getChat(id: string): Promise<unknown[]> {
         return apiFetch(`/api/chats/${id}`);
     },
 
