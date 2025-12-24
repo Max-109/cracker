@@ -92,7 +92,7 @@ export default function ChatScreen() {
                 const chat = data.chat as any;
                 setChatTitle(chat?.title || 'Chat');
 
-                const formattedMessages = (data.messages as any[]).map((msg): ChatMessage => ({
+                const formattedMessages = (data.messages || []).map((msg: any): ChatMessage => ({
                     id: msg.id,
                     role: msg.role,
                     content: msg.content,
@@ -509,17 +509,7 @@ export default function ChatScreen() {
                         </Text>
                     </Animated.View>
                 }
-                ListFooterComponent={
-                    // Show connection indicator ONLY when connecting (before first content)
-                    // Once we have content, MessageItem handles its own thinking state
-                    isConnecting && !streamingContent ? (
-                        <View style={{ paddingHorizontal: 16, marginTop: 8 }}>
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                                <DotGridIndicator />
-                            </View>
-                        </View>
-                    ) : null
-                }
+                ListFooterComponent={null}
             />
 
             {/* Input */}

@@ -234,22 +234,21 @@ export default function MessageItem({
             style={styles.assistantContainer}
         >
             <View style={styles.assistantInner}>
-                {/* AI Indicator */}
-                <View style={styles.assistantHeader}>
-                    <AIIndicator />
-                </View>
-
-                {/* Thinking state */}
-                {isThinking && !displayContent && (
+                {/* Thinking state - JUST the grid, no box, no label (matches web exactly) */}
+                {isThinking && !displayContent ? (
                     <Animated.View
                         entering={FadeIn.duration(200)}
-                        style={[styles.thinkingBox, { borderColor: `${theme.accent}40` }]}
+                        style={styles.loadingContainer}
                     >
                         <LoadingGrid />
-                        <Text style={[styles.thinkingLabel, { color: theme.accent }]}>
-                            {randomLabel}
-                        </Text>
                     </Animated.View>
+                ) : (
+                    <>
+                        {/* AI Indicator - only show when we have content */}
+                        <View style={styles.assistantHeader}>
+                            <AIIndicator />
+                        </View>
+                    </>
                 )}
 
                 {/* Reasoning section (collapsible) */}
@@ -444,19 +443,25 @@ const styles = StyleSheet.create({
     cornerBR: { bottom: 0, right: 0 },
 
     // ═══════════════════════════════════════════════════════════════════════
-    // LOADING / THINKING
+    // LOADING GRID - EXACT match to web LoadingIndicator (28x28, 3px gap)
     // ═══════════════════════════════════════════════════════════════════════
+    loadingContainer: {
+        marginLeft: 4, // Match web: margin-left: 4px
+        marginBottom: 8,
+    },
     loadingGrid: {
-        width: 22,
-        gap: 2,
+        width: 28,  // Web: 28px
+        height: 28, // Web: 28px
+        gap: 3,     // Web: 3px gap
     },
     loadingRow: {
         flexDirection: 'row',
-        gap: 2,
+        gap: 3, // Web: 3px gap
     },
     loadingDot: {
-        width: 4,
-        height: 4,
+        width: 5,   // Web: ~5.5px per dot (28-9)/4
+        height: 5,
+        borderRadius: 1, // Web: border-radius: 1px
     },
     thinkingBox: {
         flexDirection: 'row',
