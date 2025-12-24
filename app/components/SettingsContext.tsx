@@ -224,8 +224,13 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         const serverAccentColor = data.accentColor;
         const finalAccentColor = serverAccentColor || cachedAccentColor;
 
+        console.log('[Settings] Accent color from DB:', serverAccentColor);
+        console.log('[Settings] Cached accent color:', cachedAccentColor);
+        console.log('[Settings] Using accent color:', finalAccentColor);
+
         // Update localStorage cache with server value
         if (serverAccentColor && serverAccentColor !== cachedAccentColor) {
+          console.log('[Settings] Updating localStorage with DB value');
           saveAccentColor(serverAccentColor);
         }
 

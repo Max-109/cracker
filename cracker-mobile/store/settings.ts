@@ -114,13 +114,16 @@ export const useSettingsStore = create<SettingsState>((set) => ({
         set({ isLoading: true });
         try {
             const settings = await api.getSettings();
+            console.log('[Settings Mobile] Received from server:', JSON.stringify(settings).slice(0, 200));
 
             // Apply accent color from server if present (DB is source of truth)
             const serverAccentColor = settings.accentColor as string | undefined;
+            console.log('[Settings Mobile] Server accent color:', serverAccentColor);
             if (serverAccentColor) {
                 set({ accentColor: serverAccentColor });
                 try {
                     getStorage().set('accentColor', serverAccentColor);
+                    console.log('[Settings Mobile] Saved to MMKV:', serverAccentColor);
                 } catch { }
             }
 
