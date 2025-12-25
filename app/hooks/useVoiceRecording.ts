@@ -117,8 +117,8 @@ export function useVoiceRecording({ onTranscription, onError }: UseVoiceRecordin
 
           const data = await response.json();
 
-          if (data.transcription) {
-            onTranscription?.(data.transcription);
+          if (data.text) {
+            onTranscription?.(data.text);
           } else {
             onError?.('No transcription received');
           }
