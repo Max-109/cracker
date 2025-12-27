@@ -88,13 +88,33 @@ export default function ChatScreen() {
 
         const loadChat = async () => {
             try {
-                // Web API returns messages array directly, not { chat, messages }
-                const messagesData = await api.getChat(id);
+                // Fetch messages from API
+                let messagesData;
+                try {
+                    messagesData = await api.getChat(id);
+                } catch (apiError: any) {
+                    console.error('[Chat] API error loading chat:', apiError);
+                    // Handle specific API errors
+                    if (apiError?.status === 404 || apiError?.status === 401) {
+                        // Chat was deleted or doesn't exist - navigate back gracefully
+                        setDebugInfo(prev => ({ ...prev, error: 'Chat not found' }));
+                        setIsLoading(false);
+                        setTimeout(() => router.back(), 100);
+                        return;
+                    }
+                    // Re-throw for outer catch to handle other errors
+                    throw apiError;
+                }
 
-                // Ensure we have an array
-                const messagesArray = Array.isArray(messagesData) ? messagesData : [];
+                // Defensive check - ensure we have an array
+                if (!messagesData || !Array.isArray(messagesData)) {
+                    console.warn('[Chat] Invalid response format, expected array:', typeof messagesData);
+                    setMessages([]);
+                    setIsLoading(false);
+                    return;
+                }
 
-                const formattedMessages = messagesArray.map((msg: any): ChatMessage => ({
+                const formattedMessages = messagesData.map((msg: any): ChatMessage => ({
                     id: msg.id,
                     role: msg.role,
                     content: msg.content,
@@ -114,7 +134,7 @@ export default function ChatScreen() {
                     setChatTitle(content.slice(0, 40) || 'Chat');
                 }
             } catch (error) {
-                console.error('Failed to load chat:', error);
+                console.error('[Chat] Failed to load chat:', error);
                 setDebugInfo(prev => ({ ...prev, error: String(error) }));
             } finally {
                 setIsLoading(false);
