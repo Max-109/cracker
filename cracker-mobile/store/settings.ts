@@ -128,6 +128,11 @@ export const useSettingsStore = create<SettingsState>((set) => ({
                     getStorage().set('accentColor', serverAccentColor);
                     console.log('[Settings Mobile] Updated MMKV with server color:', serverAccentColor);
                 } catch { }
+
+                // Update app icon to match synced color
+                import('../lib/iconMatcher').then(({ updateAppIconForColor }) => {
+                    updateAppIconForColor(serverAccentColor);
+                }).catch(() => { });
             } else {
                 // Server has default or no color - keep whatever is in MMKV
                 console.log('[Settings Mobile] Keeping MMKV color, server has default');
@@ -163,6 +168,14 @@ export const useSettingsStore = create<SettingsState>((set) => ({
             console.error('[Settings Mobile] MMKV save failed:', e);
         }
         set({ accentColor: color });
+
+        // Update app icon to match accent color (async, non-blocking)
+        import('../lib/iconMatcher').then(({ updateAppIconForColor }) => {
+            updateAppIconForColor(color);
+        }).catch(() => {
+            // Icon switching not available
+        });
+
         // Also save to server for persistence across devices
         api.updateSettings({ accentColor: color }).catch((e) => {
             console.error('[Settings Mobile] Server save failed:', e);

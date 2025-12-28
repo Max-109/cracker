@@ -51,7 +51,34 @@
         {
           "iCloudContainerEnvironment": "Production"
         }
-      ]
+      ],
+      [
+        "@variant-systems/expo-dynamic-app-icon",
+        {
+          "icon_rose": {
+            "image": "./assets/icons/icon_rose.png"
+          },
+          "icon_sage": {
+            "image": "./assets/icons/icon_sage.png"
+          },
+          "icon_lavender": {
+            "image": "./assets/icons/icon_lavender.png"
+          },
+          "icon_wheat": {
+            "image": "./assets/icons/icon_wheat.png"
+          },
+          "icon_teal": {
+            "image": "./assets/icons/icon_teal.png"
+          },
+          "icon_mauve": {
+            "image": "./assets/icons/icon_mauve.png"
+          },
+          "icon_coral": {
+            "image": "./assets/icons/icon_coral.png"
+          }
+        }
+      ],
+      "./plugins/withAdaptiveIcons"
     ],
     "experiments": {
       "typedRoutes": true

@@ -228,7 +228,7 @@ export default function MessageItem({
 
     const handleCopy = useCallback(async () => {
         try {
-            Clipboard.setString(content);
+            Clipboard.setString(content || '');
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
         } catch (e) {

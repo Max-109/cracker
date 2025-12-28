@@ -15,6 +15,7 @@ import { DotGridIndicator } from '../../../components/ui/ConnectionIndicator';
 import { ModelSelector, AccentColorPicker } from '../../../components/ui/ModelSelector';
 import { MessageSkeleton } from '../../../components/ui/Skeleton';
 import Drawer from '../../../components/navigation/Drawer';
+import ErrorBoundary from '../../../components/ErrorBoundary';
 import { COLORS, FONTS } from '../../../lib/design';
 import { useVoiceRecording } from '../../../hooks/useVoiceRecording';
 
@@ -114,15 +115,33 @@ export default function ChatScreen() {
                     return;
                 }
 
-                const formattedMessages = messagesData.map((msg: any): ChatMessage => ({
-                    id: msg.id,
-                    role: msg.role,
-                    content: msg.content,
-                    createdAt: new Date(msg.createdAt),
-                    parts: msg.parts,
-                    model: msg.model,
-                    tokensPerSecond: msg.tokensPerSecond,
-                }));
+                const formattedMessages = messagesData.map((msg: any): ChatMessage => {
+                    // Safely parse createdAt - Invalid Date will cause toISOString() to crash
+                    let createdAt: Date | undefined;
+                    if (msg.createdAt) {
+                        const parsed = new Date(msg.createdAt);
+                        // Check if date is valid (Invalid Date returns NaN for getTime())
+                        if (!isNaN(parsed.getTime())) {
+                            createdAt = parsed;
+                        }
+                    }
+
+                    // Ensure content is never undefined/null to prevent rendering crashes
+                    let content = msg.content;
+                    if (content === null || content === undefined) {
+                        content = '';
+                    }
+
+                    return {
+                        id: msg.id || `msg-${Date.now()}-${Math.random()}`,
+                        role: msg.role || 'user',
+                        content,
+                        createdAt,
+                        parts: msg.parts,
+                        model: msg.model,
+                        tokensPerSecond: msg.tokensPerSecond,
+                    };
+                });
                 setMessages(formattedMessages);
 
                 // Set title from first user message if available
@@ -383,16 +402,37 @@ export default function ChatScreen() {
     const renderMessage = ({ item, index }: { item: ChatMessage; index: number }) => {
         const isStreamingMessage = isStreaming && index === messages.length - 1 && item.role === 'assistant';
 
+        // Extract text content with comprehensive fallback
         let contentText = '';
         if (isStreamingMessage) {
             contentText = streamingContent;
-        } else if (typeof item.content === 'string') {
-            contentText = item.content;
-        } else if (Array.isArray(item.content)) {
-            contentText = item.content
-                .filter((p: any) => p.type === 'text')
-                .map((p: any) => p.text)
-                .join('');
+        } else {
+            try {
+                if (typeof item.content === 'string') {
+                    contentText = item.content;
+                } else if (Array.isArray(item.content)) {
+                    // Array of parts - filter for text parts
+                    contentText = item.content
+                        .filter((p: any) => p && p.type === 'text')
+                        .map((p: any) => p.text || '')
+                        .join('');
+                } else if (item.content && typeof item.content === 'object') {
+                    // Single object (not array) - check if it has text property
+                    const obj = item.content as any;
+                    if (obj.type === 'text' && obj.text) {
+                        contentText = obj.text;
+                    } else if (obj.text) {
+                        contentText = obj.text;
+                    } else {
+                        // Fallback: try to stringify for debugging
+                        console.warn('[Chat] Unknown content object format:', JSON.stringify(obj).slice(0, 100));
+                        contentText = '';
+                    }
+                }
+            } catch (e) {
+                console.error('[Chat] Error extracting content:', e);
+                contentText = '';
+            }
         }
 
         return (
@@ -404,7 +444,7 @@ export default function ChatScreen() {
                 tokensPerSecond={isStreamingMessage ? currentTps : item.tokensPerSecond}
                 isStreaming={isStreamingMessage}
                 isThinking={isStreamingMessage && isThinking && !contentText}
-                createdAt={item.createdAt?.toISOString()}
+                createdAt={item.createdAt instanceof Date && !isNaN(item.createdAt.getTime()) ? item.createdAt.toISOString() : undefined}
             />
         );
     };
@@ -513,7 +553,7 @@ export default function ChatScreen() {
             <FlatList
                 ref={flatListRef}
                 data={messages}
-                keyExtractor={(item) => item.id}
+                keyExtractor={(item, index) => item.id || `msg-${index}`}
                 renderItem={renderMessage}
                 contentContainerStyle={{ paddingBottom: 20 }}
                 onContentSizeChange={() => {

@@ -12,6 +12,7 @@
     "@expo/vector-icons": "^15.0.3",
     "@react-native-async-storage/async-storage": "^2.2.0",
     "@supabase/supabase-js": "^2.89.0",
+    "@variant-systems/expo-dynamic-app-icon": "^1.0.2",
     "babel-preset-expo": "^54.0.9",
     "expo": "~54.0.30",
     "expo-av": "~16.0.8",
