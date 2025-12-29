@@ -17,7 +17,7 @@ export function useVoiceRecording(): UseVoiceRecordingReturn {
     const [isProcessing, setIsProcessing] = useState(false);
     const [recordingDuration, setRecordingDuration] = useState(0);
     const recordingRef = useRef<Audio.Recording | null>(null);
-    const durationIntervalRef = useRef<NodeJS.Timeout | null>(null);
+    const durationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     // Cleanup on unmount
     useEffect(() => {
@@ -61,9 +61,7 @@ export function useVoiceRecording(): UseVoiceRecordingReturn {
                 setRecordingDuration(prev => prev + 1);
             }, 1000);
 
-            console.log('[Voice] Recording started');
-        } catch (error) {
-            console.error('[Voice] Failed to start recording:', error);
+        } catch {
             Alert.alert('Error', 'Failed to start recording');
         }
     }, []);
@@ -84,8 +82,6 @@ export function useVoiceRecording(): UseVoiceRecordingReturn {
             await recordingRef.current.stopAndUnloadAsync();
             const uri = recordingRef.current.getURI();
 
-            console.log('[Voice] Recording stopped, URI:', uri);
-
             // Reset audio mode
             await Audio.setAudioModeAsync({
                 allowsRecordingIOS: false,
@@ -97,8 +93,7 @@ export function useVoiceRecording(): UseVoiceRecordingReturn {
             setIsProcessing(false);
 
             return uri;
-        } catch (error) {
-            console.error('[Voice] Failed to stop recording:', error);
+        } catch {
             setIsRecording(false);
             setIsProcessing(false);
             return null;
@@ -131,10 +126,7 @@ export function useVoiceRecording(): UseVoiceRecordingReturn {
             recordingRef.current = null;
             setIsRecording(false);
             setRecordingDuration(0);
-
-            console.log('[Voice] Recording cancelled');
-        } catch (error) {
-            console.error('[Voice] Failed to cancel recording:', error);
+        } catch {
             setIsRecording(false);
         }
     }, []);

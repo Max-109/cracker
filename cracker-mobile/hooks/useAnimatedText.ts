@@ -45,7 +45,7 @@ export function useAnimatedText(
 
     // Track previous text to detect resets
     const prevTextRef = useRef(text);
-    const animationRef = useRef<NodeJS.Timeout | null>(null);
+    const animationRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const startTimeRef = useRef<number>(0);
 
     // Calculate units based on delimiter

@@ -231,9 +231,7 @@ export default function MessageItem({
             Clipboard.setString(content || '');
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
-        } catch (e) {
-            console.error('Copy failed:', e);
-        }
+        } catch { }
     }, [content]);
 
     const getModelDisplay = () => {
@@ -306,25 +304,28 @@ export default function MessageItem({
                     </>
                 )}
 
-                {/* Reasoning section (collapsible) */}
+                {/* Reasoning section (collapsible) - matches web thinking accordion */}
                 {reasoning && (
                     <TouchableOpacity
                         onPress={() => setShowReasoning(!showReasoning)}
-                        style={[styles.reasoningBox, { borderColor: `${theme.accent}40` }]}
+                        style={[styles.reasoningBox, { borderColor: COLORS.border }]}
                     >
                         <View style={styles.reasoningHeader}>
                             <Ionicons
                                 name={showReasoning ? "chevron-down" : "chevron-forward"}
-                                size={14}
+                                size={12}
                                 color={COLORS.textSecondary}
                             />
-                            <Text style={[styles.reasoningLabel, { color: theme.accent }]}>
-                                CRACKED
+                            {/* Dynamic label: random during streaming, "CRACKED" when done */}
+                            <Text style={[styles.reasoningLabel, { color: COLORS.textSecondary }]}>
+                                {isStreaming ? randomLabel : 'CRACKED'}
                             </Text>
                         </View>
                         {showReasoning && (
                             <View style={styles.reasoningContent}>
-                                <Text style={styles.reasoningText}>{reasoning}</Text>
+                                <Markdown style={markdownStyles} rules={markdownRules}>
+                                    {reasoning}
+                                </Markdown>
                             </View>
                         )}
                     </TouchableOpacity>
@@ -537,36 +538,27 @@ const styles = StyleSheet.create({
     },
 
     // ═══════════════════════════════════════════════════════════════════════
-    // REASONING
+    // REASONING - matches web thinking accordion exactly
     // ═══════════════════════════════════════════════════════════════════════
     reasoningBox: {
         backgroundColor: '#141414',
         borderWidth: 1,
-        paddingHorizontal: 12,
-        paddingVertical: 8,
+        padding: 12, // web: p-3 = 12px
         marginBottom: 8,
     },
     reasoningHeader: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 8,
+        gap: 8, // web: gap-2 = 8px
     },
     reasoningLabel: {
-        fontSize: 11,
+        fontSize: 12, // web: text-xs = 12px
         fontWeight: '600',
-        letterSpacing: 2,
+        letterSpacing: 1.44, // web: tracking-[0.12em] = 0.12 * 12 = 1.44
         textTransform: 'uppercase',
         fontFamily: FONTS.mono,
     },
     reasoningContent: {
-        marginTop: 8,
-        paddingTop: 8,
-        borderTopWidth: 1,
-        borderTopColor: COLORS.border,
-    },
-    reasoningText: {
-        color: COLORS.textSecondary,
-        fontSize: 13,
-        lineHeight: 20,
+        marginTop: 8, // web: mt-2 = 8px
     },
 });

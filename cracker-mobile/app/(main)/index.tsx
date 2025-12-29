@@ -50,13 +50,9 @@ export default function HomeScreen() {
     // Load chats for drawer
     const loadChats = useCallback(async () => {
         try {
-            console.log('[Home] Loading chats...');
             const response = await api.getChats();
-            console.log('[Home] Chats loaded:', response?.length || 0);
             setChats(response || []);
-        } catch (error: any) {
-            console.error('[Home] Failed to load chats:', error);
-        }
+        } catch { }
     }, []);
 
     useEffect(() => {
@@ -71,14 +67,12 @@ export default function HomeScreen() {
             try {
                 const uri = await stopRecording();
                 if (uri) {
-                    console.log('[Home] Transcribing audio...');
                     const result = await api.transcribe(uri, 'gemini');
                     if (result.text) {
                         setInputValue(prev => prev + (prev ? ' ' : '') + result.text);
                     }
                 }
-            } catch (error: any) {
-                console.error('[Home] Transcription failed:', error);
+            } catch {
                 Alert.alert('Error', 'Failed to transcribe audio');
             } finally {
                 setIsTranscribing(false);
@@ -96,9 +90,7 @@ export default function HomeScreen() {
 
         setIsCreating(true);
         try {
-            console.log('[Home] Creating chat with message:', message.slice(0, 30));
             const chat = await api.createChat(message.slice(0, 50), 'cracking');
-            console.log('[Home] Chat created:', chat);
 
             if (!chat?.id) {
                 Alert.alert('Error', 'Failed to create chat: No ID returned');
@@ -106,14 +98,13 @@ export default function HomeScreen() {
             }
 
             router.push({
-                pathname: `/(main)/chat/${chat.id}`,
-                params: { initialMessage: message },
+                pathname: '/(main)/chat/[id]',
+                params: { id: chat.id, initialMessage: message },
             });
             setInputValue('');
             clearAttachments();
             loadChats();
         } catch (error: any) {
-            console.error('[Home] Failed to create chat:', error);
             Alert.alert('Error', error?.message || 'Failed to create chat');
         } finally {
             setIsCreating(false);

@@ -90,13 +90,10 @@ export async function setAppIconSafe(iconName: string): Promise<boolean> {
     try {
         // Default export from the package
         const ExpoDynamicAppIcon = require('@variant-systems/expo-dynamic-app-icon').default;
-
-        console.log('[IconMatcher] Setting app icon to:', iconName);
         ExpoDynamicAppIcon.setAppIcon(iconName);
         return true;
-    } catch (error) {
+    } catch {
         // Package not available
-        console.log('[IconMatcher] Dynamic icon not available:', error);
         return false;
     }
 }

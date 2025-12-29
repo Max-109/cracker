@@ -47,16 +47,10 @@ export default function ChatScreen() {
     // Voice recording
     const { isRecording, startRecording, stopRecording } = useVoiceRecording();
 
-    // Debug state
-    const [debugInfo, setDebugInfo] = useState({
-        lastEvent: '',
-        eventCount: 0,
-        error: '',
-        status: 'idle',
-    });
-
     const flatListRef = useRef<FlatList>(null);
     const abortControllerRef = useRef<AbortController | null>(null);
+    const streamingReasoningRef = useRef('');
+    const accumulatedTextRef = useRef('');
     const theme = useTheme();
     const {
         chatMode,
@@ -78,9 +72,7 @@ export default function ChatScreen() {
         try {
             const response = await api.getChats();
             setChats(response || []);
-        } catch (error) {
-            console.error('[Chat] Failed to load chats:', error);
-        }
+        } catch { }
     }, []);
 
     // Load chat messages
@@ -94,11 +86,9 @@ export default function ChatScreen() {
                 try {
                     messagesData = await api.getChat(id);
                 } catch (apiError: any) {
-                    console.error('[Chat] API error loading chat:', apiError);
                     // Handle specific API errors
                     if (apiError?.status === 404 || apiError?.status === 401) {
                         // Chat was deleted or doesn't exist - navigate back gracefully
-                        setDebugInfo(prev => ({ ...prev, error: 'Chat not found' }));
                         setIsLoading(false);
                         setTimeout(() => router.back(), 100);
                         return;
@@ -109,7 +99,6 @@ export default function ChatScreen() {
 
                 // Defensive check - ensure we have an array
                 if (!messagesData || !Array.isArray(messagesData)) {
-                    console.warn('[Chat] Invalid response format, expected array:', typeof messagesData);
                     setMessages([]);
                     setIsLoading(false);
                     return;
@@ -132,14 +121,23 @@ export default function ChatScreen() {
                         content = '';
                     }
 
+                    // Safely parse tokensPerSecond (stored as TEXT in DB)
+                    let tps: number | undefined;
+                    if (msg.tokensPerSecond != null) {
+                        const parsed = parseFloat(String(msg.tokensPerSecond));
+                        if (!isNaN(parsed) && isFinite(parsed)) {
+                            tps = parsed;
+                        }
+                    }
+
                     return {
                         id: msg.id || `msg-${Date.now()}-${Math.random()}`,
                         role: msg.role || 'user',
                         content,
                         createdAt,
                         parts: msg.parts,
-                        model: msg.model,
-                        tokensPerSecond: msg.tokensPerSecond,
+                        model: msg.model || undefined,
+                        tokensPerSecond: tps,
                     };
                 });
                 setMessages(formattedMessages);
@@ -152,10 +150,7 @@ export default function ChatScreen() {
                         : '';
                     setChatTitle(content.slice(0, 40) || 'Chat');
                 }
-            } catch (error) {
-                console.error('[Chat] Failed to load chat:', error);
-                setDebugInfo(prev => ({ ...prev, error: String(error) }));
-            } finally {
+            } catch { } finally {
                 setIsLoading(false);
             }
         };
@@ -192,14 +187,12 @@ export default function ChatScreen() {
             try {
                 const uri = await stopRecording();
                 if (uri) {
-                    console.log('[Chat] Transcribing audio...');
                     const result = await api.transcribe(uri, 'gemini');
                     if (result.text) {
                         setInput(prev => prev + (prev ? ' ' : '') + result.text);
                     }
                 }
-            } catch (error: any) {
-                console.error('[Chat] Transcription failed:', error);
+            } catch {
                 Alert.alert('Error', 'Failed to transcribe audio');
             } finally {
                 setIsTranscribing(false);
@@ -213,6 +206,9 @@ export default function ChatScreen() {
     // Send message function
     const sendMessage = useCallback(async (messageText: string) => {
         if (!messageText.trim() || isStreaming) return;
+
+        // Check if this is the first message (for title generation)
+        const isFirstMessage = messages.length === 0;
 
         const userMessage: ChatMessage = {
             id: `temp-${Date.now()}`,
@@ -229,7 +225,10 @@ export default function ChatScreen() {
         setStreamingContent('');
         setStreamingReasoning('');
         setCurrentTps(undefined);
-        setDebugInfo({ lastEvent: '', eventCount: 0, error: '', status: 'connecting' });
+
+        // Reset refs for new message
+        streamingReasoningRef.current = '';
+        accumulatedTextRef.current = '';
 
         const assistantMessage: ChatMessage = {
             id: `temp-assistant-${Date.now()}`,
@@ -246,7 +245,6 @@ export default function ChatScreen() {
             effort = autoReasoning.effort;
         } catch { }
 
-        let accumulated = '';
         let startTime = Date.now();
         let tokenCount = 0;
 
@@ -274,12 +272,6 @@ export default function ChatScreen() {
             },
             (event: unknown) => {
                 const e = event as StreamEvent;
-                setDebugInfo(prev => ({
-                    ...prev,
-                    lastEvent: e.type,
-                    eventCount: prev.eventCount + 1,
-                    status: 'streaming',
-                }));
 
                 switch (e.type) {
                     // AI SDK v4 new format events
@@ -296,7 +288,9 @@ export default function ChatScreen() {
                         setThinkingLabel('THINKING');
                         break;
                     case 'reasoning-delta':
-                        setStreamingReasoning(prev => prev + ((e as any).delta || ''));
+                        const reasoningDelta = (e as any).delta || '';
+                        streamingReasoningRef.current += reasoningDelta;
+                        setStreamingReasoning(streamingReasoningRef.current);
                         break;
                     case 'reasoning-end':
                         // Reasoning complete, waiting for text
@@ -310,7 +304,7 @@ export default function ChatScreen() {
                         setIsThinking(false);
                         // Handle both old format (textDelta) and new format (delta)
                         const textDelta = (e as any).textDelta || (e as any).delta || '';
-                        accumulated += textDelta;
+                        accumulatedTextRef.current += textDelta;
                         tokenCount++;
 
                         // Calculate TPS
@@ -319,7 +313,7 @@ export default function ChatScreen() {
                             setCurrentTps(tokenCount / elapsed);
                         }
 
-                        setStreamingContent(accumulated);
+                        setStreamingContent(accumulatedTextRef.current);
                         break;
                     case 'text-end':
                         // Text segment complete
@@ -344,18 +338,34 @@ export default function ChatScreen() {
                         setThinkingLabel((e as any).status?.toUpperCase() || 'PROCESSING');
                         break;
                     case 'reasoning':
-                        setStreamingReasoning(prev => prev + ((e as any).textDelta || ''));
+                        const legacyReasoningDelta = (e as any).textDelta || '';
+                        streamingReasoningRef.current += legacyReasoningDelta;
+                        setStreamingReasoning(streamingReasoningRef.current);
                         break;
 
                     // Finish events
                     case 'finish':
+                        // Build content as array of parts (matches web/server format)
+                        // This preserves reasoning for display after stream ends
+                        const finalReasoning = streamingReasoningRef.current;
+                        const finalText = accumulatedTextRef.current;
+
                         setMessages(prev => {
                             const updated = [...prev];
                             const lastIndex = updated.length - 1;
                             if (updated[lastIndex]?.role === 'assistant') {
+                                // Store as parts array to preserve reasoning
+                                const contentParts: any[] = [];
+                                if (finalReasoning) {
+                                    contentParts.push({ type: 'reasoning', text: finalReasoning });
+                                }
+                                if (finalText) {
+                                    contentParts.push({ type: 'text', text: finalText });
+                                }
+
                                 updated[lastIndex] = {
                                     ...updated[lastIndex],
-                                    content: accumulated,
+                                    content: contentParts.length > 0 ? contentParts : finalText,
                                     tokensPerSecond: currentTps,
                                 };
                             }
@@ -364,13 +374,17 @@ export default function ChatScreen() {
                         setIsStreaming(false);
                         setIsThinking(false);
                         setIsConnecting(false);
-                        setDebugInfo(prev => ({ ...prev, status: 'done' }));
+
+                        // Generate title for first message (matches web behavior)
+                        if (isFirstMessage && id) {
+                            api.generateTitle(id, messageText.trim().substring(0, 300))
+                                .then(() => loadChats())
+                                .catch(() => { });
+                        }
                         break;
                 }
             },
-            (error) => {
-                console.error('Stream error:', error);
-                setDebugInfo(prev => ({ ...prev, error: String(error), status: 'error' }));
+            () => {
                 setIsStreaming(false);
                 setIsThinking(false);
                 setIsConnecting(false);
@@ -402,48 +416,61 @@ export default function ChatScreen() {
     const renderMessage = ({ item, index }: { item: ChatMessage; index: number }) => {
         const isStreamingMessage = isStreaming && index === messages.length - 1 && item.role === 'assistant';
 
-        // Extract text content with comprehensive fallback
+        // Extract text content AND reasoning (matches web MessageItem.tsx parsing)
         let contentText = '';
+        let reasoningText = '';
+
         if (isStreamingMessage) {
-            contentText = streamingContent;
+            contentText = streamingContent || '';
+            reasoningText = streamingReasoning || '';
         } else {
             try {
-                if (typeof item.content === 'string') {
-                    contentText = item.content;
-                } else if (Array.isArray(item.content)) {
-                    // Array of parts - filter for text parts
-                    contentText = item.content
-                        .filter((p: any) => p && p.type === 'text')
-                        .map((p: any) => p.text || '')
-                        .join('');
-                } else if (item.content && typeof item.content === 'object') {
-                    // Single object (not array) - check if it has text property
-                    const obj = item.content as any;
+                const content = item.content;
+                if (content == null) {
+                    // null or undefined - use empty string
+                    contentText = '';
+                } else if (typeof content === 'string') {
+                    contentText = content;
+                } else if (Array.isArray(content)) {
+                    // Array of parts - parse for text AND reasoning
+                    for (const part of content) {
+                        if (!part || typeof part !== 'object') continue;
+                        const p = part as any;
+                        if (p.type === 'reasoning') {
+                            reasoningText += (p.reasoning || p.text || '');
+                        } else if (p.type === 'text') {
+                            contentText += (p.text || '');
+                        }
+                    }
+                } else if (typeof content === 'object') {
+                    const obj = content as any;
                     if (obj.type === 'text' && obj.text) {
-                        contentText = obj.text;
+                        contentText = String(obj.text);
+                    } else if (obj.type === 'reasoning') {
+                        reasoningText = String(obj.reasoning || obj.text || '');
                     } else if (obj.text) {
-                        contentText = obj.text;
-                    } else {
-                        // Fallback: try to stringify for debugging
-                        console.warn('[Chat] Unknown content object format:', JSON.stringify(obj).slice(0, 100));
-                        contentText = '';
+                        contentText = String(obj.text);
                     }
                 }
-            } catch (e) {
-                console.error('[Chat] Error extracting content:', e);
+            } catch {
                 contentText = '';
+                reasoningText = '';
             }
         }
+
+        // Show loading grid ONLY during initial connection (before first token arrives)
+        const showThinking = isStreamingMessage && isConnecting && !contentText && !reasoningText;
 
         return (
             <MessageItem
                 id={item.id}
                 role={item.role as 'user' | 'assistant'}
                 content={contentText}
+                reasoning={reasoningText || undefined}
                 model={item.model}
                 tokensPerSecond={isStreamingMessage ? currentTps : item.tokensPerSecond}
                 isStreaming={isStreamingMessage}
-                isThinking={isStreamingMessage && isThinking && !contentText}
+                isThinking={showThinking}
                 createdAt={item.createdAt instanceof Date && !isNaN(item.createdAt.getTime()) ? item.createdAt.toISOString() : undefined}
             />
         );
@@ -527,27 +554,6 @@ export default function ChatScreen() {
                     <AccentColorPicker />
                 </View>
             </View>
-
-            {/* Debug Panel */}
-            {(debugInfo.status !== 'idle' || debugInfo.error) && (
-                <View style={{
-                    backgroundColor: '#1a1a1a',
-                    borderWidth: 1,
-                    borderColor: debugInfo.error ? '#f87171' : COLORS.border,
-                    marginHorizontal: 16,
-                    marginTop: 8,
-                    padding: 8,
-                }}>
-                    <Text style={{ color: COLORS.textSecondary, fontSize: 9, fontFamily: FONTS.mono }}>
-                        Status: {debugInfo.status} | Events: {debugInfo.eventCount} | Last: {debugInfo.lastEvent || 'none'}
-                    </Text>
-                    {debugInfo.error && (
-                        <Text style={{ color: '#f87171', fontSize: 9, fontFamily: FONTS.mono, marginTop: 4 }}>
-                            Error: {debugInfo.error}
-                        </Text>
-                    )}
-                </View>
-            )}
 
             {/* Messages */}
             <FlatList

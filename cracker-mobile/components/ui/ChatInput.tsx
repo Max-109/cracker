@@ -112,23 +112,23 @@ export default function ChatInput({
                     flexDirection: 'row',
                     alignItems: 'flex-end',
                     backgroundColor: COLORS.bgCard,
-                    borderWidth: 2,
-                    borderColor: isFocused ? theme.accent : COLORS.border,
+                    borderWidth: 1,
+                    borderColor: isFocused ? `${theme.accent}80` : COLORS.border, // web: 50% opacity on focus
                     borderRadius: BORDER_RADIUS,
                     minHeight: 56,
-                    paddingHorizontal: 6,
-                    paddingVertical: 6,
-                    gap: 6,
+                    paddingHorizontal: 10, // web: p-2.5 = 10px
+                    paddingVertical: 10,
+                    gap: 8, // web: gap-2 = 8px
                 }}
             >
-                {/* Attachment Button */}
+                {/* Attachment Button - matches web Paperclip button */}
                 <TouchableOpacity
                     onPress={onAttachment}
                     activeOpacity={0.7}
                     style={{
-                        width: BUTTON_SIZE,
-                        height: BUTTON_SIZE,
-                        backgroundColor: COLORS.bgMain,
+                        width: 40, // web: w-10 = 40px
+                        height: 40, // web: h-10 = 40px
+                        backgroundColor: COLORS.bgCard,
                         borderWidth: 1,
                         borderColor: COLORS.border,
                         borderRadius: BORDER_RADIUS,
@@ -136,7 +136,7 @@ export default function ChatInput({
                         justifyContent: 'center',
                     }}
                 >
-                    <Ionicons name="add" size={22} color={COLORS.textSecondary} />
+                    <Ionicons name="attach" size={16} color={COLORS.textSecondary} />
                 </TouchableOpacity>
 
                 {/* Input Field */}
@@ -162,31 +162,31 @@ export default function ChatInput({
                     }}
                 />
 
-                {/* Right Side Button */}
+                {/* Right Side Button - all 40x40 to match web */}
                 {isStreaming ? (
-                    // Stop button
+                    // Stop button - web: Square icon with accent border
                     <TouchableOpacity
                         onPress={handleStopPress}
                         activeOpacity={0.7}
                         style={{
-                            width: BUTTON_SIZE,
-                            height: BUTTON_SIZE,
-                            backgroundColor: COLORS.bgMain,
-                            borderWidth: 2,
+                            width: 40,
+                            height: 40,
+                            backgroundColor: COLORS.bgCard,
+                            borderWidth: 1,
                             borderColor: theme.accent,
                             borderRadius: BORDER_RADIUS,
                             alignItems: 'center',
                             justifyContent: 'center',
                         }}
                     >
-                        <Ionicons name="stop" size={16} color={theme.accent} />
+                        <Ionicons name="stop" size={14} color={theme.accent} />
                     </TouchableOpacity>
                 ) : isLoading ? (
                     // Loading spinner
                     <View
                         style={{
-                            width: BUTTON_SIZE,
-                            height: BUTTON_SIZE,
+                            width: 40,
+                            height: 40,
                             alignItems: 'center',
                             justifyContent: 'center',
                         }}
@@ -194,32 +194,32 @@ export default function ChatInput({
                         <ActivityIndicator size="small" color={theme.accent} />
                     </View>
                 ) : hasText ? (
-                    // Send button
+                    // Send button - web: accent bg with ArrowUp
                     <Animated.View entering={ZoomIn.duration(100)} exiting={ZoomOut.duration(100)}>
                         <TouchableOpacity
                             onPress={handleSendPress}
                             activeOpacity={0.8}
                             style={{
-                                width: BUTTON_SIZE,
-                                height: BUTTON_SIZE,
+                                width: 40,
+                                height: 40,
                                 backgroundColor: theme.accent,
                                 borderRadius: BORDER_RADIUS,
                                 alignItems: 'center',
                                 justifyContent: 'center',
                             }}
                         >
-                            <Ionicons name="arrow-up" size={20} color="#000" />
+                            <Ionicons name="arrow-up" size={18} color="#000" />
                         </TouchableOpacity>
                     </Animated.View>
                 ) : (
-                    // Mic button
+                    // Mic button - web: Mic icon
                     <TouchableOpacity
                         onPress={handleMicPress}
                         activeOpacity={0.7}
                         style={{
-                            width: BUTTON_SIZE,
-                            height: BUTTON_SIZE,
-                            backgroundColor: isRecording ? theme.accent : COLORS.bgMain,
+                            width: 40,
+                            height: 40,
+                            backgroundColor: isRecording ? theme.accent : COLORS.bgCard,
                             borderWidth: 1,
                             borderColor: isRecording ? theme.accent : COLORS.border,
                             borderRadius: BORDER_RADIUS,
@@ -229,7 +229,7 @@ export default function ChatInput({
                     >
                         <Ionicons
                             name={isRecording ? "stop" : "mic-outline"}
-                            size={20}
+                            size={18}
                             color={isRecording ? "#000" : COLORS.textSecondary}
                         />
                     </TouchableOpacity>

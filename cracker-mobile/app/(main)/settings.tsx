@@ -52,7 +52,7 @@ export default function SettingsScreen() {
     const [loadingFacts, setLoadingFacts] = useState(true);
 
     useEffect(() => {
-        syncFromServer().catch(console.error);
+        syncFromServer().catch(() => { });
         // Fetch memory facts
         api.getUserFacts().then(data => {
             setFacts(data.facts || []);
@@ -220,7 +220,7 @@ export default function SettingsScreen() {
                                     ]}
                                     onPress={() => {
                                         setUserGender(option.value);
-                                        saveToServer().catch(console.error);
+                                        saveToServer().catch(() => { });
                                     }}
                                 >
                                     <Text style={[
@@ -291,7 +291,7 @@ export default function SettingsScreen() {
                             value={responseLength}
                             onChange={(val) => {
                                 setResponseLength(val);
-                                saveToServer().catch(console.error);
+                                saveToServer().catch(() => { });
                             }}
                         />
                         <Text style={{ color: COLORS.textMuted, fontSize: 11, marginTop: 8, fontFamily: FONTS.mono }}>
@@ -331,7 +331,7 @@ export default function SettingsScreen() {
                         value={codeWrap}
                         onValueChange={(value) => {
                             setCodeWrap(value);
-                            saveToServer().catch(console.error);
+                            saveToServer().catch(() => { });
                         }}
                     />
                     <ToggleRow
@@ -341,7 +341,7 @@ export default function SettingsScreen() {
                         value={autoScroll}
                         onValueChange={(value) => {
                             setAutoScroll(value);
-                            saveToServer().catch(console.error);
+                            saveToServer().catch(() => { });
                         }}
                     />
                 </View>
@@ -357,7 +357,7 @@ export default function SettingsScreen() {
                         value={enabledMcpServers.includes('brave-search')}
                         onValueChange={(value) => {
                             toggleMcpServer('brave-search', value);
-                            saveToServer().catch(console.error);
+                            saveToServer().catch(() => { });
                         }}
                     />
                     <ToggleRow
@@ -367,7 +367,7 @@ export default function SettingsScreen() {
                         value={enabledMcpServers.includes('youtube')}
                         onValueChange={(value) => {
                             toggleMcpServer('youtube', value);
-                            saveToServer().catch(console.error);
+                            saveToServer().catch(() => { });
                         }}
                     />
                 </View>

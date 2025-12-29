@@ -27,9 +27,7 @@ export default function CodeBlock({ language, value }: CodeBlockProps) {
             Clipboard.setString(value);
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
-        } catch (e) {
-            console.error('Copy failed:', e);
-        }
+        } catch { }
     }, [value]);
 
     return (

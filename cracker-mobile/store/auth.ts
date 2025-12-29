@@ -26,21 +26,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     initialize: async () => {
         set({ isLoading: true });
         try {
-            console.log('[AuthStore] Initializing auth...');
-
             // First check for Supabase session
-            const { data: { session }, error } = await supabase.auth.getSession();
-
-            if (error) {
-                console.error('[AuthStore] getSession error:', error);
-            }
-
-            console.log('[AuthStore] Session found:', !!session, 'User:', session?.user?.email);
+            const { data: { session } } = await supabase.auth.getSession();
 
             if (session?.user) {
-                console.log('[AuthStore] Setting user from session:', session.user.email);
-                console.log('[AuthStore] Token available:', !!session.access_token);
-
                 // Fetch profile from API to get name and isAdmin
                 let name: string | undefined;
                 let isAdmin = false;
@@ -54,11 +43,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                         const profile = await profileRes.json();
                         name = profile.name || undefined;
                         isAdmin = profile.isAdmin === true;
-                        console.log('[AuthStore] Profile fetched:', name, 'isAdmin:', isAdmin);
                     }
-                } catch (profileError) {
-                    console.error('[AuthStore] Failed to fetch profile:', profileError);
-                }
+                } catch { }
 
                 set({
                     user: {
@@ -89,14 +75,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
                             },
                         });
                     }
-                } catch (parseError) {
-                    console.error('Failed to parse JWT:', parseError);
+                } catch {
                     await SecureStore.deleteItemAsync('guest-jwt');
                 }
             }
-        } catch (error) {
-            console.error('Auth initialization error:', error);
-        } finally {
+        } catch { } finally {
             set({ isLoading: false, isInitialized: true });
         }
     },
@@ -185,9 +168,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             }
 
             set({ user: null });
-        } catch (error) {
-            console.error('Logout error:', error);
-        } finally {
+        } catch { } finally {
             set({ isLoading: false });
         }
     },

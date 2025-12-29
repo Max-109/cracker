@@ -28,9 +28,7 @@ export default function MemorySection() {
             setIsLoading(true);
             const response = await api.getUserFacts();
             setFacts(response.facts || []);
-        } catch (error) {
-            console.error('[Memory] Failed to load facts:', error);
-        } finally {
+        } catch { } finally {
             setIsLoading(false);
         }
     }, []);
@@ -53,8 +51,7 @@ export default function MemorySection() {
                             setIsDeleting(factId);
                             await api.deleteFact(factId);
                             setFacts(prev => prev.filter(f => f.id !== factId));
-                        } catch (error) {
-                            console.error('[Memory] Failed to delete fact:', error);
+                        } catch {
                             Alert.alert('Error', 'Failed to delete memory');
                         } finally {
                             setIsDeleting(null);
@@ -81,8 +78,7 @@ export default function MemorySection() {
                             setIsLoading(true);
                             await api.clearAllFacts();
                             setFacts([]);
-                        } catch (error) {
-                            console.error('[Memory] Failed to clear facts:', error);
+                        } catch {
                             Alert.alert('Error', 'Failed to clear memories');
                         } finally {
                             setIsLoading(false);

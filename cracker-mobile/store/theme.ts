@@ -1,5 +1,19 @@
 import { create } from 'zustand';
+import type { MMKV } from 'react-native-mmkv';
 import { useSettingsStore } from './settings';
+
+// Get cached accent color at module load for instant theme
+let initialAccentColor = '#af8787';
+try {
+    const m = require('react-native-mmkv');
+    const storage = new m.MMKV() as MMKV;
+    const cachedColor = storage.getString('accentColor');
+    if (cachedColor) {
+        initialAccentColor = cachedColor;
+    }
+} catch {
+    // Silent fail - use default
+}
 
 // Utility to convert hex to RGB
 function hexToRgb(hex: string): { r: number; g: number; b: number } {
@@ -76,7 +90,7 @@ const computeColors = (accent: string): ThemeColors => {
 };
 
 export const useThemeStore = create<ThemeState>(() => ({
-    colors: computeColors('#af8787'),
+    colors: computeColors(initialAccentColor),
     computeColors,
 }));
 

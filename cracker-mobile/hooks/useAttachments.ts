@@ -52,10 +52,8 @@ export function useAttachments(): UseAttachmentsReturn {
                 });
 
                 setAttachments(prev => [...prev, ...newAttachments]);
-                console.log('[Attachments] Added:', newAttachments.length, 'files');
             }
-        } catch (error) {
-            console.error('[Attachments] Failed to pick:', error);
+        } catch {
             Alert.alert('Error', 'Failed to pick file');
         }
     }, []);

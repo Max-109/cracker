@@ -20,33 +20,24 @@ async function getAuthToken(): Promise<string | null> {
         // 1. Check for guest JWT first
         const guestJwt = await SecureStore.getItemAsync('guest-jwt');
         if (guestJwt) {
-            console.log('[Auth] Using guest JWT');
             return guestJwt;
         }
 
         // 2. Try getting Supabase session
-        let { data, error } = await supabase.auth.getSession();
-
-        if (error) {
-            console.error('[Auth] Supabase getSession error:', error);
-        }
+        const { data } = await supabase.auth.getSession();
 
         // 3. If no session, try refreshing
         if (!data.session) {
-            console.log('[Auth] No session, attempting refresh...');
             const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
 
             if (refreshError) {
-                console.error('[Auth] Refresh failed:', refreshError);
                 return null;
             }
 
             if (refreshed.session) {
-                console.log('[Auth] Session refreshed successfully');
                 return refreshed.session.access_token;
             }
 
-            console.warn('[Auth] No session after refresh');
             return null;
         }
 
@@ -55,17 +46,14 @@ async function getAuthToken(): Promise<string | null> {
         const now = Math.floor(Date.now() / 1000);
 
         if (expiresAt && expiresAt - now < 60) {
-            console.log('[Auth] Session expiring soon, refreshing...');
             const { data: refreshed } = await supabase.auth.refreshSession();
             if (refreshed.session) {
                 return refreshed.session.access_token;
             }
         }
 
-        console.log('[Auth] Using Supabase token, expires:', expiresAt);
         return data.session.access_token;
-    } catch (e) {
-        console.error('[Auth] getAuthToken error:', e);
+    } catch {
         return null;
     }
 }
@@ -78,8 +66,6 @@ export async function apiFetch<T = unknown>(
     options: RequestInit = {}
 ): Promise<T> {
     const token = await getAuthToken();
-
-    console.log(`[API] ${options.method || 'GET'} ${path} - Token: ${token ? 'YES' : 'NO'}`);
 
     const headers: HeadersInit = {
         'Content-Type': 'application/json',
@@ -94,7 +80,6 @@ export async function apiFetch<T = unknown>(
 
     if (!response.ok) {
         const errorText = await response.text().catch(() => 'Unknown error');
-        console.error(`[API] Error ${response.status}: ${errorText}`);
         throw new ApiError(response.status, errorText);
     }
 
@@ -109,6 +94,8 @@ export async function apiFetch<T = unknown>(
 
 /**
  * Streaming fetch for SSE endpoints like /api/chat
+ * Uses fetch with ReadableStream for real-time streaming (supported in Expo SDK 54+)
+ * Falls back to XMLHttpRequest if ReadableStream is not available
  */
 export async function apiStreamFetch(
     path: string,
@@ -118,53 +105,53 @@ export async function apiStreamFetch(
 ): Promise<void> {
     const token = await getAuthToken();
 
-    // React Native's fetch polyfill doesn't support ReadableStream body
-    // Use XMLHttpRequest for SSE streaming instead
-    return new Promise((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhr.open('POST', `${API_BASE}${path}`);
+    try {
+        const response = await fetch(`${API_BASE}${path}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'text/event-stream',
+                ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify(body),
+            // @ts-ignore - React Native specific option for streaming
+            reactNative: { textStreaming: true },
+        });
 
-        xhr.setRequestHeader('Content-Type', 'application/json');
-        xhr.setRequestHeader('Accept', 'text/event-stream');
-        if (token) {
-            xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+        if (!response.ok) {
+            throw new ApiError(response.status, response.statusText || 'Request failed');
         }
 
-        let buffer = '';
-        let lastProcessedIndex = 0;
+        // Try to use ReadableStream (real-time streaming)
+        const reader = response.body?.getReader();
+        if (reader) {
+            const decoder = new TextDecoder();
+            let buffer = '';
 
-        xhr.onprogress = () => {
-            // Process new data
-            const newData = xhr.responseText.substring(lastProcessedIndex);
-            lastProcessedIndex = xhr.responseText.length;
+            while (true) {
+                const { done, value } = await reader.read();
 
-            buffer += newData;
-
-            // Parse SSE events
-            const lines = buffer.split('\n');
-            buffer = lines.pop() || ''; // Keep incomplete line in buffer
-
-            for (const line of lines) {
-                if (line.startsWith('data: ')) {
-                    const data = line.slice(6);
-                    if (data === '[DONE]') continue;
-
-                    try {
-                        const event = JSON.parse(data);
-                        onEvent(event);
-                    } catch {
-                        // Skip invalid JSON
+                if (done) {
+                    // Process any remaining data in buffer
+                    if (buffer.trim()) {
+                        processSSEBuffer(buffer, onEvent);
                     }
+                    break;
                 }
-            }
-        };
 
-        xhr.onload = () => {
-            if (xhr.status >= 200 && xhr.status < 300) {
-                // Process any remaining data in buffer
-                if (buffer.startsWith('data: ')) {
-                    const data = buffer.slice(6);
-                    if (data && data !== '[DONE]') {
+                // Decode the chunk and add to buffer
+                const chunk = decoder.decode(value, { stream: true });
+                buffer += chunk;
+
+                // Process complete SSE events (lines ending with \n\n or \n)
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || ''; // Keep incomplete line in buffer
+
+                for (const line of lines) {
+                    if (line.startsWith('data: ')) {
+                        const data = line.slice(6).trim();
+                        if (data === '[DONE]') continue;
+
                         try {
                             const event = JSON.parse(data);
                             onEvent(event);
@@ -173,20 +160,36 @@ export async function apiStreamFetch(
                         }
                     }
                 }
-                resolve();
-            } else {
-                onError?.(new ApiError(xhr.status, xhr.statusText || 'Request failed'));
-                reject(new Error(`HTTP ${xhr.status}`));
             }
-        };
+        } else {
+            // Fallback: parse entire response at once (no real streaming)
+            const text = await response.text();
+            processSSEBuffer(text, onEvent);
+        }
+    } catch (error) {
+        onError?.(error instanceof Error ? error : new Error(String(error)));
+        throw error;
+    }
+}
 
-        xhr.onerror = () => {
-            onError?.(new Error('Network error'));
-            reject(new Error('Network error'));
-        };
-
-        xhr.send(JSON.stringify(body));
-    });
+/**
+ * Helper to process remaining SSE buffer
+ */
+function processSSEBuffer(buffer: string, onEvent: (event: unknown) => void) {
+    const lines = buffer.split('\n');
+    for (const line of lines) {
+        if (line.startsWith('data: ')) {
+            const data = line.slice(6).trim();
+            if (data && data !== '[DONE]') {
+                try {
+                    const event = JSON.parse(data);
+                    onEvent(event);
+                } catch {
+                    // Skip invalid JSON
+                }
+            }
+        }
+    }
 }
 
 // API endpoint helpers
@@ -307,11 +310,11 @@ export const api = {
         });
     },
 
-    // Title generation
-    async generateTitle(messages: { role: string; content: string }[]): Promise<{ title: string }> {
+    // Title generation (matches web API signature)
+    async generateTitle(chatId: string, prompt: string): Promise<{ title: string }> {
         return apiFetch('/api/generate-title', {
             method: 'POST',
-            body: JSON.stringify({ messages }),
+            body: JSON.stringify({ chatId, prompt }),
         });
     },
 

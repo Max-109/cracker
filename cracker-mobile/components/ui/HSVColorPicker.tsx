@@ -100,7 +100,6 @@ export function HSVColorPicker({ onColorChange }: HSVColorPickerProps) {
     // Only apply color when user has actually interacted with the picker
     useEffect(() => {
         if (hasInteracted) {
-            console.log('[HSVColorPicker] User changed color to:', currentColor);
             setAccentColor(currentColor);
             onColorChange?.(currentColor);
         }

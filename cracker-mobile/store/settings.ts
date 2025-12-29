@@ -1,44 +1,66 @@
 import { create } from 'zustand';
-import { MMKV } from 'react-native-mmkv';
+import type { MMKV } from 'react-native-mmkv';
 import { UserSettings, LocalSettings, ChatMode, LearningSubMode, ReasoningEffort } from '../lib/types';
 import { api } from '../lib/api';
 
-// Lazy initialize MMKV storage to avoid crash on app start
+// Lazy initialize MMKV storage - cached for performance
 let storage: MMKV | null = null;
+let storageInitialized = false;
 
 function getStorage(): MMKV {
-    if (!storage) {
+    if (!storageInitialized) {
+        storageInitialized = true;
         try {
             const m = require('react-native-mmkv');
             storage = new m.MMKV() as MMKV;
-        } catch (error) {
-            console.error('Failed to initialize MMKV:', error);
-            // Return a mock storage that does nothing
-            return {
+        } catch {
+            // Return mock storage
+            storage = {
                 getString: () => undefined,
                 getBoolean: () => undefined,
+                getNumber: () => undefined,
                 set: () => { },
+                delete: () => { },
+                contains: () => false,
             } as unknown as MMKV;
         }
     }
     return storage as MMKV;
 }
 
-// Default settings
+// Pre-load cached values - called once at module load for instant startup
+function getCachedValues() {
+    const s = getStorage();
+    return {
+        accentColor: s.getString('accentColor') || '#af8787',
+        codeWrap: s.getBoolean('codeWrap') ?? false,
+        autoScroll: s.getBoolean('autoScroll') ?? true,
+        modelId: s.getString('currentModelId') || 'gemini-2.5-flash',
+        modelName: s.getString('currentModelName') || 'Gemini 2.5 Flash',
+        reasoningEffort: (s.getString('reasoningEffort') as ReasoningEffort) || 'medium',
+        responseLength: s.getNumber('responseLength') ?? 50,
+        chatMode: (s.getString('chatMode') as ChatMode) || 'chat',
+        learningSubMode: (s.getString('learningSubMode') as LearningSubMode) || 'summary',
+    };
+}
+
+const cached = getCachedValues();
+
+// Default settings (use cached values for instant display)
 const defaultLocalSettings: LocalSettings = {
-    accentColor: '#af8787',
-    codeWrap: false,
-    autoScroll: true,
+    accentColor: cached.accentColor,
+    codeWrap: cached.codeWrap,
+    autoScroll: cached.autoScroll,
 };
 
 const defaultUserSettings: Partial<UserSettings> = {
-    currentModelId: 'gemini-2.5-flash',
-    currentModelName: 'Gemini 2.5 Flash',
-    reasoningEffort: 'medium',
-    responseLength: 50,
+    currentModelId: cached.modelId,
+    currentModelName: cached.modelName,
+    reasoningEffort: cached.reasoningEffort,
+    responseLength: cached.responseLength,
     learningMode: false,
-    chatMode: 'chat',
-    learningSubMode: 'summary',
+    chatMode: cached.chatMode,
+    learningSubMode: cached.learningSubMode,
     customInstructions: '',
     userName: '',
     userGender: 'he',
@@ -98,16 +120,16 @@ export const useSettingsStore = create<SettingsState>((set) => ({
     isSynced: false,
 
     initialize: () => {
+        // Settings are already loaded from MMKV cache at module load
+        // This is kept for API compatibility but does minimal work
         try {
             const mmkv = getStorage();
-            // Load local settings from MMKV
-            const accentColor = mmkv.getString('accentColor') || defaultLocalSettings.accentColor;
-            const codeWrap = mmkv.getBoolean('codeWrap') ?? defaultLocalSettings.codeWrap;
-            const autoScroll = mmkv.getBoolean('autoScroll') ?? defaultLocalSettings.autoScroll;
-            console.log('[Settings Mobile] Initialize - MMKV accentColor:', accentColor);
+            const accentColor = mmkv.getString('accentColor') || cached.accentColor;
+            const codeWrap = mmkv.getBoolean('codeWrap') ?? cached.codeWrap;
+            const autoScroll = mmkv.getBoolean('autoScroll') ?? cached.autoScroll;
             set({ accentColor, codeWrap, autoScroll });
-        } catch (error) {
-            console.error('Failed to initialize settings:', error);
+        } catch {
+            // Silent fail - cached values are already in use
         }
     },
 
@@ -115,44 +137,59 @@ export const useSettingsStore = create<SettingsState>((set) => ({
         set({ isLoading: true });
         try {
             const settings = await api.getSettings();
-            console.log('[Settings Mobile] Received from server:', JSON.stringify(settings).slice(0, 200));
 
-            // Apply accent color from server ONLY if present and valid
-            // Don't overwrite cached color with null/undefined from server
+            // Apply accent color from server if present (always sync from server)
             const serverAccentColor = settings.accentColor as string | undefined;
-            console.log('[Settings Mobile] Server accent color:', serverAccentColor);
-            if (serverAccentColor && serverAccentColor !== '#af8787') {
-                // Server has a custom color - use it
-                set({ accentColor: serverAccentColor });
-                try {
-                    getStorage().set('accentColor', serverAccentColor);
-                    console.log('[Settings Mobile] Updated MMKV with server color:', serverAccentColor);
-                } catch { }
+            if (serverAccentColor) {
+                const currentAccent = useSettingsStore.getState().accentColor;
+                // Only update if different to avoid unnecessary re-renders
+                if (serverAccentColor !== currentAccent) {
+                    set({ accentColor: serverAccentColor });
+                    try {
+                        getStorage().set('accentColor', serverAccentColor);
+                    } catch { }
 
-                // Update app icon to match synced color
-                import('../lib/iconMatcher').then(({ updateAppIconForColor }) => {
-                    updateAppIconForColor(serverAccentColor);
-                }).catch(() => { });
-            } else {
-                // Server has default or no color - keep whatever is in MMKV
-                console.log('[Settings Mobile] Keeping MMKV color, server has default');
+                    // Update app icon to match synced color (non-blocking)
+                    import('../lib/iconMatcher').then(({ updateAppIconForColor }) => {
+                        updateAppIconForColor(serverAccentColor);
+                    }).catch(() => { });
+                }
             }
 
+            // Cache critical settings locally for instant startup
+            const mmkv = getStorage();
+            const modelId = String(settings.currentModelId || cached.modelId);
+            const modelName = String(settings.currentModelName || cached.modelName);
+            const effort = (settings.reasoningEffort as ReasoningEffort) || cached.reasoningEffort;
+            const length = Number(settings.responseLength) || cached.responseLength;
+            const mode = (settings.chatMode as ChatMode) || cached.chatMode;
+            const subMode = (settings.learningSubMode as LearningSubMode) || cached.learningSubMode;
+
+            // Persist to MMKV for instant next startup
+            try {
+                mmkv.set('currentModelId', modelId);
+                mmkv.set('currentModelName', modelName);
+                mmkv.set('reasoningEffort', effort as string);
+                mmkv.set('responseLength', length);
+                mmkv.set('chatMode', mode as string);
+                mmkv.set('learningSubMode', subMode as string);
+            } catch { }
+
             set({
-                currentModelId: String(settings.currentModelId || defaultUserSettings.currentModelId),
-                currentModelName: String(settings.currentModelName || defaultUserSettings.currentModelName),
-                reasoningEffort: (settings.reasoningEffort as ReasoningEffort) || defaultUserSettings.reasoningEffort,
-                responseLength: Number(settings.responseLength) || defaultUserSettings.responseLength,
-                chatMode: (settings.chatMode as ChatMode) || defaultUserSettings.chatMode,
-                learningSubMode: (settings.learningSubMode as LearningSubMode) || defaultUserSettings.learningSubMode,
+                currentModelId: modelId,
+                currentModelName: modelName,
+                reasoningEffort: effort,
+                responseLength: length,
+                chatMode: mode,
+                learningSubMode: subMode,
                 customInstructions: String(settings.customInstructions || ''),
                 userName: String(settings.userName || ''),
                 userGender: String(settings.userGender || ''),
                 enabledMcpServers: (settings.enabledMcpServers as string[]) || defaultUserSettings.enabledMcpServers,
                 isSynced: true,
             });
-        } catch (error) {
-            console.error('Failed to sync settings:', error);
+        } catch {
+            // Silent fail - cached values are already in use
         } finally {
             set({ isLoading: false });
         }
@@ -160,26 +197,18 @@ export const useSettingsStore = create<SettingsState>((set) => ({
 
     // Local setters - also save to server for cross-device sync
     setAccentColor: (color) => {
-        console.log('[Settings Mobile] setAccentColor called with:', color);
         try {
             getStorage().set('accentColor', color);
-            console.log('[Settings Mobile] Saved to MMKV:', color);
-        } catch (e) {
-            console.error('[Settings Mobile] MMKV save failed:', e);
-        }
+        } catch { }
         set({ accentColor: color });
 
-        // Update app icon to match accent color (async, non-blocking)
+        // Update app icon to match accent color (non-blocking)
         import('../lib/iconMatcher').then(({ updateAppIconForColor }) => {
             updateAppIconForColor(color);
-        }).catch(() => {
-            // Icon switching not available
-        });
+        }).catch(() => { });
 
-        // Also save to server for persistence across devices
-        api.updateSettings({ accentColor: color }).catch((e) => {
-            console.error('[Settings Mobile] Server save failed:', e);
-        });
+        // Save to server for cross-device sync (non-blocking)
+        api.updateSettings({ accentColor: color }).catch(() => { });
     },
 
     setCodeWrap: (wrap) => {
@@ -275,8 +304,8 @@ export const useSettingsStore = create<SettingsState>((set) => ({
                 codeWrap: state.codeWrap,
                 autoScroll: state.autoScroll,
             });
-        } catch (error) {
-            console.error('Failed to save settings to server:', error);
+        } catch {
+            // Silent fail - will retry on next sync
         }
     },
 }));

@@ -1,13 +1,25 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { View, ActivityIndicator, Text } from 'react-native';
 import * as Font from 'expo-font';
+import type { MMKV } from 'react-native-mmkv';
 import { useAuthStore } from '../store/auth';
 import { useSettingsStore } from '../store/settings';
 import { supabase } from '../lib/supabase';
 import '../global.css';
+
+// Get cached accent color for instant loading indicator
+let cachedAccentColor = '#af8787';
+try {
+    const m = require('react-native-mmkv');
+    const storage = new m.MMKV() as MMKV;
+    const color = storage.getString('accentColor');
+    if (color) {
+        cachedAccentColor = color;
+    }
+} catch { }
 
 // JetBrains Mono fonts - EXACT match to web
 const customFonts = {
@@ -42,39 +54,26 @@ export default function RootLayout() {
     useEffect(() => {
         const init = async () => {
             try {
-                // Initialize settings first (MMKV)
+                // Initialize settings first (MMKV - instant from cache)
                 initSettings();
 
                 // Then initialize auth
                 await initAuth();
 
-                // Initial sync from server - wait for it to complete
-                await syncFromServer();
-                console.log('[App] Initial settings sync completed');
+                // Sync from server in background (non-blocking)
+                syncFromServer().catch(() => { });
             } catch (err) {
-                console.error('Initialization error:', err);
                 setError(String(err));
             }
         };
 
         init();
-
-        // Poll for settings updates every 5 seconds for real-time sync
-        const pollInterval = setInterval(() => {
-            syncFromServer().catch(console.error);
-        }, 5000);
-
-        return () => {
-            clearInterval(pollInterval);
-        };
     }, []);
 
     // Subscribe to auth state changes - critical for session persistence
     useEffect(() => {
         const { data: { subscription } } = supabase.auth.onAuthStateChange(
             async (event, session) => {
-                console.log('[Auth] State changed:', event, session?.user?.email);
-
                 if (event === 'SIGNED_IN' && session?.user) {
                     setUser({
                         id: session.user.id,
@@ -83,8 +82,6 @@ export default function RootLayout() {
                     });
                 } else if (event === 'SIGNED_OUT') {
                     setUser(null);
-                } else if (event === 'TOKEN_REFRESHED' && session) {
-                    console.log('[Auth] Token refreshed successfully');
                 }
             }
         );
@@ -107,7 +104,7 @@ export default function RootLayout() {
     if (!isInitialized || !fontsLoaded) {
         return (
             <View style={{ flex: 1, backgroundColor: '#0f0f0f', alignItems: 'center', justifyContent: 'center' }}>
-                <ActivityIndicator size="large" color="#af8787" />
+                <ActivityIndicator size="large" color={cachedAccentColor} />
             </View>
         );
     }
