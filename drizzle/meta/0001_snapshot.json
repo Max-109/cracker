@@ -617,7 +617,7 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false,
-          "default": "'gemini-3-pro-preview'"
+          "default": "'gemini-3.1-pro-preview'"
         },
         "current_model_name": {
           "name": "current_model_name",

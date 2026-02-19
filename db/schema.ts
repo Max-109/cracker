@@ -52,7 +52,7 @@ export const userSettings = pgTable('user_settings', {
   id: uuid('id').primaryKey().defaultRandom(),
   userId: uuid('user_id').notNull().unique(), // One settings record per user
   // Model settings
-  currentModelId: text('current_model_id').default('gemini-3-pro-preview'),
+  currentModelId: text('current_model_id').default('gemini-3.1-pro-preview'),
   currentModelName: text('current_model_name').default('Expert'),
   reasoningEffort: text('reasoning_effort').default('medium'),
   // Response settings

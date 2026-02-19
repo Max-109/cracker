@@ -14,7 +14,7 @@ type ModelOption = {
 };
 
 const MODEL_OPTIONS: ModelOption[] = [
-  { id: "gemini-3-pro-preview", name: "Expert", description: "Gemini 3 Pro", tier: 'expert', icon: Brain },
+  { id: "gemini-3.1-pro-preview", name: "Expert", description: "Gemini 3.1 Pro", tier: 'expert', icon: Brain },
   { id: "gemini-3-flash-preview", name: "Balanced", description: "Gemini 3 Flash", tier: 'balanced', icon: Sparkles },
   { id: "gemini-2.5-flash-lite-preview-09-2025", name: "Ultra Fast", description: "Gemini 2.5 Flash Lite", tier: 'fast', icon: Zap },
 ];

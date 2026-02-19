@@ -671,17 +671,21 @@ export async function POST(req: Request) {
     const tools = { ...braveTools, ...youtubeTools };
     const hasTools = Object.keys(tools).length > 0;
 
-    // IMPORTANT: Gemini 3 Preview models have a known incompatibility with tools in AI SDK
-    // They output internal JSON structures instead of proper tool calls or text
-    // Fall back to gemini-2.5-flash when tools are enabled
-    let effectiveModelId = modelId;
-    if (hasTools && modelId.includes('gemini-3')) {
-      console.log('[API] WARNING: Gemini 3 Preview has known tool incompatibility, falling back to gemini-2.5-flash');
+    // Some older Gemini 3 preview models are unstable with AI SDK tool calling.
+    // Keep a narrow fallback list so newer models (e.g. gemini-3.1-pro-preview) are not downgraded.
+    const requestedModelId = modelId.replace('google/', '');
+    const toolIncompatibleModels = new Set([
+      'gemini-3-pro-preview',
+      'gemini-3-flash-preview',
+    ]);
+    let effectiveModelId = requestedModelId;
+    if (hasTools && toolIncompatibleModels.has(requestedModelId)) {
+      console.log(`[API] WARNING: ${requestedModelId} has known tool incompatibility, falling back to gemini-2.5-flash`);
       effectiveModelId = 'gemini-2.5-flash';
     }
 
     console.log('[API] Tools check - mcpServers:', mcpServers, '- resolved tools:', Object.keys(tools));
-    console.log('[API] Model:', modelId, '-> effective:', effectiveModelId);
+    console.log('[API] Model:', requestedModelId, '-> effective:', effectiveModelId);
 
     // Generate system prompt
     const systemPrompt = generateSystemPrompt(respLength, uName, uGender, isLearningMode, subMode, isLearningMode ? undefined : userCustomInstructions, isLearningMode ? undefined : userMemoryFacts);
@@ -797,14 +801,13 @@ export async function POST(req: Request) {
 
     // ========== DEBUG: Log provider options ==========
     console.log('\n========== DEBUG: PROVIDER OPTIONS ==========');
-    console.log('modelId:', modelId);
+    console.log('modelId:', requestedModelId);
     console.log('effectiveModelId:', effectiveModelId);
-    console.log('cleanModelId:', effectiveModelId.replace('google/', ''));
+    console.log('cleanModelId:', effectiveModelId);
     console.log('googleProviderOpts:', JSON.stringify(googleProviderOpts, null, 2));
     console.log('==============================================\n');
 
-    // Clean model ID (remove google/ prefix if present)
-    const cleanModelId = effectiveModelId.replace('google/', '');
+    const cleanModelId = effectiveModelId;
 
     // Track timing for TPS calculation
     const requestStartTime = Date.now();
@@ -855,7 +858,7 @@ export async function POST(req: Request) {
         let tps = 0;
 
         // DEBUG: Log all available data
-        console.log(`\n========== TPS DEBUG [${modelId}] ==========`);
+        console.log(`\n========== TPS DEBUG [requested=${requestedModelId}, effective=${effectiveModelId}] ==========`);
         console.log(`requestStartTime: ${requestStartTime}`);
         console.log(`firstReasoningTime: ${firstReasoningTime}`);
         console.log(`firstChunkTime: ${firstChunkTime}`);
@@ -902,13 +905,10 @@ export async function POST(req: Request) {
           console.log(`First result sample:`, JSON.stringify(allToolResults[0]).slice(0, 200));
         }
 
-        // Calculate TPS: total generated tokens / generation time
-        // Generation time = from FIRST token (reasoning or text) to LAST token
-        // This measures the actual token generation speed, excluding initial latency
+        // Calculate throughput using provider usage stats.
         const outputTokens = usage?.outputTokens || 0;
         const inputTokens = usage?.inputTokens || 0;
         const totalTokens = (usage as { totalTokens?: number })?.totalTokens || 0;
-        // reasoningTokens are included in the response if available
         const reasoningTokens = (usage as { reasoningTokens?: number })?.reasoningTokens || 0;
 
         console.log(`inputTokens: ${inputTokens}`);
@@ -916,33 +916,46 @@ export async function POST(req: Request) {
         console.log(`totalTokens: ${totalTokens}`);
         console.log(`reasoningTokens: ${reasoningTokens}`);
 
-        // Use the earliest available timestamp for when generation started
-        // Priority: firstReasoningTime (if reasoning present) > firstChunkTime
-        const generationStartTime = firstReasoningTime || firstChunkTime;
+        // Prefer totalTokens - inputTokens because it is provider-agnostic and avoids double counting.
+        const tokensGeneratedFromTotal = totalTokens > 0 && inputTokens >= 0
+          ? Math.max(totalTokens - inputTokens, 0)
+          : null;
+        const tokensGeneratedFromParts = outputTokens + reasoningTokens;
+        const tokensGenerated = tokensGeneratedFromTotal ?? (tokensGeneratedFromParts > 0 ? tokensGeneratedFromParts : outputTokens);
 
+        console.log(`tokensGeneratedFromTotal: ${tokensGeneratedFromTotal ?? 'n/a'}`);
+        console.log(`tokensGeneratedFromParts: ${tokensGeneratedFromParts}`);
+        console.log(`tokensGenerated(final): ${tokensGenerated}`);
+
+        // Stored TPS uses end-to-end request time to avoid inflated values on tiny stream windows.
+        const totalSeconds = Math.max((endTime - requestStartTime) / 1000, 0.001);
+        console.log(`Total time (request -> end): ${totalSeconds.toFixed(3)}s`);
+
+        if (tokensGenerated > 0) {
+          tps = tokensGenerated / totalSeconds;
+          console.log(`E2E TPS = ${tokensGenerated} tokens / ${totalSeconds.toFixed(3)}s = ${tps.toFixed(1)} t/s`);
+        } else {
+          console.log(`TPS calculation skipped: tokensGenerated=${tokensGenerated}`);
+        }
+
+        // Keep first-token metrics for diagnostics, but don't use them as the canonical TPS value.
+        const generationStartTime = firstReasoningTime || firstChunkTime;
         if (generationStartTime) {
           const ttft = (generationStartTime - requestStartTime) / 1000;
-          const generationSeconds = (endTime - generationStartTime) / 1000;
-          const totalSeconds = (endTime - requestStartTime) / 1000;
-
+          const generationSeconds = Math.max((endTime - generationStartTime) / 1000, 0);
           console.log(`TTFT (to first token): ${ttft.toFixed(3)}s`);
           console.log(`Generation time (first token -> end): ${generationSeconds.toFixed(3)}s`);
-          console.log(`Total time (request -> end): ${totalSeconds.toFixed(3)}s`);
 
-          // Total tokens generated = outputTokens (text) + reasoningTokens (thinking)
-          // If reasoningTokens is available, use it; otherwise fall back to totalTokens - inputTokens
-          const tokensGenerated = reasoningTokens > 0
-            ? outputTokens + reasoningTokens
-            : (totalTokens > 0 ? totalTokens - inputTokens : outputTokens);
-
-          if (tokensGenerated > 0 && generationSeconds > 0) {
-            tps = tokensGenerated / generationSeconds;
-            console.log(`TPS = ${tokensGenerated} tokens / ${generationSeconds.toFixed(3)}s = ${tps.toFixed(1)} t/s`);
-          } else {
-            console.log(`TPS calculation skipped: tokensGenerated=${tokensGenerated}, generationSeconds=${generationSeconds}`);
+          if (tokensGenerated > 0) {
+            if (generationSeconds >= 0.25) {
+              const postFirstTokenTps = tokensGenerated / generationSeconds;
+              console.log(`Post-first-token TPS = ${tokensGenerated} tokens / ${generationSeconds.toFixed(3)}s = ${postFirstTokenTps.toFixed(1)} t/s`);
+            } else {
+              console.log(`Post-first-token TPS skipped: generation window too small (${generationSeconds.toFixed(3)}s)`);
+            }
           }
         } else {
-          console.log(`ERROR: No chunk timestamps recorded - callbacks never fired?`);
+          console.log('No chunk timestamps recorded; TTFT and generation-window TPS unavailable.');
         }
         console.log(`==========================================\n`);
 
@@ -1015,7 +1028,7 @@ export async function POST(req: Request) {
                 chatId,
                 role: 'assistant',
                 content: encryptedContent,
-                model: modelId,
+                model: effectiveModelId,
                 learningSubMode: subMode, // Save the mode used
                 tokensPerSecond: tps > 0 ? String(Math.round(tps * 10) / 10) : null,
               });

@@ -10,7 +10,7 @@ const google = createGoogleGenerativeAI({
   apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
 });
 
-const RESEARCH_MODEL = 'gemini-3-pro-preview';
+const RESEARCH_MODEL = 'gemini-3.1-pro-preview';
 
 function getDateContext(): string {
   const now = new Date();

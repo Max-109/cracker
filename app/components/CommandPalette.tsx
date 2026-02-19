@@ -111,11 +111,11 @@ export function CommandPalette() {
         {
             id: 'model-expert',
             label: 'Switch to Expert',
-            description: 'Gemini 3 Pro - Best reasoning',
+            description: 'Gemini 3.1 Pro - Best reasoning',
             icon: Brain,
             group: 'Models',
             action: () => {
-                setCurrentModelId('gemini-3-pro-preview');
+                setCurrentModelId('gemini-3.1-pro-preview');
                 setCurrentModelName('Expert');
                 setIsOpen(false);
             }
@@ -288,7 +288,7 @@ export function CommandPalette() {
                             // Check active state for models/modes
                             let isActive = false;
                             if (cmd.group === 'Models') {
-                                if (cmd.id === 'model-expert' && currentModelId === 'gemini-3-pro-preview') isActive = true;
+                                if (cmd.id === 'model-expert' && currentModelId === 'gemini-3.1-pro-preview') isActive = true;
                                 if (cmd.id === 'model-balanced' && currentModelId === 'gemini-3-flash-preview') isActive = true;
                                 if (cmd.id === 'model-fast' && currentModelId === 'gemini-2.5-flash-lite') isActive = true;
                             }

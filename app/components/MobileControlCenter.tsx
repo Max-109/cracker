@@ -107,8 +107,8 @@ export function MobileControlCenter() {
                             {activeTab === 'models' && (
                                 <div className="space-y-3">
                                     <ModelOption
-                                        id="gemini-3-pro-preview"
-                                        name="Gemini 3 Pro"
+                                        id="gemini-3.1-pro-preview"
+                                        name="Gemini 3.1 Pro"
                                         desc="Expert reasoning & coding"
                                         currentId={currentModelId}
                                         onSelect={setCurrentModelId}
@@ -243,4 +243,3 @@ function ModeOption({ mode, name, desc, currentMode, onSelect, icon: Icon }: any
         </button>
     );
 }
-
