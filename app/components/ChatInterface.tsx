@@ -1148,6 +1148,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
             isMessagesLoading={isMessagesLoading}
             isSending={isSending}
             isStreaming={isStreaming}
+            autoScrollEnabled={autoScroll}
             status={status}
             streamingStats={streamingStats}
             currentChatId={currentChatId}
