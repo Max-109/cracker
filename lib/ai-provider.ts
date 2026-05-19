@@ -3,7 +3,7 @@ import { createOpenAI } from '@ai-sdk/openai';
 const apiKey = process.env.OPENAI_API_KEY || process.env.PROXY_API_KEY || '';
 
 export const openai = createOpenAI({
-  baseURL: process.env.OPENAI_BASE_URL || 'http://130.61.143.0:8080/v1',
+  baseURL: process.env.OPENAI_BASE_URL,
   apiKey,
 });
 

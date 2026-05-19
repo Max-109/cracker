@@ -65,7 +65,7 @@ YOUTUBE_API_KEY=
 ```
 
 > [!NOTE]
-> `OPENAI_BASE_URL` should point to the `/v1` root of your API server. For example: `http://130.61.143.0:8080/v1`.
+> `OPENAI_BASE_URL` should point to the `/v1` root of your API server.
 
 ## Run locally
 
