@@ -1,0 +1,17 @@
+import { modelSupportsPriority } from '@/lib/model-capabilities';
+import type { ReasoningEffort } from './types';
+
+export function normalizeReasoningEffort(effort: string): ReasoningEffort {
+  if (effort === 'none' || effort === 'minimal' || effort === 'low' || effort === 'medium' || effort === 'high' || effort === 'xhigh') {
+    return effort;
+  }
+  return 'medium';
+}
+
+export function createOpenAIProviderOptions(effort: string, modelId: string, fastMode: boolean) {
+  return {
+    reasoningEffort: normalizeReasoningEffort(effort),
+    ...(fastMode && modelSupportsPriority(modelId) ? { serviceTier: 'priority' as const } : {}),
+    forceReasoning: true,
+  };
+}
