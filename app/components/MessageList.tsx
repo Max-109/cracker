@@ -7,7 +7,7 @@ import { Skeleton } from './Skeleton';
 import { LoadingIndicator } from './LoadingIndicator';
 
 import { FadeWrapper, ErrorAlert } from '@/components/ui';
-import { Sparkles, Code, Lightbulb, PenLine, Zap, ArrowRight } from 'lucide-react';
+import { Sparkles, Brain, Code, Lightbulb, PenLine, Zap, ArrowRight } from 'lucide-react';
 import type { ChatMode, LearningSubMode } from '@/app/hooks/usePersistedSettings';
 
 // Autoscroll hook - improved with requestAnimationFrame and near-bottom detection
@@ -560,7 +560,7 @@ export function MessageList({
                 {/* Welcome Header */}
                 <div className="flex flex-col items-center mb-10">
                   <div className="w-16 h-16 flex items-center justify-center border border-[var(--text-accent)]/30 bg-[var(--text-accent)]/10 mb-6">
-                    <Sparkles size={28} className="text-[var(--text-accent)]" />
+                    <Brain size={28} className="text-[var(--text-accent)]" />
                   </div>
                   <h1 className="text-2xl font-semibold text-[var(--text-primary)] mb-2 tracking-tight">
                     What can I help with?

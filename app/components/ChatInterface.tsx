@@ -18,6 +18,7 @@ import { ChatBackground } from './ChatBackground';
 import { getCachedChat, upsertCachedChat } from '@/lib/cache';
 import { transformMessagesToUi } from '@/lib/message-transformer';
 import { trackCacheHit, trackCacheMiss, trackLoadTime } from './PerformanceMonitor';
+import { modelSupportsImages, modelSupportsPriority } from '@/lib/model-capabilities';
 
 interface ChatInterfaceProps {
   initialChatId?: string;
@@ -36,8 +37,8 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
   }, [chats]);
 
   // Settings
-  const [currentModelId, setCurrentModelId, isModelIdHydrated] = usePersistedSetting('MODEL_ID', "gemini-3-flash-preview");
-  const [currentModelName, setCurrentModelName, isModelNameHydrated] = usePersistedSetting('MODEL_NAME', "Expert");
+  const [currentModelId, setCurrentModelId, isModelIdHydrated] = usePersistedSetting('MODEL_ID', "gpt-5.4-mini");
+  const [currentModelName, setCurrentModelName, isModelNameHydrated] = usePersistedSetting('MODEL_NAME', "Balanced");
   // Auto-reasoning: no longer user-selected, determined automatically per-message
   const { accentColor, setAccentColor, isHydrated: isColorHydrated } = useAccentColor();
   const { responseLength, setResponseLength, isHydrated: isResponseLengthHydrated } = useResponseLength();
@@ -54,6 +55,10 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
 
   // Settings dialog state
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [fastMode, setFastMode] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return localStorage.getItem('CRACKER_FAST_MODE') === 'true';
+  });
   // Auto-reasoning: reasoning effort is determined per-message, not user-selected
   // We keep the ref to pass to transport, but it gets set before each message send
 
@@ -67,12 +72,40 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
     clearAttachments,
   } = useAttachments();
 
+  const currentModelSupportsImages = modelSupportsImages(currentModelId);
+  const currentModelSupportsPriority = modelSupportsPriority(currentModelId);
+
   // Chat state
   const [currentChatId, setCurrentChatId] = useState<string | null>(initialChatId || null);
   const chatIdRef = useRef<string | null>(initialChatId || null);
   const messagesRef = useRef<ChatMessage[]>([]);
   const currentModelIdRef = useRef(currentModelId);
+  const handleCompatibleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!modelSupportsImages(currentModelIdRef.current)) {
+      const files = Array.from(e.target.files || []);
+      if (files.some(file => file.type.startsWith('image/'))) {
+        e.target.value = '';
+        window.alert(`${currentModelIdRef.current} is text-only and does not support image attachments.`);
+        return;
+      }
+    }
+    handleFileSelect(e);
+  }, [handleFileSelect]);
+
+  const handleCompatiblePaste = useCallback((e: React.ClipboardEvent) => {
+    if (!modelSupportsImages(currentModelIdRef.current)) {
+      const items = Array.from(e.clipboardData.items || []);
+      if (items.some(item => item.type.startsWith('image/'))) {
+        e.preventDefault();
+        window.alert(`${currentModelIdRef.current} is text-only and does not support image attachments.`);
+        return;
+      }
+    }
+    handlePaste(e);
+  }, [handlePaste]);
+
   const reasoningEffortRef = useRef<ReasoningEffortLevel>('medium'); // Auto-reasoning: updated per-message
+  const fastModeRef = useRef(fastMode);
 
   // Sync with URL changes (for history.pushState navigation)
   useEffect(() => {
@@ -102,6 +135,14 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
   const customInstructionsRef = useRef(customInstructions);
 
   useEffect(() => { currentModelIdRef.current = currentModelId; }, [currentModelId]);
+  useEffect(() => {
+    if (fastMode && !modelSupportsPriority(currentModelId)) {
+      setFastMode(false);
+      return;
+    }
+    fastModeRef.current = fastMode;
+    localStorage.setItem('CRACKER_FAST_MODE', String(fastMode));
+  }, [fastMode, currentModelId]);
   // Auto-reasoning: reasoningEffortRef is now updated before each message, not synced from user setting
   useEffect(() => { responseLengthRef.current = responseLength; }, [responseLength]);
   useEffect(() => { userNameRef.current = userName; }, [userName]);
@@ -186,7 +227,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
       console.log('[Chat] Sending with enabledMcpServers:', enabledMcpServersRef.current);
       return {
         // When image mode is selected, use the image generation model
-        model: chatModeRef.current === 'image' ? 'gemini-3-pro-image-preview' : currentModelIdRef.current,
+        model: currentModelIdRef.current,
         reasoningEffort: reasoningEffortRef.current,
         chatId: chatIdRef.current,
         responseLength: responseLengthRef.current,
@@ -198,6 +239,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
         customInstructions: customInstructionsRef.current,
         enabledMcpServers: enabledMcpServersRef.current,
         accentColor: getAccentColorFromStorage(),
+        fastMode: fastModeRef.current,
       };
     },
   }), []);
@@ -1172,14 +1214,18 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
             isLoading={isLoading}
             attachments={attachments}
             hasPendingAttachments={hasPendingAttachments}
-            onFileSelect={handleFileSelect}
-            onPaste={handlePaste}
+            onFileSelect={handleCompatibleFileSelect}
+            onPaste={handleCompatiblePaste}
             onRemoveAttachment={removeAttachment}
             chatMode={chatMode}
             onChatModeChange={handleChatModeChange}
             learningSubMode={learningSubMode}
             onLearningSubModeChange={setLearningSubMode}
             chatId={currentChatId}
+            fastMode={fastMode}
+            onFastModeChange={setFastMode}
+            supportsImages={currentModelSupportsImages}
+            supportsPriority={currentModelSupportsPriority}
           />
         </QuoteProvider>
       </main>

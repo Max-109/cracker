@@ -1,4 +1,5 @@
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
+import { getOpenAIConfigError, openai } from "@/lib/ai-provider";
+import { getModelCapabilities, modelSupportsPriority, normalizeModelId } from "@/lib/model-capabilities";
 import { streamText, convertToModelMessages, UIMessage, stepCountIs } from "ai";
 import { getDb } from "@/db";
 import { messages as messagesTable, userSettings, userFacts } from "@/db/schema";
@@ -42,10 +43,12 @@ export async function GET(req: Request) {
   }
 }
 
-// Initialize Google Generative AI provider
-const google = createGoogleGenerativeAI({
-  apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
-});
+function normalizeReasoningEffort(effort: string): 'none' | 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' {
+  if (effort === 'none' || effort === 'minimal' || effort === 'low' || effort === 'medium' || effort === 'high' || effort === 'xhigh') {
+    return effort;
+  }
+  return 'medium';
+}
 
 // Learning sub-mode type
 type LearningSubMode = 'summary' | 'flashcard' | 'teaching';
@@ -513,7 +516,15 @@ export async function POST(req: Request) {
   try {
     const db = getDb();
     const body = await req.json();
-    const { messages, model, reasoningEffort, chatId, responseLength, userName, userGender, learningMode, learningSubMode, customInstructions, enabledMcpServers } = body;
+    const { messages, model, reasoningEffort, chatId, responseLength, userName, userGender, learningMode, learningSubMode, customInstructions, enabledMcpServers, fastMode } = body;
+
+    const configError = getOpenAIConfigError();
+    if (configError) {
+      return new Response(
+        JSON.stringify({ error: 'AI provider not configured', details: configError }),
+        { status: 500, headers: { 'Content-Type': 'application/json' } }
+      );
+    }
 
     // EARLY VALIDATION - check messages immediately
     if (!messages || !Array.isArray(messages)) {
@@ -524,7 +535,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const modelId = model || "gemini-3-flash-preview";
+    const modelId = model || "gpt-5.4-mini";
     const effort = reasoningEffort || "medium";
     const respLength = typeof responseLength === 'number' ? responseLength : 30;
     const uName = userName || '';
@@ -671,17 +682,27 @@ export async function POST(req: Request) {
     const tools = { ...braveTools, ...youtubeTools };
     const hasTools = Object.keys(tools).length > 0;
 
-    // IMPORTANT: Gemini 3 Preview models have a known incompatibility with tools in AI SDK
-    // They output internal JSON structures instead of proper tool calls or text
-    // Fall back to gemini-2.5-flash when tools are enabled
-    let effectiveModelId = modelId;
-    if (hasTools && modelId.includes('gemini-3')) {
-      console.log('[API] WARNING: Gemini 3 Preview has known tool incompatibility, falling back to gemini-2.5-flash');
-      effectiveModelId = 'gemini-2.5-flash';
+    const effectiveModelId = normalizeModelId(modelId);
+    const modelCapabilities = getModelCapabilities(effectiveModelId);
+    const normalizedEffort = normalizeReasoningEffort(effort);
+    const usePriorityService = fastMode === true && modelSupportsPriority(effectiveModelId);
+
+    const requestHasImages = hydratedMessages.some((msg: { parts?: unknown[] }) =>
+      Array.isArray(msg.parts) && msg.parts.some((part) => {
+        const p = part as { type?: string; mediaType?: string; mimeType?: string };
+        return p.type === 'image' || p.mediaType?.startsWith('image/') || p.mimeType?.startsWith('image/');
+      })
+    );
+
+    if (requestHasImages && !modelCapabilities.supportsImages) {
+      return new Response(
+        JSON.stringify({ error: 'Unsupported attachment', details: `${effectiveModelId} is text-only and does not support image attachments.` }),
+        { status: 400, headers: { 'Content-Type': 'application/json' } }
+      );
     }
 
     console.log('[API] Tools check - mcpServers:', mcpServers, '- resolved tools:', Object.keys(tools));
-    console.log('[API] Model:', modelId, '-> effective:', effectiveModelId);
+    console.log('[API] Model:', modelId, '-> effective:', effectiveModelId, 'priority:', usePriorityService, 'capabilities:', modelCapabilities);
 
     // Generate system prompt
     const systemPrompt = generateSystemPrompt(respLength, uName, uGender, isLearningMode, subMode, isLearningMode ? undefined : userCustomInstructions, isLearningMode ? undefined : userMemoryFacts);
@@ -765,7 +786,27 @@ export async function POST(req: Request) {
 
     console.log('[API] Normalized messages:', normalizedMessages.length, 'messages');
 
-    const modelMessages = await convertToModelMessages(normalizedMessages as unknown as UIMessage[]);
+    let modelMessages = await convertToModelMessages(normalizedMessages as unknown as UIMessage[]);
+
+    // OpenAI Responses-style upstreams reject assistant history text parts encoded as
+    // `input_text`; assistant content must be plain text (or provider-encoded as output_text).
+    // Flatten assistant history to text-only to avoid: Invalid value: 'input_text'.
+    modelMessages = modelMessages.map((msg) => {
+      if (msg.role !== 'assistant' || !Array.isArray(msg.content)) return msg;
+
+      const text = msg.content
+        .map((part) => {
+          const p = part as { type?: string; text?: string; reasoning?: string };
+          if (typeof p.text === 'string') return p.text;
+          if (typeof p.reasoning === 'string') return p.reasoning;
+          return '';
+        })
+        .filter(Boolean)
+        .join('\n');
+
+      return { ...msg, content: text };
+    }).filter((msg) => msg.role !== 'assistant' || (typeof msg.content === 'string' && msg.content.trim().length > 0));
+
     console.log('Message count:', modelMessages.length);
     for (let i = 0; i < modelMessages.length; i++) {
       const msg = modelMessages[i] as { role: string; content?: unknown };
@@ -773,38 +814,19 @@ export async function POST(req: Request) {
     }
     console.log('======================================\n');
 
-    // Configure Google provider options for thinking
-
-    // Gemini 2.5 uses thinkingBudget (tokens): min 512, max 24576
-    // We map generic efforts to specific token budgets
-    let thinkingBudget = 8192; // Default (Medium)
-    if (effort === 'low') thinkingBudget = 2048;
-    if (effort === 'high') thinkingBudget = 24576;
-
-    const googleProviderOpts = {
-      ...(!effectiveModelId.includes('image') ? {
-        thinkingConfig: {
-          includeThoughts: true,
-          ...(effectiveModelId.includes('gemini-3')
-            ? { thinkingLevel: effort === 'low' ? 'low' : 'high' }
-            : { thinkingBudget }
-          ),
-        },
-      } : {}),
+    const openAIProviderOpts = {
+      reasoningEffort: normalizedEffort,
+      ...(usePriorityService ? { serviceTier: 'priority' as const } : {}),
+      forceReasoning: true,
     };
 
-    console.log('[API] thinkingConfig enabled:', !effectiveModelId.includes('image'));
-
-    // ========== DEBUG: Log provider options ==========
     console.log('\n========== DEBUG: PROVIDER OPTIONS ==========');
     console.log('modelId:', modelId);
     console.log('effectiveModelId:', effectiveModelId);
-    console.log('cleanModelId:', effectiveModelId.replace('google/', ''));
-    console.log('googleProviderOpts:', JSON.stringify(googleProviderOpts, null, 2));
+    console.log('openAIProviderOpts:', JSON.stringify(openAIProviderOpts, null, 2));
     console.log('==============================================\n');
 
-    // Clean model ID (remove google/ prefix if present)
-    const cleanModelId = effectiveModelId.replace('google/', '');
+    const cleanModelId = effectiveModelId;
 
     // Track timing for TPS calculation
     const requestStartTime = Date.now();
@@ -812,13 +834,13 @@ export async function POST(req: Request) {
     let firstReasoningTime: number | null = null;
 
     const result = streamText({
-      model: google(cleanModelId),
+      model: openai.chat(cleanModelId),
       system: systemPrompt,
       messages: modelMessages,
       tools: hasTools ? tools : undefined,
       stopWhen: hasTools ? stepCountIs(5) : undefined,
       providerOptions: {
-        google: googleProviderOpts,
+        openai: openAIProviderOpts,
       },
       onStepFinish: ({ text, toolCalls, toolResults, finishReason }) => {
         console.log(`[Step Finished] finishReason: ${finishReason}`);

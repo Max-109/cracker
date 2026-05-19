@@ -1,38 +1,38 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
 import { getDb } from '@/db';
 import { users, invitationCodes } from '@/db/schema';
 import { eq, desc } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
+import { getAuthUser } from '@/lib/auth';
 
-// Generate invitation code (UUID without dashes)
 function generateCode(): string {
   return randomUUID().replace(/-/g, '');
+}
+
+async function requireAdmin() {
+  const authUser = await getAuthUser();
+  if (!authUser) return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) };
+
+  const db = getDb();
+  const [profile] = await db
+    .select({ isAdmin: users.isAdmin })
+    .from(users)
+    .where(eq(users.id, authUser.id));
+
+  if (!profile?.isAdmin) {
+    return { error: NextResponse.json({ error: 'Admin access required' }, { status: 403 }) };
+  }
+
+  return { authUser, db };
 }
 
 // GET - List all invitation codes (admin only)
 export async function GET() {
   try {
-    const db = getDb();
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const auth = await requireAdmin();
+    if ('error' in auth) return auth.error;
 
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    // Check if user is admin
-    const [profile] = await db
-      .select({ isAdmin: users.isAdmin })
-      .from(users)
-      .where(eq(users.id, user.id));
-
-    if (!profile?.isAdmin) {
-      return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
-    }
-
-    // Fetch all invitation codes with creator and user info
-    const codes = await db
+    const codes = await auth.db
       .select({
         id: invitationCodes.id,
         code: invitationCodes.code,
@@ -45,7 +45,6 @@ export async function GET() {
       .from(invitationCodes)
       .orderBy(desc(invitationCodes.createdAt));
 
-    // Get user details for codes
     const codesWithDetails = await Promise.all(
       codes.map(async (code) => {
         let creatorName = null;
@@ -53,7 +52,7 @@ export async function GET() {
         let usedByEmail = null;
 
         if (code.createdBy) {
-          const [creator] = await db
+          const [creator] = await auth.db
             .select({ name: users.name, email: users.email })
             .from(users)
             .where(eq(users.id, code.createdBy));
@@ -61,7 +60,7 @@ export async function GET() {
         }
 
         if (code.usedBy) {
-          const [usedByUser] = await db
+          const [usedByUser] = await auth.db
             .select({ name: users.name, email: users.email })
             .from(users)
             .where(eq(users.id, code.usedBy));
@@ -88,23 +87,8 @@ export async function GET() {
 // PATCH - Toggle disabled status for invitation code
 export async function PATCH(request: NextRequest) {
   try {
-    const db = getDb();
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    // Check if user is admin
-    const [profile] = await db
-      .select({ isAdmin: users.isAdmin })
-      .from(users)
-      .where(eq(users.id, user.id));
-
-    if (!profile?.isAdmin) {
-      return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
-    }
+    const auth = await requireAdmin();
+    if ('error' in auth) return auth.error;
 
     const { id, disabled } = await request.json();
 
@@ -112,8 +96,7 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
     }
 
-    // Update code
-    const [updatedCode] = await db
+    const [updatedCode] = await auth.db
       .update(invitationCodes)
       .set({ disabled })
       .where(eq(invitationCodes.id, id))
@@ -129,31 +112,15 @@ export async function PATCH(request: NextRequest) {
 // POST - Create new invitation code (admin only)
 export async function POST() {
   try {
-    const db = getDb();
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const auth = await requireAdmin();
+    if ('error' in auth) return auth.error;
 
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    // Check if user is admin
-    const [profile] = await db
-      .select({ isAdmin: users.isAdmin })
-      .from(users)
-      .where(eq(users.id, user.id));
-
-    if (!profile?.isAdmin) {
-      return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
-    }
-
-    // Generate and insert new code
     const code = generateCode();
-    const [newCode] = await db
+    const [newCode] = await auth.db
       .insert(invitationCodes)
       .values({
         code,
-        createdBy: user.id,
+        createdBy: auth.authUser.id,
       })
       .returning();
 

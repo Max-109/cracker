@@ -1,17 +1,12 @@
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { generateText } from "ai";
 import { NextResponse } from "next/server";
+import { openai, openAIProviderOptions } from '@/lib/ai-provider';
 
-// Initialize Google Generative AI provider
-const google = createGoogleGenerativeAI({
-    apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
-});
-
-// System prompt for classifying reasoning effort
-const CLASSIFIER_SYSTEM_PROMPT = `You are a prompt complexity analyzer. Your ONLY job is to analyze user prompts and determine how much "thinking effort" an AI would need to answer them well.
+// GPT reasoning effort classifier. The target chat models accept: low, medium, high, xhigh.
+const CLASSIFIER_SYSTEM_PROMPT = `You are a prompt complexity analyzer. Your ONLY job is to analyze user prompts and choose the best GPT reasoning_effort value.
 
 OUTPUT RULES:
-- Respond with EXACTLY ONE WORD: "low", "medium", or "high"
+- Respond with EXACTLY ONE WORD: "low", "medium", "high", or "xhigh"
 - No explanations, no punctuation, no other text
 
 CLASSIFICATION GUIDE:
@@ -19,70 +14,72 @@ CLASSIFICATION GUIDE:
 **LOW** - Quick, factual, simple tasks:
 - Simple greetings: "hi", "hello", "thanks"
 - Direct factual questions: "What is the capital of France?"
-- Simple definitions: "What is photosynthesis?"
-- Basic translations or formatting tasks
+- Simple definitions
+- Basic translation or formatting tasks
 - Casual conversation
 - Simple yes/no questions
 
-**MEDIUM** - Requires some reasoning or creativity:
+**MEDIUM** - Normal useful reasoning:
 - Explanations: "Explain how X works"
 - Comparisons: "What's the difference between X and Y?"
-- Simple creative tasks: "Write a short poem"
-- General advice: "How should I approach..."
+- Simple creative tasks
+- General advice
 - Multi-step questions requiring basic reasoning
 - Summarization tasks
 
 **HIGH** - Complex thinking, analysis, or problem-solving:
-- Math problems (especially algebra, calculus, logic puzzles)
-- Code debugging or writing complex algorithms
-- Frustrated or confused users needing careful help (indicated by "!!", "ugh", excessive punctuation, emotional language)
+- Math problems, coding/debugging, algorithms
 - Multi-part questions requiring deep analysis
 - Scientific reasoning or proofs
 - Strategic planning or decision analysis
-- Emotional support requiring empathy and care
+- Troubleshooting confusing issues
 - Ambiguous questions needing careful interpretation
-- Debugging issues or troubleshooting complex problems
-- Questions about "why" something doesn't work
+- Frustrated users needing careful help
+
+**XHIGH** - Maximum reasoning for hard or high-stakes work:
+- Very complex architecture, security, database, deployment, or production debugging
+- Long multi-file coding tasks with many constraints
+- Deep research synthesis or difficult technical tradeoff analysis
+- Advanced math/proofs/logic puzzles requiring rigorous step-by-step reasoning
+- Any request where a shallow answer would likely be wrong or risky
 
 When in doubt between two levels, choose the HIGHER one to ensure quality responses.`;
+
+type GptReasoningEffort = 'low' | 'medium' | 'high' | 'xhigh';
+
+function parseEffort(response: string): GptReasoningEffort {
+    const normalized = response.trim().toLowerCase();
+
+    if (normalized === 'low' || normalized === 'medium' || normalized === 'high' || normalized === 'xhigh') {
+        return normalized;
+    }
+
+    if (normalized.includes('xhigh') || normalized.includes('x-high') || normalized.includes('extra high')) return 'xhigh';
+    if (normalized.includes('high')) return 'high';
+    if (normalized.includes('low')) return 'low';
+    return 'medium';
+}
 
 export async function POST(req: Request) {
     try {
         const { prompt } = await req.json();
 
         if (!prompt || typeof prompt !== 'string') {
-            return NextResponse.json({ effort: 'medium' }); // Default fallback
+            return NextResponse.json({ effort: 'medium' });
         }
 
-        // Log the analysis request
         console.log('\n========== AUTO-REASONING ANALYSIS ==========');
         console.log('[AUTO-REASONING] Analyzing prompt:', prompt.slice(0, 200) + (prompt.length > 200 ? '...' : ''));
-        console.log('[AUTO-REASONING] System prompt (first 500 chars):', CLASSIFIER_SYSTEM_PROMPT.slice(0, 500) + '...');
 
-        // Use Gemini Flash without reasoning for quick classification
         const result = await generateText({
-            model: google('gemini-2.0-flash'),
+            model: openai.chat('gpt-5.3-codex-spark'),
             system: CLASSIFIER_SYSTEM_PROMPT,
-            prompt: prompt,
+            prompt,
+            // Spark supports low/medium/high/xhigh. Use low for the cheap classifier call.
+            providerOptions: openAIProviderOptions({ reasoningEffort: 'low' }),
         });
 
-        // Extract and validate the response
-        const response = result.text.trim().toLowerCase();
-        let effort: 'low' | 'medium' | 'high' = 'medium'; // Default
-
-        if (response === 'low') {
-            effort = 'low';
-        } else if (response === 'medium') {
-            effort = 'medium';
-        } else if (response === 'high') {
-            effort = 'high';
-        } else {
-            // If the model didn't follow instructions, parse more liberally
-            if (response.includes('low')) effort = 'low';
-            else if (response.includes('high')) effort = 'high';
-            else effort = 'medium';
-            console.log('[AUTO-REASONING] Unexpected response format, parsed as:', effort);
-        }
+        const effort = parseEffort(result.text);
 
         console.log('[AUTO-REASONING] AI raw response:', result.text);
         console.log('[AUTO-REASONING] Result:', effort);
@@ -91,7 +88,6 @@ export async function POST(req: Request) {
         return NextResponse.json({ effort });
     } catch (error) {
         console.error('[AUTO-REASONING] Error:', error);
-        // Return medium as a safe default
         return NextResponse.json({ effort: 'medium' });
     }
 }

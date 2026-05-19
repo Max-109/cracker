@@ -4,6 +4,7 @@ import { pgTable, text, timestamp, uuid, jsonb, index, integer, boolean } from '
 export const users = pgTable('users', {
   id: uuid('id').primaryKey(), // Same as Supabase Auth user ID
   email: text('email').notNull().unique(),
+  passwordHash: text('password_hash'),
   name: text('name'),
   isAdmin: boolean('is_admin').default(false).notNull(),
   isGuest: boolean('is_guest').default(false).notNull(), // Guest mode users
@@ -52,7 +53,7 @@ export const userSettings = pgTable('user_settings', {
   id: uuid('id').primaryKey().defaultRandom(),
   userId: uuid('user_id').notNull().unique(), // One settings record per user
   // Model settings
-  currentModelId: text('current_model_id').default('gemini-3-pro-preview'),
+  currentModelId: text('current_model_id').default('gpt-5.5'),
   currentModelName: text('current_model_name').default('Expert'),
   reasoningEffort: text('reasoning_effort').default('medium'),
   // Response settings

@@ -3,12 +3,12 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { LogIn, Mail, Lock, AlertTriangle, Sparkles, ArrowRight, Fingerprint, UserCircle } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
+import { LogIn, Mail, Lock, AlertTriangle, ArrowRight, Fingerprint, UserCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AuthBackground } from '../components/AuthBackground';
 import { FloatingIcons } from '../components/FeatureShowcase';
 import { GuestModeDialog } from '../components/GuestModeDialog';
+import { useAuth } from '@/app/components/AuthContext';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -20,7 +20,7 @@ export default function LoginPage() {
   const [isExiting, setIsExiting] = useState(false);
   const [guestDialogOpen, setGuestDialogOpen] = useState(false);
   const router = useRouter();
-  const supabase = createClient();
+  const { refreshAuth } = useAuth();
 
   useEffect(() => {
     setIsPageMounted(true);
@@ -32,16 +32,20 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
       });
 
-      if (error) {
-        setError(error.message);
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error || 'Invalid email or password');
         return;
       }
 
+      await refreshAuth();
       router.push('/');
       router.refresh();
     } catch {
@@ -70,29 +74,6 @@ export default function LoginPage() {
           isPageMounted && !isExiting ? "auth-page-enter" : "",
           isExiting ? "auth-page-exit" : ""
         )}>
-          {/* Logo Section */}
-          <div className="text-center mb-8">
-            <div className="inline-block relative group">
-              {/* Outer glow ring - animated */}
-              <div className="absolute -inset-4 border border-[var(--text-accent)]/10 group-hover:border-[var(--text-accent)]/30 transition-colors duration-500" />
-              <div className="absolute -inset-6 border border-[var(--text-accent)]/5 group-hover:border-[var(--text-accent)]/15 transition-colors duration-700" />
-
-              {/* Main logo */}
-              <div className="w-16 h-16 border-2 border-[var(--text-accent)] bg-[var(--text-accent)]/10 flex items-center justify-center relative overflow-hidden group-hover:bg-[var(--text-accent)]/20 transition-colors">
-                <Sparkles size={26} className="text-[var(--text-accent)] relative z-10" />
-                {/* Inner scan effect */}
-                <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[var(--text-accent)]/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity animate-scanline" style={{ animationDuration: '2s' }} />
-              </div>
-            </div>
-
-            <h1 className="text-2xl font-bold text-[var(--text-primary)] tracking-tight mt-6">
-              Cracker
-            </h1>
-            <p className="text-[10px] text-[var(--text-secondary)] mt-2 uppercase tracking-[0.3em]">
-              AI Chat Interface
-            </p>
-          </div>
-
           {/* Login Card */}
           <div className="bg-[var(--bg-sidebar)] border border-[var(--border-color)] overflow-hidden auth-card-shimmer">
             {/* Header */}

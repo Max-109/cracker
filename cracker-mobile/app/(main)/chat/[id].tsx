@@ -259,7 +259,7 @@ export default function ChatScreen() {
                     role: m.role,
                     content: m.content,
                 })),
-                model: currentModelId || 'gemini-2.5-flash',
+                model: currentModelId || 'gpt-5.4-mini',
                 reasoningEffort: effort,
                 enabledMcpServers,
                 chatMode,

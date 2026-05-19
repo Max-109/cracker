@@ -3,7 +3,7 @@
 import { useCallback } from 'react';
 import { useSettings, ChatMode, LearningSubMode } from '@/app/components/SettingsContext';
 
-export type ReasoningEffortLevel = 'low' | 'medium' | 'high';
+export type ReasoningEffortLevel = 'low' | 'medium' | 'high' | 'xhigh';
 export type { ChatMode, LearningSubMode } from '@/app/components/SettingsContext';
 
 // Model settings hook - now uses SettingsContext

@@ -214,9 +214,9 @@ export const ICON_MAP = {
 
 // Model tiers (matching web ModelSelector.tsx)
 export const MODEL_TIERS = [
-    { id: 'gemini-3-pro-preview', name: 'Expert', tier: 4, icon: 'sparkles', description: 'Gemini 3 Pro - Most capable' },
-    { id: 'gemini-3-flash-preview', name: 'Balanced', tier: 3, icon: 'hardware-chip', description: 'Gemini 3 Flash - Fast and accurate' },
-    { id: 'gemini-2.5-flash-lite-preview-09-2025', name: 'Ultra Fast', tier: 2, icon: 'rocket', description: 'Gemini 2.5 Flash Lite - Fastest' },
+    { id: 'gpt-5.5', name: 'Expert', tier: 4, icon: 'sparkles', description: 'GPT-5.5 - Most capable' },
+    { id: 'gpt-5.4-mini', name: 'Balanced', tier: 3, icon: 'hardware-chip', description: 'GPT-5.4 Mini - Fast and accurate' },
+    { id: 'gpt-5.3-codex-spark', name: 'Ultra Fast', tier: 2, icon: 'rocket', description: 'GPT-5.3 Codex Spark - Fastest' },
 ] as const;
 
 // Reasoning effort levels

@@ -33,8 +33,8 @@ interface Settings extends AccountSettings {
 }
 
 const DEFAULT_ACCOUNT_SETTINGS: AccountSettings = {
-  currentModelId: 'gemini-3-flash-preview',
-  currentModelName: 'Expert',
+  currentModelId: 'gpt-5.4-mini',
+  currentModelName: 'Balanced',
   reasoningEffort: 'medium',
   responseLength: 30,
   learningMode: false,

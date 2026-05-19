@@ -236,7 +236,7 @@ export default function MessageItem({
 
     const getModelDisplay = () => {
         if (!model) return '';
-        return model.replace('gemini-', '').replace('-preview', '').toUpperCase();
+        return model.replace('gemini-', '').replace('gpt-', 'GPT ').replace('-preview', '').toUpperCase();
     };
 
     // ═══════════════════════════════════════════════════════════════════════

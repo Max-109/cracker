@@ -13,7 +13,7 @@ export function MobileControlCenter() {
     const [activeTab, setActiveTab] = useState<'models' | 'modes' | 'settings'>('models');
 
     // Settings logic (reused from CommandPalette/ModelSelector)
-    const [currentModelId, setCurrentModelId] = usePersistedSetting('MODEL_ID', "gemini-3-flash-preview");
+    const [currentModelId, setCurrentModelId] = usePersistedSetting('MODEL_ID', "gpt-5.4-mini");
     const { chatMode, setChatMode } = useChatMode();
     const router = useRouter();
 
@@ -107,24 +107,24 @@ export function MobileControlCenter() {
                             {activeTab === 'models' && (
                                 <div className="space-y-3">
                                     <ModelOption
-                                        id="gemini-3-pro-preview"
-                                        name="Gemini 3 Pro"
+                                        id="gpt-5.5"
+                                        name="GPT-5.5"
                                         desc="Expert reasoning & coding"
                                         currentId={currentModelId}
                                         onSelect={setCurrentModelId}
                                         icon={Brain}
                                     />
                                     <ModelOption
-                                        id="gemini-3-flash-preview"
-                                        name="Gemini 3 Flash"
+                                        id="gpt-5.4-mini"
+                                        name="GPT-5.4 Mini"
                                         desc="Balanced speed & intelligence"
                                         currentId={currentModelId}
                                         onSelect={setCurrentModelId}
                                         icon={Sparkles}
                                     />
                                     <ModelOption
-                                        id="gemini-2.5-flash-lite"
-                                        name="Gemini 2.5 Flash Lite"
+                                        id="gpt-5.3-codex-spark"
+                                        name="GPT-5.3 Codex Spark"
                                         desc="Ultra fast responses"
                                         currentId={currentModelId}
                                         onSelect={setCurrentModelId}

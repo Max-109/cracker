@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { cookies } from 'next/headers';
+import { getDb } from '@/db';
+import { users } from '@/db/schema';
+import { eq } from 'drizzle-orm';
+import { verifyPassword } from '@/lib/password';
+import { APP_SESSION_COOKIE, createAuthToken, getSessionCookieOptions } from '@/lib/auth';
 
 export async function POST(request: NextRequest) {
   try {
@@ -12,22 +17,42 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const supabase = await createClient();
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    const normalizedEmail = String(email).trim().toLowerCase();
+    const db = getDb();
 
-    if (error) {
+    const [user] = await db
+      .select({
+        id: users.id,
+        email: users.email,
+        passwordHash: users.passwordHash,
+        isGuest: users.isGuest,
+      })
+      .from(users)
+      .where(eq(users.email, normalizedEmail));
+
+    if (!user || user.isGuest || !verifyPassword(String(password), user.passwordHash)) {
       return NextResponse.json(
-        { error: error.message },
+        { error: 'Invalid email or password' },
         { status: 401 }
       );
     }
 
-    return NextResponse.json({ 
+    const token = await createAuthToken({
+      id: user.id,
+      email: user.email,
+      isGuest: false,
+    });
+
+    const cookieStore = await cookies();
+    cookieStore.set(APP_SESSION_COOKIE, token, getSessionCookieOptions());
+
+    return NextResponse.json({
       success: true,
-      user: data.user 
+      access_token: token,
+      user: {
+        id: user.id,
+        email: user.email,
+      },
     });
   } catch (error) {
     console.error('Login error:', error);

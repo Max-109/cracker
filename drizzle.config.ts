@@ -16,12 +16,12 @@ export default {
   dbCredentials: {
     url: (() => {
       const url = firstNonEmpty(
+        process.env.DATABASE_URL,
         process.env.POSTGRES_URL,
         process.env.POSTGRES_PRISMA_URL,
         process.env.POSTGRES_URL_NON_POOLING,
-        process.env.DATABASE_URL,
       );
-      if (!url) throw new Error('Missing `POSTGRES_URL` (or `DATABASE_URL`) for drizzle-kit.');
+      if (!url) throw new Error('Missing `DATABASE_URL` (or `POSTGRES_URL`) for drizzle-kit.');
       return url;
     })(),
   },

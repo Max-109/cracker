@@ -47,8 +47,8 @@ export function CommandPalette() {
     // Context & Settings
     const { refreshChats, toggleSidebar, isSidebarOpen } = useChatContext();
     const { signOut } = useAuth();
-    const [currentModelId, setCurrentModelId] = usePersistedSetting('MODEL_ID', "gemini-3-flash-preview");
-    const [currentModelName, setCurrentModelName] = usePersistedSetting('MODEL_NAME', "Expert");
+    const [currentModelId, setCurrentModelId] = usePersistedSetting('MODEL_ID', "gpt-5.4-mini");
+    const [currentModelName, setCurrentModelName] = usePersistedSetting('MODEL_NAME', "Balanced");
     const { chatMode, setChatMode } = useChatMode();
     const { accentColor } = useAccentColor();
 
@@ -111,11 +111,11 @@ export function CommandPalette() {
         {
             id: 'model-expert',
             label: 'Switch to Expert',
-            description: 'Gemini 3 Pro - Best reasoning',
+            description: 'GPT-5.5 - Frontier reasoning',
             icon: Brain,
             group: 'Models',
             action: () => {
-                setCurrentModelId('gemini-3-pro-preview');
+                setCurrentModelId('gpt-5.5');
                 setCurrentModelName('Expert');
                 setIsOpen(false);
             }
@@ -123,11 +123,11 @@ export function CommandPalette() {
         {
             id: 'model-balanced',
             label: 'Switch to Balanced',
-            description: 'Gemini 3 Flash - Fast & smart',
+            description: 'GPT-5.4 Mini - Fast & smart',
             icon: Sparkles,
             group: 'Models',
             action: () => {
-                setCurrentModelId('gemini-3-flash-preview');
+                setCurrentModelId('gpt-5.4-mini');
                 setCurrentModelName('Balanced');
                 setIsOpen(false);
             }
@@ -135,11 +135,11 @@ export function CommandPalette() {
         {
             id: 'model-fast',
             label: 'Switch to Ultra Fast',
-            description: 'Gemini 2.5 Flash Lite - Speed focused',
+            description: 'GPT-5.3 Codex Spark - Speed focused',
             icon: Zap,
             group: 'Models',
             action: () => {
-                setCurrentModelId('gemini-2.5-flash-lite');
+                setCurrentModelId('gpt-5.3-codex-spark');
                 setCurrentModelName('Ultra Fast');
                 setIsOpen(false);
             }
@@ -288,9 +288,9 @@ export function CommandPalette() {
                             // Check active state for models/modes
                             let isActive = false;
                             if (cmd.group === 'Models') {
-                                if (cmd.id === 'model-expert' && currentModelId === 'gemini-3-pro-preview') isActive = true;
-                                if (cmd.id === 'model-balanced' && currentModelId === 'gemini-3-flash-preview') isActive = true;
-                                if (cmd.id === 'model-fast' && currentModelId === 'gemini-2.5-flash-lite') isActive = true;
+                                if (cmd.id === 'model-expert' && currentModelId === 'gpt-5.5') isActive = true;
+                                if (cmd.id === 'model-balanced' && currentModelId === 'gpt-5.4-mini') isActive = true;
+                                if (cmd.id === 'model-fast' && currentModelId === 'gpt-5.3-codex-spark') isActive = true;
                             }
                             if (cmd.group === 'Modes') {
                                 if (cmd.id === 'mode-chat' && chatMode === 'chat') isActive = true;

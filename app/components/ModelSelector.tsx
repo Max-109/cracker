@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { HexColorPicker } from "react-colorful";
 import { cn } from '@/lib/utils';
 import { ChevronDown, Cpu, Brain, Sparkles, Zap } from 'lucide-react';
@@ -14,9 +14,9 @@ type ModelOption = {
 };
 
 const MODEL_OPTIONS: ModelOption[] = [
-  { id: "gemini-3-pro-preview", name: "Expert", description: "Gemini 3 Pro", tier: 'expert', icon: Brain },
-  { id: "gemini-3-flash-preview", name: "Balanced", description: "Gemini 3 Flash", tier: 'balanced', icon: Sparkles },
-  { id: "gemini-2.5-flash-lite-preview-09-2025", name: "Ultra Fast", description: "Gemini 2.5 Flash Lite", tier: 'fast', icon: Zap },
+  { id: "gpt-5.5", name: "Expert", description: "GPT-5.5", tier: 'expert', icon: Brain },
+  { id: "gpt-5.4-mini", name: "Balanced", description: "GPT-5.4 Mini", tier: 'balanced', icon: Sparkles },
+  { id: "gpt-5.3-codex-spark", name: "Ultra Fast", description: "GPT-5.3 Codex Spark", tier: 'fast', icon: Zap },
 ];
 
 // Tier config with intensity levels (3 = strongest, 1 = lightest)
@@ -46,21 +46,25 @@ export function ModelSelector({
   const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
   const [isColorMenuOpen, setIsColorMenuOpen] = useState(false);
 
-  // Local state for color picker - prevents flickering during interaction
+  // Local state keeps the picker input controlled, while valid colors are applied immediately.
   const [localColor, setLocalColor] = useState(accentColor);
-  const prevOpenRef = useRef(false);
 
-  // Sync local color when menu opens, save to global when menu closes
   useEffect(() => {
-    if (isColorMenuOpen && !prevOpenRef.current) {
-      // Menu just opened - sync from global
+    if (!isColorMenuOpen) {
       setLocalColor(accentColor);
-    } else if (!isColorMenuOpen && prevOpenRef.current) {
-      // Menu just closed - save to global
-      onAccentColorChange(localColor);
     }
-    prevOpenRef.current = isColorMenuOpen;
-  }, [isColorMenuOpen, accentColor, localColor, onAccentColorChange]);
+  }, [accentColor, isColorMenuOpen]);
+
+  const isValidHexColor = (color: string) => /^#[0-9a-fA-F]{6}$/.test(color);
+
+  const handleColorChange = (color: string) => {
+    setLocalColor(color);
+    if (isValidHexColor(color)) {
+      onAccentColorChange(color);
+    }
+  };
+
+  const displayColor = isColorMenuOpen && isValidHexColor(localColor) ? localColor : accentColor;
 
   return (
     <>
@@ -181,12 +185,12 @@ export function ModelSelector({
             onClick={() => setIsColorMenuOpen(!isColorMenuOpen)}
             className="color-picker-btn w-9 h-9 border border-[var(--border-color)] bg-[#141414] hover-glow flex items-center justify-center"
             title="Accent Color"
-            style={{ color: isHydrated ? accentColor : '#444' }}
+            style={{ color: isHydrated ? displayColor : '#444' }}
           >
             <div className="ender-eye-container">
               <div
                 className={cn("ender-eye", isColorMenuOpen && "closed")}
-                style={{ backgroundColor: isHydrated ? accentColor : '#444' }}
+                style={{ backgroundColor: isHydrated ? displayColor : '#444' }}
               />
             </div>
           </button>
@@ -210,7 +214,7 @@ export function ModelSelector({
 
                 {/* Color Picker */}
                 <div className="p-3">
-                  <HexColorPicker color={localColor || '#af8787'} onChange={setLocalColor} />
+                  <HexColorPicker color={isValidHexColor(localColor) ? localColor : '#af8787'} onChange={handleColorChange} />
                 </div>
 
                 {/* Preset Colors */}
@@ -228,7 +232,7 @@ export function ModelSelector({
                     ].map((color) => (
                       <button
                         key={color}
-                        onClick={() => setLocalColor(color)}
+                        onClick={() => handleColorChange(color)}
                         className={cn(
                           "w-6 h-6 border transition-all duration-150 hover:scale-110",
                           (localColor || '').toLowerCase() === color.toLowerCase()
@@ -254,7 +258,7 @@ export function ModelSelector({
                       <input
                         type="text"
                         value={localColor || '#af8787'}
-                        onChange={(e) => setLocalColor(e.target.value)}
+                        onChange={(e) => handleColorChange(e.target.value)}
                         className="w-full bg-[var(--bg-input)] border border-[var(--border-color)] text-[11px] px-2 py-1.5 text-[var(--text-primary)] font-mono uppercase focus:border-[var(--border-active)] outline-none"
                       />
                     </div>
@@ -264,7 +268,7 @@ export function ModelSelector({
                 {/* Footer */}
                 <div className="px-3 py-2 border-t border-[var(--border-color)] bg-[#0f0f0f]">
                   <button
-                    onClick={() => setLocalColor('#af8787')}
+                    onClick={() => handleColorChange('#af8787')}
                     className="w-full flex items-center justify-center gap-2 py-1.5 text-[10px] uppercase tracking-[0.12em] font-semibold text-[var(--text-secondary)] border border-[var(--border-color)] hover:text-[var(--text-accent)] hover:border-[var(--text-accent)] transition-all duration-150"
                   >
                     Reset to Default

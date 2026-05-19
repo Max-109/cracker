@@ -31,6 +31,10 @@ interface EnhancedChatInputProps {
   onLearningSubModeChange: (mode: LearningSubMode) => void;
   disabled?: boolean;
   chatId?: string | null;
+  fastMode: boolean;
+  onFastModeChange: (enabled: boolean) => void;
+  supportsImages: boolean;
+  supportsPriority: boolean;
 }
 
 export function EnhancedChatInput({
@@ -51,6 +55,10 @@ export function EnhancedChatInput({
   onLearningSubModeChange,
   disabled,
   chatId,
+  fastMode,
+  onFastModeChange,
+  supportsImages,
+  supportsPriority,
 }: EnhancedChatInputProps) {
   const { quotes, clearQuotes } = useQuoteContext();
 
@@ -91,6 +99,10 @@ export function EnhancedChatInput({
         onLearningSubModeChange={onLearningSubModeChange}
         disabled={disabled}
         chatId={chatId}
+        fastMode={fastMode}
+        onFastModeChange={onFastModeChange}
+        supportsImages={supportsImages}
+        supportsPriority={supportsPriority}
       />
     </div>
   );

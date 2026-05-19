@@ -7,7 +7,6 @@ import * as Font from 'expo-font';
 import type { MMKV } from 'react-native-mmkv';
 import { useAuthStore } from '../store/auth';
 import { useSettingsStore } from '../store/settings';
-import { supabase } from '../lib/supabase';
 import '../global.css';
 
 // Get cached accent color for instant loading indicator
@@ -30,7 +29,7 @@ const customFonts = {
 };
 
 export default function RootLayout() {
-    const { initialize: initAuth, isInitialized, setUser } = useAuthStore();
+    const { initialize: initAuth, isInitialized } = useAuthStore();
     const { initialize: initSettings, syncFromServer } = useSettingsStore();
     const [error, setError] = useState<string | null>(null);
     const [fontsLoaded, setFontsLoaded] = useState(false);
@@ -68,27 +67,6 @@ export default function RootLayout() {
         };
 
         init();
-    }, []);
-
-    // Subscribe to auth state changes - critical for session persistence
-    useEffect(() => {
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(
-            async (event, session) => {
-                if (event === 'SIGNED_IN' && session?.user) {
-                    setUser({
-                        id: session.user.id,
-                        email: session.user.email,
-                        isGuest: false,
-                    });
-                } else if (event === 'SIGNED_OUT') {
-                    setUser(null);
-                }
-            }
-        );
-
-        return () => {
-            subscription.unsubscribe();
-        };
     }, []);
 
     if (error) {

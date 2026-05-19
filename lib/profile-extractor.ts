@@ -1,14 +1,9 @@
 /**
  * Profile Extractor - Automatically extracts user facts from messages
- * Uses Gemini Flash for fast, parallel extraction
  */
 
-import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import { generateText } from "ai";
-
-const google = createGoogleGenerativeAI({
-    apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY,
-});
+import { openai, openAIProviderOptions } from '@/lib/ai-provider';
 
 export interface ExtractedFact {
     fact: string;
@@ -26,7 +21,7 @@ export async function extractFacts(message: string): Promise<ExtractedFact[]> {
 
     try {
         const { text } = await generateText({
-            model: google("gemini-2.0-flash"),
+            model: openai.chat("gpt-5.3-codex-spark"),
             prompt: `You are a profile extraction system. Analyze this user message (in ANY language) and extract ONLY significant, lasting personal facts worth remembering for future conversations.
 
 EXTRACT facts like:
@@ -76,14 +71,7 @@ Example input: "How do I fix this TypeScript error?"
 Example output: {"facts": []}
 
 User message: "${message.replace(/"/g, '\\"').substring(0, 2000)}"`,
-            providerOptions: {
-                google: {
-                    generationConfig: {
-                        maxOutputTokens: 500,
-                        temperature: 0.1,
-                    },
-                },
-            },
+            providerOptions: openAIProviderOptions({ reasoningEffort: 'low' }),
         });
 
         // Parse the response

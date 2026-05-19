@@ -1,8 +1,6 @@
 'use client';
 
 import { createContext, useContext, useEffect, useState, useCallback } from 'react';
-import { createClient } from '@/lib/supabase/client';
-import type { User } from '@supabase/supabase-js';
 
 interface UserProfile {
   id: string;
@@ -13,15 +11,14 @@ interface UserProfile {
   guestLogin?: string;
 }
 
-// Guest user type (partial User type for compatibility)
-interface GuestUser {
+interface AuthUser {
   id: string;
   email: string;
-  isGuest: true;
+  isGuest?: boolean;
 }
 
 interface AuthContextType {
-  user: User | GuestUser | null;
+  user: AuthUser | null;
   profile: UserProfile | null;
   isLoading: boolean;
   isGuest: boolean;
@@ -41,11 +38,10 @@ const AuthContext = createContext<AuthContextType>({
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | GuestUser | null>(null);
+  const [user, setUser] = useState<AuthUser | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isGuest, setIsGuest] = useState(false);
-  const supabase = createClient();
 
   const fetchProfile = useCallback(async (userId: string) => {
     try {
@@ -106,82 +102,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     console.log('[AuthContext] refreshAuth called');
     setIsLoading(true);
 
-    // First check for Supabase auth user
-    const { data: { user: supabaseUser } } = await supabase.auth.getUser();
-    console.log('[AuthContext] Supabase user:', supabaseUser?.id || 'none');
-
-    if (supabaseUser) {
-      setUser(supabaseUser);
-      await fetchProfile(supabaseUser.id);
-      setIsGuest(false);
-      setIsLoading(false);
-      console.log('[AuthContext] Set Supabase user, done');
-      return;
+    try {
+      const res = await fetch('/api/auth/session');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.user) {
+          setUser({
+            id: data.user.id,
+            email: data.user.email,
+            isGuest: data.user.isGuest || false,
+          });
+          setProfile(data.user);
+          setIsGuest(data.user.isGuest || false);
+          setIsLoading(false);
+          return;
+        }
+      }
+    } catch (error) {
+      console.error('[AuthContext] Failed to refresh auth:', error);
     }
 
-    // If no Supabase user, check for guest session
-    console.log('[AuthContext] Checking guest session...');
-    const hasGuestSession = await checkGuestSession();
-    console.log('[AuthContext] Guest session result:', hasGuestSession);
-
-    if (!hasGuestSession) {
-      setUser(null);
-      setProfile(null);
-      setIsGuest(false);
-    }
+    setUser(null);
+    setProfile(null);
+    setIsGuest(false);
     setIsLoading(false);
-    console.log('[AuthContext] refreshAuth complete, isGuest:', hasGuestSession);
-  }, [supabase.auth, fetchProfile, checkGuestSession]);
+  }, []);
 
   useEffect(() => {
-    const getUser = async () => {
-      // First check for Supabase auth user
-      const { data: { user: supabaseUser } } = await supabase.auth.getUser();
-
-      if (supabaseUser) {
-        setUser(supabaseUser);
-        await fetchProfile(supabaseUser.id);
-        setIsLoading(false);
-        return;
-      }
-
-      // If no Supabase user, check for guest session
-      const hasGuestSession = await checkGuestSession();
-      if (!hasGuestSession) {
-        setUser(null);
-        setProfile(null);
-      }
-      setIsLoading(false);
-    };
-
-    getUser();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (session?.user) {
-          setUser(session.user);
-          await fetchProfile(session.user.id);
-          setIsGuest(false);
-        } else if (!isGuest) {
-          // Only clear if not a guest user
-          setUser(null);
-          setProfile(null);
-        }
-        setIsLoading(false);
-      }
-    );
-
-    return () => subscription.unsubscribe();
-  }, [supabase.auth, fetchProfile, checkGuestSession, isGuest]);
+    refreshAuth();
+  }, [refreshAuth]);
 
   const signOut = async () => {
-    if (isGuest) {
-      // Sign out guest user
-      await fetch('/api/auth/guest', { method: 'DELETE' });
-    } else {
-      // Sign out Supabase user
-      await supabase.auth.signOut();
-    }
+    await fetch('/api/auth/logout', { method: 'POST' });
     setUser(null);
     setProfile(null);
     setIsGuest(false);

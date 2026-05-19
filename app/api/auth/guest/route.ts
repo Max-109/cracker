@@ -3,26 +3,23 @@ import { getDb } from '@/db';
 import { users, userSettings } from '@/db/schema';
 import { eq, and } from 'drizzle-orm';
 import { randomUUID } from 'crypto';
-import { SignJWT } from 'jose';
 import { cookies } from 'next/headers';
-
-const GUEST_SESSION_SECRET = new TextEncoder().encode(
-    process.env.GUEST_SESSION_SECRET || 'guest-session-secret-key-change-in-production'
-);
+import { createAuthToken, GUEST_SESSION_COOKIE, getSessionCookieOptions } from '@/lib/auth';
 
 export async function POST(request: NextRequest) {
     try {
         const db = getDb();
-        const { login } = await request.json();
+        const { login, loginName } = await request.json();
+        const rawLogin = login ?? loginName;
 
-        if (!login || typeof login !== 'string') {
+        if (!rawLogin || typeof rawLogin !== 'string') {
             return NextResponse.json(
                 { error: 'Login name is required' },
                 { status: 400 }
             );
         }
 
-        const normalizedLogin = login.trim().toLowerCase();
+        const normalizedLogin = rawLogin.trim().toLowerCase();
 
         if (normalizedLogin.length < 2) {
             return NextResponse.json(
@@ -81,28 +78,22 @@ export async function POST(request: NextRequest) {
         }
 
         // Create a JWT token for the guest session
-        const token = await new SignJWT({
-            sub: guestUser.id,
+        const token = await createAuthToken({
+            id: guestUser.id,
+            email: guestUser.email,
             isGuest: true,
             guestLogin: normalizedLogin,
-        })
-            .setProtectedHeader({ alg: 'HS256' })
-            .setIssuedAt()
-            .setExpirationTime('30d')
-            .sign(GUEST_SESSION_SECRET);
+        });
 
         // Set the guest session cookie
         const cookieStore = await cookies();
-        cookieStore.set('guest-session', token, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: 'lax',
-            maxAge: 60 * 60 * 24 * 30, // 30 days
-            path: '/',
-        });
+        cookieStore.set(GUEST_SESSION_COOKIE, token, getSessionCookieOptions());
 
         return NextResponse.json({
             success: true,
+            token,
+            userId: guestUser.id,
+            loginName: normalizedLogin,
             user: {
                 id: guestUser.id,
                 email: guestUser.email,
@@ -124,7 +115,7 @@ export async function POST(request: NextRequest) {
 export async function DELETE() {
     try {
         const cookieStore = await cookies();
-        cookieStore.delete('guest-session');
+        cookieStore.delete(GUEST_SESSION_COOKIE);
 
         return NextResponse.json({ success: true });
     } catch (error) {

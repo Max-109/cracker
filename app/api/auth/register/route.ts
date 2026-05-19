@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createAdminClient } from '@/lib/supabase/server';
 import { getDb } from '@/db';
-import { users, invitationCodes } from '@/db/schema';
+import { users, invitationCodes, userSettings } from '@/db/schema';
 import { eq, isNull, and } from 'drizzle-orm';
+import { randomUUID } from 'crypto';
+import { hashPassword } from '@/lib/password';
 
 export async function POST(request: NextRequest) {
   try {
@@ -16,8 +17,26 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const normalizedEmail = String(email).trim().toLowerCase();
+    if (!/^\S+@\S+\.\S+$/.test(normalizedEmail)) {
+      return NextResponse.json({ error: 'Invalid email address' }, { status: 400 });
+    }
+
+    if (String(password).length < 8) {
+      return NextResponse.json({ error: 'Password must be at least 8 characters' }, { status: 400 });
+    }
+
+    const [existingUser] = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(eq(users.email, normalizedEmail));
+
+    if (existingUser) {
+      return NextResponse.json({ error: 'Email is already registered' }, { status: 400 });
+    }
+
     // Validate invitation code (case-insensitive, lowercase stored)
-    const normalizedCode = invitationCode.toLowerCase().trim();
+    const normalizedCode = String(invitationCode).toLowerCase().trim();
     const [code] = await db
       .select()
       .from(invitationCodes)
@@ -35,7 +54,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Check if code is disabled
     if (code.disabled) {
       return NextResponse.json(
         { error: 'This invitation code has been disabled' },
@@ -43,43 +61,23 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create user in Supabase Auth
-    const supabase = await createAdminClient();
-    const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true, // Auto-confirm email
-    });
+    const userId = randomUUID();
 
-    if (authError) {
-      console.error('Supabase auth error:', authError);
-      return NextResponse.json(
-        { error: authError.message },
-        { status: 400 }
-      );
-    }
-
-    if (!authData.user) {
-      return NextResponse.json(
-        { error: 'Failed to create user' },
-        { status: 500 }
-      );
-    }
-
-    // Create user profile in our database
     await db.insert(users).values({
-      id: authData.user.id,
-      email: authData.user.email!,
-      name: name || null,
+      id: userId,
+      email: normalizedEmail,
+      passwordHash: hashPassword(String(password)),
+      name: name ? String(name) : null,
       isAdmin: false,
       invitationCodeId: code.id,
     });
 
-    // Mark invitation code as used
+    await db.insert(userSettings).values({ userId }).onConflictDoNothing();
+
     await db
       .update(invitationCodes)
       .set({
-        usedBy: authData.user.id,
+        usedBy: userId,
         usedAt: new Date(),
       })
       .where(eq(invitationCodes.id, code.id));

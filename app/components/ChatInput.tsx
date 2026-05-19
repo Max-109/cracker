@@ -33,6 +33,10 @@ interface ChatInputProps {
   onLearningSubModeChange: (mode: LearningSubMode) => void;
   disabled?: boolean;
   chatId?: string | null;
+  fastMode: boolean;
+  onFastModeChange: (enabled: boolean) => void;
+  supportsImages: boolean;
+  supportsPriority: boolean;
 }
 
 export function ChatInput({
@@ -53,6 +57,10 @@ export function ChatInput({
   onLearningSubModeChange,
   disabled,
   chatId,
+  fastMode,
+  onFastModeChange,
+  supportsImages,
+  supportsPriority,
 }: ChatInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -321,6 +329,7 @@ export function ChatInput({
           <button
             onClick={() => fileInputRef.current?.click()}
             className="w-10 h-10 border border-[var(--border-color)] bg-[#1a1a1a] text-[var(--text-secondary)] hover:border-[var(--text-accent)]/50 hover:text-[var(--text-accent)] flex items-center justify-center mb-[2px] group transition-all duration-150"
+            title={supportsImages ? 'Attach files and images' : 'Attach files. Current model does not support images.'}
           >
             <Paperclip size={16} strokeWidth={2} className="group-hover:rotate-12 transition-transform duration-200" />
           </button>
@@ -521,7 +530,23 @@ export function ChatInput({
           </div>
 
           <div className="flex items-center gap-2 h-[40px] mb-[2px]">
-            {/* Reasoning Effort: Now auto-determined by AI, no manual selector needed */}
+            <button
+              type="button"
+              onClick={() => supportsPriority && onFastModeChange(!fastMode)}
+              disabled={isLoading || !supportsPriority}
+              className={cn(
+                "w-10 h-10 border transition-all duration-150 flex items-center justify-center",
+                fastMode
+                  ? "bg-[var(--text-accent)] text-black border-[var(--text-accent)] shadow-[0_0_16px_-6px_var(--text-accent)]"
+                  : "bg-[#1a1a1a] text-[var(--text-secondary)] border-[var(--border-color)] hover:border-[var(--text-accent)]/50 hover:text-[var(--text-accent)]",
+                (isLoading || !supportsPriority) && "opacity-50 cursor-not-allowed"
+              )}
+              title={!supportsPriority ? "Priority service is not available for this model" : fastMode ? "Priority service enabled" : "Enable priority service"}
+              aria-label="Toggle priority service"
+              aria-pressed={fastMode}
+            >
+              <Zap size={16} strokeWidth={2.5} />
+            </button>
 
             {isLoading ? (
               <button

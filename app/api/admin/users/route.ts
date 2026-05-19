@@ -1,32 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
 import { getDb } from '@/db';
 import { users } from '@/db/schema';
 import { eq, desc } from 'drizzle-orm';
+import { getAuthUser } from '@/lib/auth';
+
+async function requireAdmin() {
+  const authUser = await getAuthUser();
+  if (!authUser) return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) };
+
+  const db = getDb();
+  const [profile] = await db
+    .select({ isAdmin: users.isAdmin })
+    .from(users)
+    .where(eq(users.id, authUser.id));
+
+  if (!profile?.isAdmin) {
+    return { error: NextResponse.json({ error: 'Admin access required' }, { status: 403 }) };
+  }
+
+  return { authUser, db };
+}
 
 // GET - List all users (admin only)
 export async function GET() {
   try {
-    const db = getDb();
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
+    const auth = await requireAdmin();
+    if ('error' in auth) return auth.error;
 
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    // Check if user is admin
-    const [profile] = await db
-      .select({ isAdmin: users.isAdmin })
-      .from(users)
-      .where(eq(users.id, user.id));
-
-    if (!profile?.isAdmin) {
-      return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
-    }
-
-    // Fetch all users
-    const allUsers = await db
+    const allUsers = await auth.db
       .select({
         id: users.id,
         email: users.email,
@@ -47,23 +48,8 @@ export async function GET() {
 // PATCH - Toggle admin status for user
 export async function PATCH(request: NextRequest) {
   try {
-    const db = getDb();
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    // Check if current user is admin
-    const [profile] = await db
-      .select({ isAdmin: users.isAdmin })
-      .from(users)
-      .where(eq(users.id, user.id));
-
-    if (!profile?.isAdmin) {
-      return NextResponse.json({ error: 'Admin access required' }, { status: 403 });
-    }
+    const auth = await requireAdmin();
+    if ('error' in auth) return auth.error;
 
     const { userId, isAdmin } = await request.json();
 
@@ -71,13 +57,11 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
     }
 
-    // Prevent self-demotion
-    if (userId === user.id && !isAdmin) {
+    if (userId === auth.authUser.id && !isAdmin) {
       return NextResponse.json({ error: 'Cannot remove your own admin status' }, { status: 400 });
     }
 
-    // Update user
-    const [updatedUser] = await db
+    const [updatedUser] = await auth.db
       .update(users)
       .set({ isAdmin })
       .where(eq(users.id, userId))

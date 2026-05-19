@@ -1,5 +1,4 @@
 import * as SecureStore from 'expo-secure-store';
-import { supabase } from './supabase';
 
 // Use your deployed Next.js backend URL
 const API_BASE = 'https://cracker.mom';
@@ -12,47 +11,17 @@ export class ApiError extends Error {
 }
 
 /**
- * Get the auth token (guest JWT or Supabase session)
- * Will attempt to refresh the session if it's expired
+ * Get the auth token (app JWT or guest JWT).
  */
 async function getAuthToken(): Promise<string | null> {
     try {
-        // 1. Check for guest JWT first
+        const appJwt = await SecureStore.getItemAsync('app-jwt');
+        if (appJwt) return appJwt;
+
         const guestJwt = await SecureStore.getItemAsync('guest-jwt');
-        if (guestJwt) {
-            return guestJwt;
-        }
+        if (guestJwt) return guestJwt;
 
-        // 2. Try getting Supabase session
-        const { data } = await supabase.auth.getSession();
-
-        // 3. If no session, try refreshing
-        if (!data.session) {
-            const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
-
-            if (refreshError) {
-                return null;
-            }
-
-            if (refreshed.session) {
-                return refreshed.session.access_token;
-            }
-
-            return null;
-        }
-
-        // 4. Check if session is expired or about to expire (within 60 seconds)
-        const expiresAt = data.session.expires_at;
-        const now = Math.floor(Date.now() / 1000);
-
-        if (expiresAt && expiresAt - now < 60) {
-            const { data: refreshed } = await supabase.auth.refreshSession();
-            if (refreshed.session) {
-                return refreshed.session.access_token;
-            }
-        }
-
-        return data.session.access_token;
+        return null;
     } catch {
         return null;
     }
@@ -200,7 +169,7 @@ export const api = {
         const response = await fetch(`${API_BASE}/api/auth/guest`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ loginName }),
+            body: JSON.stringify({ login: loginName }),
         });
 
         if (!response.ok) {
@@ -222,6 +191,7 @@ export const api = {
     async guestLogout(): Promise<void> {
         await apiFetch('/api/auth/guest', { method: 'DELETE' });
         await SecureStore.deleteItemAsync('guest-jwt');
+        await SecureStore.deleteItemAsync('app-jwt');
     },
 
     async getProfile(userId: string): Promise<{ userName: string; userGender: string }> {

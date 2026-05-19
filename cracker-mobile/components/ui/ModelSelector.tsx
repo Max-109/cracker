@@ -17,9 +17,9 @@ type ModelOption = {
 };
 
 const MODEL_OPTIONS: ModelOption[] = [
-    { id: "gemini-3-pro-preview", name: "Expert", description: "Gemini 3 Pro", tier: 'expert', icon: 'bulb-outline' },
-    { id: "gemini-3-flash-preview", name: "Balanced", description: "Gemini 3 Flash", tier: 'balanced', icon: 'sparkles' },
-    { id: "gemini-2.5-flash-lite-preview-09-2025", name: "Ultra Fast", description: "Gemini 2.5 Flash Lite", tier: 'fast', icon: 'flash' },
+    { id: "gpt-5.5", name: "Expert", description: "GPT-5.5", tier: 'expert', icon: 'bulb-outline' },
+    { id: "gpt-5.4-mini", name: "Balanced", description: "GPT-5.4 Mini", tier: 'balanced', icon: 'sparkles' },
+    { id: "gpt-5.3-codex-spark", name: "Ultra Fast", description: "GPT-5.3 Codex Spark", tier: 'fast', icon: 'flash' },
 ];
 
 const TIER_CONFIG = {

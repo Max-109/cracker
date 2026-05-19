@@ -35,7 +35,7 @@ function getCachedValues() {
         accentColor: s.getString('accentColor') || '#af8787',
         codeWrap: s.getBoolean('codeWrap') ?? false,
         autoScroll: s.getBoolean('autoScroll') ?? true,
-        modelId: s.getString('currentModelId') || 'gemini-2.5-flash',
+        modelId: s.getString('currentModelId') || 'gpt-5.4-mini',
         modelName: s.getString('currentModelName') || 'Gemini 2.5 Flash',
         reasoningEffort: (s.getString('reasoningEffort') as ReasoningEffort) || 'medium',
         responseLength: s.getNumber('responseLength') ?? 50,
