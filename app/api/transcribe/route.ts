@@ -54,8 +54,8 @@ export async function POST(req: NextRequest) {
 
     // Select model based on type
     // fast: gemini-3-flash-preview (Fast, accurate, stable)
-    // expert: gemini-3-pro-preview (Most capable, expert model)
-    const modelId = modelType === 'expert' ? 'gemini-3-pro-preview' : 'gemini-3-flash-preview';
+    // expert: gemini-3.1-pro-preview (Most capable, expert model)
+    const modelId = modelType === 'expert' ? 'gemini-3.1-pro-preview' : 'gemini-3-flash-preview';
 
     console.log(`[Transcribe] Using model: ${modelId} (type: ${modelType})`);
 

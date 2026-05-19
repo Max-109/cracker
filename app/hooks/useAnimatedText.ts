@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useMotionValue, animate } from 'framer-motion';
 
 interface UseAnimatedTextOptions {
@@ -40,22 +40,23 @@ export function useAnimatedText(
     // Cursor position as React state (for re-rendering)
     const [cursor, setCursor] = useState(0);
 
-    // Track previous text to detect resets
-    const [prevText, setPrevText] = useState(text);
-    const [isSameText, setIsSameText] = useState(true);
+    // Track previous text without causing render-time state updates
+    const prevTextRef = useRef(text);
 
     // Detect text resets (new conversation) vs appending (streaming)
-    if (prevText !== text) {
+    useEffect(() => {
+        const prevText = prevTextRef.current;
+        if (prevText === text) return;
+
         const startsWith = text.startsWith(prevText);
-        setIsSameText(startsWith);
-        setPrevText(text);
 
         // If it's a completely new text (doesn't start with previous), reset cursor
         if (!startsWith) {
-            setCursor(0);
             animatedCursor.jump(0);
         }
-    }
+
+        prevTextRef.current = text;
+    }, [text, animatedCursor]);
 
     // Calculate animation target based on delimiter
     const units = delimiter === '' ? text : text.split(delimiter);
@@ -64,8 +65,8 @@ export function useAnimatedText(
     // Animate cursor to target
     useEffect(() => {
         if (!enabled) {
-            // When not enabled, immediately show all text
-            setCursor(targetLength);
+            // Keep motion value in sync without forcing a React state update.
+            animatedCursor.jump(targetLength);
             return;
         }
 

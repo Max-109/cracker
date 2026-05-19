@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useEffect, useState, memo, useCallback } from 'react';
+import React, { useRef, useEffect, useState, memo, useCallback, useMemo } from 'react';
 import type { ChatMessage, MessagePart } from '@/lib/chat-types';
 import { MessageItem } from './MessageItem';
 import { Skeleton } from './Skeleton';
@@ -13,7 +13,9 @@ import type { ChatMode, LearningSubMode } from '@/app/hooks/usePersistedSettings
 // Autoscroll hook - improved with requestAnimationFrame and near-bottom detection
 function useAutoScroll(
   isStreaming: boolean,
-  userMessageCount: number  // Track user messages specifically, not total
+  userMessageCount: number,  // Track user messages specifically, not total
+  streamingSignal: string,
+  autoScrollEnabled: boolean,
 ) {
   // Core refs
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -116,10 +118,11 @@ function useAutoScroll(
     return () => container.removeEventListener('scroll', handleScroll);
   }, [isNearBottom]);
 
-  // Auto-scroll during streaming using requestAnimationFrame
+  // Auto-scroll once per streamed-content update.
+  // This avoids an always-on rAF loop that can keep burning CPU if status is stale.
   useEffect(() => {
-    // Don't start streaming auto-scroll until initial scroll is done
-    if (!isStreaming || userHasScrolledUp || !initialScrollDoneRef.current) {
+    // Don't auto-scroll if disabled, paused by user, or initial positioning is still running.
+    if (!autoScrollEnabled || !isStreaming || userHasScrolledUp || !initialScrollDoneRef.current) {
       if (rafRef.current) {
         cancelAnimationFrame(rafRef.current);
         rafRef.current = null;
@@ -127,21 +130,17 @@ function useAutoScroll(
       return;
     }
 
-    let lastTime = 0;
-    const SCROLL_INTERVAL = 100; // Only scroll every 100ms max
+    if (rafRef.current) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
 
-    const tick = (time: number) => {
-      if (time - lastTime >= SCROLL_INTERVAL) {
-        // Only auto-scroll if near bottom and initial scroll is complete
-        if (isNearBottom() && initialScrollDoneRef.current) {
-          scrollToBottom(false);
-        }
-        lastTime = time;
+    rafRef.current = requestAnimationFrame(() => {
+      rafRef.current = null;
+      if (isNearBottom() && initialScrollDoneRef.current) {
+        scrollToBottom(false);
       }
-      rafRef.current = requestAnimationFrame(tick);
-    };
-
-    rafRef.current = requestAnimationFrame(tick);
+    });
 
     return () => {
       if (rafRef.current) {
@@ -149,14 +148,7 @@ function useAutoScroll(
         rafRef.current = null;
       }
     };
-  }, [isStreaming, userHasScrolledUp, isNearBottom, scrollToBottom]);
-
-  // Reset state when new streaming starts
-  useEffect(() => {
-    if (isStreaming) {
-      setUserHasScrolledUp(false);
-    }
-  }, [isStreaming]);
+  }, [autoScrollEnabled, isStreaming, userHasScrolledUp, isNearBottom, scrollToBottom, streamingSignal]);
 
   // Scroll to user message when a NEW USER message is added
   useEffect(() => {
@@ -170,6 +162,7 @@ function useAutoScroll(
 
       // Delay to let the DOM update fully
       setTimeout(() => {
+        setUserHasScrolledUp(false);
         scrollToUserMessage();
         // Allow streaming auto-scroll after a delay
         setTimeout(() => {
@@ -193,11 +186,16 @@ function useAutoScroll(
 
 
 // Custom hook for throttling values
-function useThrottledValue<T>(value: T, limit: number): T {
+function useThrottledValue<T>(value: T, limit: number, enabled = true): T {
   const [throttledValue, setThrottledValue] = useState(value);
   const lastRanRef = useRef<number>(0);
 
   useEffect(() => {
+    if (!enabled) {
+      lastRanRef.current = 0;
+      return;
+    }
+
     const now = Date.now();
     if (lastRanRef.current === 0) {
       lastRanRef.current = now;
@@ -213,9 +211,9 @@ function useThrottledValue<T>(value: T, limit: number): T {
     }, delay);
 
     return () => clearTimeout(handler);
-  }, [value, limit]);
+  }, [value, limit, enabled]);
 
-  return throttledValue;
+  return enabled ? throttledValue : value;
 }
 
 type EditAttachment = { id: string; url: string; name: string; mediaType: string };
@@ -249,7 +247,7 @@ const ThrottledMessageItem = memo(function ThrottledMessageItem({
   chatMode?: ChatMode;
   learningSubMode?: LearningSubMode;
 }) {
-  const extractContent = (): string | MessagePart[] => {
+  const extractContent = useCallback((): string | MessagePart[] => {
     // DEBUG: Log message structure to trace toolInvocations
     const msgToolInvocationsRaw = (message as { toolInvocations?: unknown[] }).toolInvocations;
     if (msgToolInvocationsRaw) {
@@ -258,10 +256,8 @@ const ThrottledMessageItem = memo(function ThrottledMessageItem({
 
     const msgParts = (message as { parts?: unknown[] }).parts;
     if (Array.isArray(msgParts) && msgParts.length > 0) {
-      const partTypes = msgParts.map((p: unknown) => (p as { type?: string })?.type || 'unknown');
-      // Debug removed
       const converted: MessagePart[] = [];
-      for (const part of msgParts) {
+      for (const [partIndex, part] of msgParts.entries()) {
         if (typeof part === 'object' && part !== null) {
           const p = part as Record<string, unknown>;
           if (p.type === 'text' && typeof p.text === 'string') {
@@ -297,7 +293,8 @@ const ThrottledMessageItem = memo(function ThrottledMessageItem({
 
             // Extract toolName from type for new format, or from nested object for old format
             const toolNameFromType = isNewFormat ? (p.type as string).replace('tool-', '') : '';
-            const toolCallId = (p.toolCallId as string) || nested?.toolCallId || (p.id as string) || `tool-${Date.now()}`;
+            const fallbackToolCallId = `tool-${message.id || 'message'}-${partIndex}`;
+            const toolCallId = (p.toolCallId as string) || nested?.toolCallId || (p.id as string) || fallbackToolCallId;
             const toolName = (p.toolName as string) || nested?.toolName || toolNameFromType || '';
 
             // AI SDK v5 uses different state names: input-streaming, input-available, output-available, output-error
@@ -373,10 +370,6 @@ const ThrottledMessageItem = memo(function ThrottledMessageItem({
         }
       }
 
-      // Debug: Log final converted content with tool invocations
-      const toolCount = converted.filter(p => p.type === 'tool-invocation').length;
-      // Debug removed
-
       if (converted.length > 0) return converted;
     }
 
@@ -415,10 +408,10 @@ const ThrottledMessageItem = memo(function ThrottledMessageItem({
     if (Array.isArray(message.content)) return message.content;
     if (typeof message.content === 'string') return message.content;
     return '';
-  };
+  }, [message]);
 
-  const combinedContent = extractContent();
-  const throttledContent = useThrottledValue(combinedContent, 16); // ~60fps for smoother streaming
+  const combinedContent = useMemo(() => extractContent(), [extractContent]);
+  const throttledContent = useThrottledValue(combinedContent, 16, Boolean(isStreaming)); // throttle only while streaming
 
   const handleEdit = React.useCallback((newContent: string, attachments?: EditAttachment[]) => {
     onEdit(index, newContent, attachments);
@@ -448,6 +441,7 @@ interface MessageListProps {
   isMessagesLoading: boolean;
   isSending?: boolean;
   isStreaming: boolean;
+  autoScrollEnabled?: boolean;
   status: 'submitted' | 'streaming' | 'ready' | 'error';
   streamingStats: { tokensPerSecond: number; modelId: string | null };
   currentChatId: string | null;
@@ -476,6 +470,7 @@ export function MessageList({
   isMessagesLoading,
   isSending = false,
   isStreaming,
+  autoScrollEnabled = true,
   status,
   streamingStats,
   currentChatId,
@@ -493,10 +488,55 @@ export function MessageList({
   // Count user messages for scroll tracking
   const userMessageCount = messages.filter(m => m.role === 'user').length;
 
+  // Signal changes when assistant stream content changes.
+  // This drives one-shot auto-scroll updates without an infinite frame loop.
+  const streamingSignal = useMemo(() => {
+    let lastAssistant: ChatMessage | undefined;
+    for (let i = messages.length - 1; i >= 0; i--) {
+      if (messages[i].role === 'assistant') {
+        lastAssistant = messages[i];
+        break;
+      }
+    }
+
+    if (!lastAssistant) {
+      return '';
+    }
+
+    const messageParts = Array.isArray((lastAssistant as { parts?: MessagePart[] }).parts)
+      ? (lastAssistant as { parts: MessagePart[] }).parts
+      : Array.isArray(lastAssistant.content)
+        ? lastAssistant.content
+        : [{ type: 'text', text: typeof lastAssistant.content === 'string' ? lastAssistant.content : '' }];
+
+    let textLength = 0;
+    let reasoningLength = 0;
+    let dynamicPartCount = 0;
+
+    for (const part of messageParts) {
+      if (part.type === 'text') {
+        textLength += (part.text || '').length;
+      } else if (part.type === 'reasoning') {
+        reasoningLength += (part.text || '').length;
+      } else if (
+        part.type === 'tool-invocation' ||
+        part.type === 'source' ||
+        (part as { type?: string }).type === 'source-url' ||
+        (part as { type?: string }).type === 'deep-research-progress'
+      ) {
+        dynamicPartCount += 1;
+      }
+    }
+
+    return `${lastAssistant.id}:${messageParts.length}:${textLength}:${reasoningLength}:${dynamicPartCount}`;
+  }, [messages]);
+
   // Use the new flawless autoscroll hook
   const { scrollContainerRef, messagesEndRef, lastUserMessageRef } = useAutoScroll(
     isStreaming,
-    userMessageCount
+    userMessageCount,
+    streamingSignal,
+    autoScrollEnabled
   );
 
   // Find the last user message index for scroll positioning
