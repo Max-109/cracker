@@ -1,6 +1,6 @@
 <div align="center">
   <h1>Cracker</h1>
-  <p><strong>A sharp, dark AI chat interface for self-hosted OpenAI-compatible models.</strong></p>
+  <p><strong>Self-hostable AI chat interface.</strong></p>
   <p>
     <img alt="Next.js" src="https://img.shields.io/badge/frontend-Next.js%2016-%23d4a86b?style=for-the-badge&labelColor=3f3f46" />
     <img alt="Runtime" src="https://img.shields.io/badge/runtime-Bun-%23d4a86b?style=for-the-badge&labelColor=3f3f46" />
