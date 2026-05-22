@@ -772,6 +772,9 @@ function ConnectionsSection({ connected, enabled, identity, usage, error, onConn
               <button onClick={() => void onSync()} className="flex items-center gap-2 px-3 py-2 text-[var(--text-primary)] border border-[var(--border-color)] hover:border-[var(--text-accent)]/50 hover:text-[var(--text-accent)] transition-colors uppercase tracking-[0.12em] text-[10px]">
                 <RefreshCw size={12} /> Sync
               </button>
+              <button onClick={onConnect} className="px-3 py-2 text-[var(--text-primary)] border border-[var(--border-color)] hover:border-[var(--text-accent)]/50 hover:text-[var(--text-accent)] transition-colors uppercase tracking-[0.12em] text-[10px]">
+                Add Account
+              </button>
               <button onClick={onUnlink} className="px-3 py-2 text-[var(--text-secondary)] border border-[var(--border-color)] hover:border-red-500/50 hover:text-red-400 transition-colors uppercase tracking-[0.12em] text-[10px]">
                 Unlink
               </button>
