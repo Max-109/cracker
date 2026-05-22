@@ -332,6 +332,10 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
           console.error('Failed to fetch completion stats:', e);
         }
       }
+
+      if (openAIAccountAuthRef.current) {
+        void openAIAccount.syncUsage();
+      }
     },
   });
 
@@ -893,12 +897,14 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
       return;
     }
 
-    if (openAIAccount.enabled && openAIAccount.connected) {
-      await openAIAccount.refreshIfNeeded();
-    }
-
-    // Show immediate loading feedback
+    // Show immediate loading feedback before any network refresh or chat setup.
     setIsSending(true);
+
+    if (openAIAccount.enabled && openAIAccount.connected) {
+      await openAIAccount.refreshIfNeeded().catch(error => {
+        console.warn('[CLIENT DEBUG] OpenAI account refresh did not finish before send:', error);
+      });
+    }
 
     // Format message with quotes if any
     let userMessage = input;
@@ -929,7 +935,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
     const autoReasoningPromise = fetch('/api/auto-reasoning', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt: userMessage })
+      body: JSON.stringify({ prompt: userMessage, openAIAccountAuth: openAIAccountAuthRef.current })
     }).then(res => res.json()).then(data => {
       const effort = data.effort as ReasoningEffortLevel;
       reasoningEffortRef.current = effort;
@@ -983,12 +989,16 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
         finalContent = structuredParts;
       }
 
+      let saveUserMessagePromise: Promise<Response | void> | null = null;
+
       if (activeChatId) {
         const partsToSave = Array.isArray(finalContent) ? finalContent : [{ type: 'text', text: finalContent }];
-        await fetch('/api/messages', {
+        saveUserMessagePromise = fetch('/api/messages', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ chatId: activeChatId, role: 'user', content: partsToSave })
+        }).catch(error => {
+          console.error('[CLIENT DEBUG] Failed to persist user message:', error);
         });
 
         if (isNewChat) {
@@ -1025,7 +1035,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
           fetch('/api/generate-title', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ chatId: activeChatId, prompt: titlePrompt })
+            body: JSON.stringify({ chatId: activeChatId, prompt: titlePrompt, openAIAccountAuth: openAIAccountAuthRef.current })
           }).then(() => refreshChats());
         }
       }
@@ -1070,6 +1080,9 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
           }],
         }]);
 
+        // Deep search owns its own streaming path, so keep the user message persisted before starting it.
+        await saveUserMessagePromise;
+
         // Start deep search
         await startDeepSearch(userMessage, activeChatId, placeholderId, false);
         return;
@@ -1083,8 +1096,12 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
         pendingLearningSubModeRef.current = mode;
       }
 
-      // Wait for auto-reasoning to complete before sending (it's been running in parallel)
-      await autoReasoningPromise;
+      // Give auto-reasoning a tiny budget, then stream with the current/default effort.
+      // This keeps first-message UI responsive instead of waiting on a separate model call.
+      await Promise.race([
+        autoReasoningPromise,
+        new Promise<ReasoningEffortLevel>(resolve => setTimeout(() => resolve(reasoningEffortRef.current), 350)),
+      ]);
 
       // Use direct streaming via sendMessage - transport body() provides model, chatId, etc.
       // For multimodal content (with attachments), use AI SDK's file format for BOTH images and files

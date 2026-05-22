@@ -11,6 +11,9 @@ export function normalizeReasoningEffort(effort: string): ReasoningEffort {
 export function createOpenAIProviderOptions(effort: string, modelId: string, fastMode: boolean) {
   return {
     reasoningEffort: normalizeReasoningEffort(effort),
+    // OpenAI reasoning models do not stream summaries unless this is explicitly enabled.
+    // AI SDK maps these summaries to reasoning deltas when the upstream supports them.
+    reasoningSummary: 'auto' as const,
     ...(fastMode && modelSupportsPriority(modelId) ? { serviceTier: 'priority' as const } : {}),
     forceReasoning: true,
   };

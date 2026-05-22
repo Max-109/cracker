@@ -14,6 +14,18 @@ type UsagePayload = {
   };
 };
 
+function usageSignature(usage: UsagePayload | null) {
+  if (!usage) return 'none';
+  return JSON.stringify({
+    plan: usage.plan_type || null,
+    limited: usage.rate_limit?.limit_reached ?? null,
+    primaryUsed: usage.rate_limit?.primary_window?.used_percent ?? null,
+    primaryReset: usage.rate_limit?.primary_window?.reset_at ?? null,
+    weeklyUsed: usage.rate_limit?.secondary_window?.used_percent ?? null,
+    weeklyReset: usage.rate_limit?.secondary_window?.reset_at ?? null,
+  });
+}
+
 function readAuth(): OpenAIAccountAuth | null {
   if (typeof window === 'undefined') return null;
   const raw = localStorage.getItem(OPENAI_ACCOUNT_STORAGE_KEY);
@@ -48,6 +60,7 @@ export function useOpenAIAccount() {
   const [auth, setAuthState] = useState<OpenAIAccountAuth | null>(null);
   const [enabled, setEnabledState] = useState(false);
   const [usage, setUsage] = useState<UsagePayload | null>(null);
+  const [usageChangedAt, setUsageChangedAt] = useState<number | null>(null);
   const [isLoadingUsage, setIsLoadingUsage] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -130,8 +143,13 @@ export function useOpenAIAccount() {
         writeAuth(data.auth);
         setAuthState(data.auth);
       }
-      setUsage(data.usage || null);
-      return data.usage as UsagePayload;
+      const nextUsage = (data.usage || null) as UsagePayload | null;
+      setUsage(prevUsage => {
+        const changed = usageSignature(prevUsage) !== usageSignature(nextUsage);
+        if (changed) setUsageChangedAt(Date.now());
+        return nextUsage;
+      });
+      return nextUsage;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Usage unavailable');
       return null;
@@ -152,6 +170,7 @@ export function useOpenAIAccount() {
     connected: !!auth,
     enabled,
     usage,
+    usageChangedAt,
     isLoadingUsage,
     error,
     connect,

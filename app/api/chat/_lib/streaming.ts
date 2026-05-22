@@ -15,13 +15,16 @@ export function streamChatCompletion(params: {
   hasTools: boolean;
   providerOptions: Record<string, unknown>;
   openaiProvider?: typeof openai;
+  useResponsesApi?: boolean;
 }) {
   const requestStartTime = Date.now();
   let firstChunkTime: number | null = null;
   let firstReasoningTime: number | null = null;
 
   return streamText({
-    model: (params.openaiProvider || openai).chat(params.cleanModelId),
+    model: params.useResponsesApi
+      ? (params.openaiProvider || openai).responses(params.cleanModelId)
+      : (params.openaiProvider || openai).chat(params.cleanModelId),
     system: params.systemPrompt,
     messages: params.modelMessages,
     tools: params.hasTools ? params.tools as any : undefined,

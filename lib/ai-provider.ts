@@ -25,6 +25,7 @@ export function openAIProviderOptions(options?: {
   return {
     openai: {
       reasoningEffort,
+      reasoningSummary: 'auto' as const,
       ...(options?.priority ? { serviceTier: 'priority' as const } : {}),
       forceReasoning: true,
     },

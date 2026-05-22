@@ -1,6 +1,8 @@
 import { generateText } from "ai";
 import { NextResponse } from "next/server";
 import { openai, openAIProviderOptions } from '@/lib/ai-provider';
+import { createOpenAIAccountProvider } from '@/lib/openai-account';
+import type { OpenAIAccountAuth } from '@/lib/openai-account-shared';
 
 // GPT reasoning effort classifier. The target chat models accept: low, medium, high, xhigh.
 const CLASSIFIER_SYSTEM_PROMPT = `You are a prompt complexity analyzer. Your ONLY job is to analyze user prompts and choose the best GPT reasoning_effort value.
@@ -62,7 +64,7 @@ function parseEffort(response: string): GptReasoningEffort {
 
 export async function POST(req: Request) {
     try {
-        const { prompt } = await req.json();
+        const { prompt, openAIAccountAuth } = await req.json() as { prompt?: string; openAIAccountAuth?: OpenAIAccountAuth | null };
 
         if (!prompt || typeof prompt !== 'string') {
             return NextResponse.json({ effort: 'medium' });
@@ -71,8 +73,9 @@ export async function POST(req: Request) {
         console.log('\n========== AUTO-REASONING ANALYSIS ==========');
         console.log('[AUTO-REASONING] Analyzing prompt:', prompt.slice(0, 200) + (prompt.length > 200 ? '...' : ''));
 
+        const provider = openAIAccountAuth?.accessToken ? createOpenAIAccountProvider(openAIAccountAuth) : openai;
         const result = await generateText({
-            model: openai.chat('gpt-5.3-codex-spark'),
+            model: provider.chat('gpt-5.3-codex-spark'),
             system: CLASSIFIER_SYSTEM_PROMPT,
             prompt,
             // Spark supports low/medium/high/xhigh. Use low for the cheap classifier call.

@@ -148,7 +148,9 @@ export async function fetchOpenAIUsageWithAuth(auth: OpenAIAccountAuth) {
 
 export function createOpenAIAccountProvider(auth: OpenAIAccountAuth) {
   return createOpenAI({
-    name: 'openai-account',
+    // Avoid inheriting OPENAI_BASE_URL from the environment. All account traffic
+    // is intercepted by codexFetch and forwarded with the user's local token.
+    baseURL: 'https://chatgpt.com/backend-api',
     apiKey: 'local-openai-account',
     fetch: (input, init) => codexFetch(auth, input, init),
   });
@@ -156,22 +158,15 @@ export function createOpenAIAccountProvider(auth: OpenAIAccountAuth) {
 
 async function codexFetch(auth: OpenAIAccountAuth, input: RequestInfo | URL, init?: RequestInit) {
   const url = input instanceof Request ? input.url : input.toString();
+  if (url.endsWith('/responses')) return codexResponsesFetch(auth, init);
   if (!url.endsWith('/chat/completions')) return fetch(input, init);
 
   const body = JSON.parse(String(init?.body || '{}'));
   const conversationId = `cracker-${randomBytes(18).toString('base64url')}`;
   const codexBody = openAIChatBodyToCodex(body, conversationId);
-  const headers: Record<string, string> = {
-    Authorization: `Bearer ${auth.accessToken}`,
-    'Content-Type': 'application/json',
-    'x-client-request-id': conversationId,
-    session_id: conversationId,
-  };
-  if (auth.accountId) headers['ChatGPT-Account-Id'] = auth.accountId;
-
   const upstream = await fetch(CODEX_RESPONSES_URL, {
     method: 'POST',
-    headers,
+    headers: codexHeaders(auth, conversationId),
     body: JSON.stringify(codexBody),
   });
 
@@ -182,6 +177,19 @@ async function codexFetch(auth: OpenAIAccountAuth, input: RequestInfo | URL, ini
     });
   }
 
+  const wantsStream = body.stream === true;
+
+  if (!wantsStream) {
+    const text = await collectOpenAITextFromCodexStream(upstream.body);
+    return Response.json({
+      id: `chatcmpl-${Date.now()}`,
+      object: 'chat.completion',
+      created: Math.floor(Date.now() / 1000),
+      model: body.model || codexBody.model,
+      choices: [{ index: 0, message: { role: 'assistant', content: text }, finish_reason: 'stop' }],
+    });
+  }
+
   return new Response(openAIStreamFromCodex(upstream.body, body.model || codexBody.model), {
     status: 200,
     headers: {
@@ -189,6 +197,96 @@ async function codexFetch(auth: OpenAIAccountAuth, input: RequestInfo | URL, ini
       'Cache-Control': 'no-cache, no-transform',
       Connection: 'keep-alive',
     },
+  });
+}
+
+async function codexResponsesFetch(auth: OpenAIAccountAuth, init?: RequestInit) {
+  const body = JSON.parse(String(init?.body || '{}'));
+  const conversationId = `cracker-${randomBytes(18).toString('base64url')}`;
+  const upstreamBody = openAIResponsesBodyToCodex(body, conversationId);
+
+  const upstream = await fetch(CODEX_RESPONSES_URL, {
+    method: 'POST',
+    headers: codexHeaders(auth, conversationId),
+    body: JSON.stringify(upstreamBody),
+  });
+
+  if (!upstream.ok || !upstream.body) {
+    return new Response(JSON.stringify({ error: { message: `OpenAI account request failed with status ${upstream.status}` } }), {
+      status: upstream.status,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  return new Response(upstream.body, {
+    status: 200,
+    headers: {
+      'Content-Type': 'text/event-stream; charset=utf-8',
+      'Cache-Control': 'no-cache, no-transform',
+      Connection: 'keep-alive',
+    },
+  });
+}
+
+function codexHeaders(auth: OpenAIAccountAuth, conversationId: string) {
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${auth.accessToken}`,
+    'Content-Type': 'application/json',
+    'x-client-request-id': conversationId,
+    session_id: conversationId,
+  };
+  if (auth.accountId) headers['ChatGPT-Account-Id'] = auth.accountId;
+  return headers;
+}
+
+function openAIResponsesBodyToCodex(body: any, conversationId: string) {
+  return {
+    model: body.model === 'gpt-5.5-fast' ? 'gpt-5.5' : body.model,
+    instructions: body.instructions || 'You are Codex.',
+    input: normalizeResponsesInput(body.input),
+    reasoning: {
+      effort: body.reasoning?.effort || 'medium',
+      summary: body.reasoning?.summary || 'auto',
+    },
+    stream: true,
+    store: false,
+    service_tier: body.service_tier,
+    prompt_cache_key: body.prompt_cache_key || conversationId,
+  };
+}
+
+function normalizeResponsesInput(input: any) {
+  if (typeof input === 'string') {
+    return [{ type: 'message', role: 'user', content: [{ type: 'input_text', text: input }] }];
+  }
+
+  if (!Array.isArray(input)) return [];
+
+  return input
+    .filter((item: any) => item && item.type !== 'reasoning')
+    .map((item: any) => {
+      if (item.type === 'message' || item.role) {
+        return {
+          type: 'message',
+          role: item.role || 'user',
+          content: normalizeResponsesContent(item.content),
+        };
+      }
+      return item;
+    });
+}
+
+function normalizeResponsesContent(content: any) {
+  if (typeof content === 'string') return [{ type: 'input_text', text: content }];
+  if (!Array.isArray(content)) return [];
+
+  return content.map((part: any) => {
+    if (typeof part === 'string') return { type: 'input_text', text: part };
+    if (part?.type === 'output_text') return { type: 'input_text', text: part.text || '' };
+    if (part?.type === 'text') return { type: 'input_text', text: part.text || '' };
+    if (part?.type === 'input_text') return part;
+    if (part?.type === 'input_image') return part;
+    return part;
   });
 }
 
@@ -203,7 +301,10 @@ function openAIChatBodyToCodex(body: any, conversationId: string) {
     model: body.model === 'gpt-5.5-fast' ? 'gpt-5.5' : body.model,
     instructions,
     input: messages.filter((message: any) => message.role !== 'system').map(chatMessageToCodexInput),
-    reasoning: { effort: body.reasoning_effort || body.reasoning?.effort || 'medium' },
+    reasoning: {
+      effort: body.reasoning_effort || body.reasoning?.effort || 'medium',
+      summary: body.reasoning?.summary || 'auto',
+    },
     stream: true,
     store: false,
     service_tier: body.service_tier,
@@ -231,6 +332,32 @@ function codexContentPart(part: any) {
   return null;
 }
 
+async function collectOpenAITextFromCodexStream(body: ReadableStream<Uint8Array>) {
+  const decoder = new TextDecoder();
+  const reader = body.getReader();
+  let buffer = '';
+  let text = '';
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const events = buffer.split('\n\n');
+    buffer = events.pop() || '';
+    for (const event of events) {
+      for (const delta of extractStreamDeltas(event)) {
+        if (delta.kind === 'text') text += delta.text;
+      }
+    }
+  }
+
+  for (const delta of extractStreamDeltas(buffer)) {
+    if (delta.kind === 'text') text += delta.text;
+  }
+
+  return text;
+}
+
 function openAIStreamFromCodex(body: ReadableStream<Uint8Array>, model: string) {
   const decoder = new TextDecoder();
   const encoder = new TextEncoder();
@@ -243,12 +370,27 @@ function openAIStreamFromCodex(body: ReadableStream<Uint8Array>, model: string) 
     async start(controller) {
       const reader = body.getReader();
       const send = (payload: unknown) => controller.enqueue(encoder.encode(`data: ${JSON.stringify(payload)}\n\n`));
+      let sentThinkingOpen = false;
+      let closedThinking = false;
       const sendText = (text: string) => {
         if (!sentRole) {
           send({ id, object: 'chat.completion.chunk', created, model, choices: [{ index: 0, delta: { role: 'assistant' }, finish_reason: null }] });
           sentRole = true;
         }
         send({ id, object: 'chat.completion.chunk', created, model, choices: [{ index: 0, delta: { content: text }, finish_reason: null }] });
+      };
+      const sendReasoning = (text: string) => {
+        if (!sentThinkingOpen) {
+          sendText('<think>');
+          sentThinkingOpen = true;
+        }
+        sendText(text);
+      };
+      const closeThinkingIfNeeded = () => {
+        if (sentThinkingOpen && !closedThinking) {
+          sendText('</think>\n\n');
+          closedThinking = true;
+        }
       };
       try {
         while (true) {
@@ -257,9 +399,24 @@ function openAIStreamFromCodex(body: ReadableStream<Uint8Array>, model: string) 
           buffer += decoder.decode(value, { stream: true });
           const events = buffer.split('\n\n');
           buffer = events.pop() || '';
-          for (const event of events) for (const text of extractTextDeltas(event)) sendText(text);
+          for (const event of events) {
+            for (const delta of extractStreamDeltas(event)) {
+              if (delta.kind === 'reasoning') sendReasoning(delta.text);
+              else {
+                closeThinkingIfNeeded();
+                sendText(delta.text);
+              }
+            }
+          }
         }
-        for (const text of extractTextDeltas(buffer)) sendText(text);
+        for (const delta of extractStreamDeltas(buffer)) {
+          if (delta.kind === 'reasoning') sendReasoning(delta.text);
+          else {
+            closeThinkingIfNeeded();
+            sendText(delta.text);
+          }
+        }
+        closeThinkingIfNeeded();
         if (!sentRole) sendText('');
         send({ id, object: 'chat.completion.chunk', created, model, choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] });
         controller.enqueue(encoder.encode('data: [DONE]\n\n'));
@@ -271,17 +428,36 @@ function openAIStreamFromCodex(body: ReadableStream<Uint8Array>, model: string) 
   });
 }
 
-function extractTextDeltas(eventBlock: string) {
-  const output: string[] = [];
-  const eventType = eventBlock.split('\n').find(line => line.startsWith('event: '))?.slice(7).trim();
+function extractStreamDeltas(eventBlock: string) {
+  const output: Array<{ kind: 'reasoning' | 'text'; text: string }> = [];
+  const sseEventType = eventBlock.split('\n').find(line => line.startsWith('event: '))?.slice(7).trim();
   for (const line of eventBlock.split('\n')) {
     if (!line.startsWith('data: ')) continue;
     const data = line.slice(6).trim();
     if (!data || data === '[DONE]') continue;
     try {
       const json = JSON.parse(data);
-      const text = json?.delta || json?.text || json?.output_text || json?.content?.[0]?.text;
-      if (typeof text === 'string' && (!eventType || eventType.endsWith('.delta') || eventType.includes('delta'))) output.push(text);
+      const eventType = sseEventType || json?.type || '';
+      const text = typeof json?.delta === 'string'
+        ? json.delta
+        : typeof json?.text === 'string'
+          ? json.text
+          : typeof json?.output_text === 'string'
+            ? json.output_text
+            : typeof json?.choices?.[0]?.delta?.content === 'string'
+              ? json.choices[0].delta.content
+              : typeof json?.choices?.[0]?.message?.content === 'string'
+                ? json.choices[0].message.content
+                : typeof json?.content?.[0]?.text === 'string'
+                  ? json.content[0].text
+                  : '';
+      if (!text) continue;
+
+      if (eventType.includes('reasoning') && eventType.includes('delta')) {
+        output.push({ kind: 'reasoning', text });
+      } else if (!eventType || eventType === 'response.output_text.delta' || eventType === 'response.text.delta') {
+        output.push({ kind: 'text', text });
+      }
     } catch {
       // Ignore non-JSON SSE payloads.
     }
