@@ -1,29 +1,33 @@
 <div align="center">
   <h1>Cracker</h1>
-  <p><strong>Self-hostable AI chat interface.</strong></p>
+  <p><strong>A private AI chat app with a sharp, dark interface and support for Codex-style account usage.</strong></p>
   <p>
-    <img alt="Next.js" src="https://img.shields.io/badge/frontend-Next.js%2016-%23d4a86b?style=for-the-badge&labelColor=3f3f46" />
-    <img alt="Runtime" src="https://img.shields.io/badge/runtime-Bun-%23d4a86b?style=for-the-badge&labelColor=3f3f46" />
-    <img alt="Database" src="https://img.shields.io/badge/database-PostgreSQL-%23d4a86b?style=for-the-badge&labelColor=3f3f46" />
-    <img alt="API" src="https://img.shields.io/badge/API-OpenAI%20Compatible-%23d4a86b?style=for-the-badge&labelColor=3f3f46" />
+    <img alt="Self-hostable" src="https://img.shields.io/badge/self--hostable-yes-%23d4a86b?style=for-the-badge&labelColor=3f3f46" />
+    <img alt="OpenAI accounts" src="https://img.shields.io/badge/OpenAI%20accounts-multi--account-%23d4a86b?style=for-the-badge&labelColor=3f3f46" />
+    <img alt="Private access" src="https://img.shields.io/badge/access-invite--only-%23d4a86b?style=for-the-badge&labelColor=3f3f46" />
+    <img alt="Mobile app" src="https://img.shields.io/badge/mobile-Expo-%23d4a86b?style=for-the-badge&labelColor=3f3f46" />
   </p>
   <img src="./cracker.gif" alt="Cracker app preview" width="900" />
 </div>
 
 ## What is Cracker?
 
-Cracker is a private AI chat app built around a self-hosted OpenAI-compatible API. It has a square, cyberpunk-ish interface, encrypted chat storage, local account auth, model switching, image-capable chat, web tools, learning mode, and memory.
+Cracker is a private AI chat app built around an OpenAI-compatible backend. It has encrypted chat storage, local auth, model switching, file attachments, web tools, learning mode, memory, and a matching mobile app.
 
-It is meant to feel fast and personal without depending on hosted auth or a managed AI provider.
+You can also connect OpenAI accounts in the browser and use their Codex/ChatGPT-plan usage for compatible models. Add more than one account if you want. Cracker checks usage, picks the account with the most room left, and tries the next account when one hits a limit.
 
 ## Features
 
 - OpenAI-compatible `/v1/chat/completions` backend support.
+- Connect OpenAI accounts from the browser to use Codex/ChatGPT-plan usage where supported.
+- Multiple OpenAI accounts. Cracker sorts them by remaining usage and rotates when one is rate-limited.
 - GPT model presets: `gpt-5.5`, `gpt-5.4-mini`, and `gpt-5.3-codex-spark`.
 - Model capability checks, so text-only models do not accept image uploads.
 - Optional priority service mode for models that support it.
 - PostgreSQL + Drizzle ORM for chats, settings, users, memory, and encrypted messages.
 - Built-in email/password auth stored in PostgreSQL.
+- Admin dashboard for managing invitation codes and access.
+- Invitation-code signup flow, so the app can stay private.
 - Guest mode.
 - File and image attachments for supported models.
 - Brave Search and YouTube tools.
@@ -98,6 +102,20 @@ bun start
 ```
 
 The mobile app uses the same backend API and database-backed auth.
+
+## Admin and invites
+
+Cracker has an admin dashboard for controlling access. Admin users can create invitation codes, disable codes, and keep signups private instead of leaving registration open to everyone.
+
+Guest mode is also available when you want quick access without creating a full account.
+
+## OpenAI account usage
+
+OpenAI account tokens are stored in browser `localStorage`, not in the database. The server only receives them when it needs to refresh usage or make a request.
+
+You can connect several accounts. Cracker keeps a small usage snapshot for each one, uses the account with the most usage left, and rotates to another connected account on limit-style failures. If every account is out of room, the app shows a normal explanation instead of a raw Next.js or SDK error.
+
+This is separate from `OPENAI_BASE_URL` / `OPENAI_API_KEY`. Those still work as the server-side fallback or proxy path.
 
 ## Model behavior
 
