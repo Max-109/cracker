@@ -64,7 +64,7 @@ function parseEffort(response: string): GptReasoningEffort {
 
 export async function POST(req: Request) {
     try {
-        const { prompt, openAIAccountAuth } = await req.json() as { prompt?: string; openAIAccountAuth?: OpenAIAccountAuth | null };
+        const { prompt, openAIAccountAuth } = await req.json() as { prompt?: string; openAIAccountAuth?: OpenAIAccountAuth | OpenAIAccountAuth[] | null };
 
         if (!prompt || typeof prompt !== 'string') {
             return NextResponse.json({ effort: 'medium' });
@@ -73,7 +73,8 @@ export async function POST(req: Request) {
         console.log('\n========== AUTO-REASONING ANALYSIS ==========');
         console.log('[AUTO-REASONING] Analyzing prompt:', prompt.slice(0, 200) + (prompt.length > 200 ? '...' : ''));
 
-        const provider = openAIAccountAuth?.accessToken ? createOpenAIAccountProvider(openAIAccountAuth) : openai;
+        const openAIAccountAuths = Array.isArray(openAIAccountAuth) ? openAIAccountAuth : openAIAccountAuth ? [openAIAccountAuth] : [];
+        const provider = openAIAccountAuths.length > 0 ? createOpenAIAccountProvider(openAIAccountAuths) : openai;
         const result = await generateText({
             model: provider.chat('gpt-5.3-codex-spark'),
             system: CLASSIFIER_SYSTEM_PROMPT,

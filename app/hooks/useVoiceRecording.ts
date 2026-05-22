@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useCallback } from 'react';
-import { OPENAI_ACCOUNT_ENABLED_KEY, OPENAI_ACCOUNT_STORAGE_KEY, type OpenAIAccountAuth } from '@/lib/openai-account-shared';
+import { OPENAI_ACCOUNT_ENABLED_KEY, OPENAI_ACCOUNT_STORAGE_KEY, OPENAI_ACCOUNTS_STORAGE_KEY, getOpenAIUsageScore, isOpenAIAccountLimited, type OpenAIAccountAuth, type OpenAIStoredAccount } from '@/lib/openai-account-shared';
 
 export type RecordingState = 'idle' | 'requesting' | 'recording' | 'transcribing';
 
@@ -37,6 +37,16 @@ export function calculateEstimatedTime(audioDurationMs: number, model: 'fast' | 
 function readOpenAIAccountAuth(): OpenAIAccountAuth | null {
   if (typeof window === 'undefined') return null;
   if (localStorage.getItem(OPENAI_ACCOUNT_ENABLED_KEY) !== 'true') return null;
+
+  try {
+    const accounts = JSON.parse(localStorage.getItem(OPENAI_ACCOUNTS_STORAGE_KEY) || '[]') as OpenAIStoredAccount[];
+    const best = accounts
+      .filter(account => account.enabled && account.auth?.accessToken && !isOpenAIAccountLimited(account))
+      .sort((a, b) => getOpenAIUsageScore(a.usage) - getOpenAIUsageScore(b.usage))[0];
+    if (best) return best.auth;
+  } catch {
+    // Fall back to old single-account storage.
+  }
 
   const raw = localStorage.getItem(OPENAI_ACCOUNT_STORAGE_KEY);
   if (!raw) return null;

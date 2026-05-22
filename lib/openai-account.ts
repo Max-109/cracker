@@ -157,33 +157,44 @@ export async function fetchOpenAIUsageWithAuth(auth: OpenAIAccountAuth) {
   return response.json();
 }
 
-export function createOpenAIAccountProvider(auth: OpenAIAccountAuth) {
+export function createOpenAIAccountProvider(auth: OpenAIAccountAuth | OpenAIAccountAuth[]) {
+  const auths = Array.isArray(auth) ? auth.filter(a => a?.accessToken) : [auth];
   return createOpenAI({
     // Avoid inheriting OPENAI_BASE_URL from the environment. All account traffic
     // is intercepted by codexFetch and forwarded with the user's local token.
     baseURL: 'https://chatgpt.com/backend-api',
     apiKey: 'local-openai-account',
-    fetch: (input, init) => codexFetch(auth, input, init),
+    fetch: (input, init) => codexFetch(auths, input, init),
   });
 }
 
-async function codexFetch(auth: OpenAIAccountAuth, input: RequestInfo | URL, init?: RequestInit) {
+async function codexFetch(auths: OpenAIAccountAuth[], input: RequestInfo | URL, init?: RequestInit) {
   const url = input instanceof Request ? input.url : input.toString();
-  if (url.endsWith('/responses')) return codexResponsesFetch(auth, init);
+  if (url.endsWith('/responses')) return codexResponsesFetch(auths, init);
   if (!url.endsWith('/chat/completions')) return fetch(input, init);
 
   const body = JSON.parse(String(init?.body || '{}'));
   const conversationId = `cracker-${randomBytes(18).toString('base64url')}`;
   const codexBody = openAIChatBodyToCodex(body, conversationId);
-  const upstream = await fetch(CODEX_RESPONSES_URL, {
-    method: 'POST',
-    headers: codexHeaders(auth, conversationId),
-    body: JSON.stringify(codexBody),
-  });
+  let upstream: Response | null = null;
+  let lastError: { status: number; body: string } | null = null;
+  for (const auth of auths) {
+    upstream = await fetch(CODEX_RESPONSES_URL, {
+      method: 'POST',
+      headers: codexHeaders(auth, conversationId),
+      body: JSON.stringify(codexBody),
+    });
 
-  if (!upstream.ok || !upstream.body) {
-    return new Response(JSON.stringify({ error: { message: `OpenAI account request failed with status ${upstream.status}` } }), {
-      status: upstream.status,
+    if (upstream.ok && upstream.body) break;
+    const bodyText = await upstream.text().catch(() => '');
+    lastError = { status: upstream.status, body: bodyText };
+    if (!isRotatableAccountLimit(upstream.status, bodyText)) break;
+  }
+
+  if (!upstream?.ok || !upstream.body) {
+    const message = friendlyOpenAIAccountError(lastError?.status || upstream?.status || 500, lastError?.body || '');
+    return new Response(JSON.stringify({ error: { message } }), {
+      status: lastError?.status || upstream?.status || 500,
       headers: { 'Content-Type': 'application/json' },
     });
   }
@@ -211,20 +222,30 @@ async function codexFetch(auth: OpenAIAccountAuth, input: RequestInfo | URL, ini
   });
 }
 
-async function codexResponsesFetch(auth: OpenAIAccountAuth, init?: RequestInit) {
+async function codexResponsesFetch(auths: OpenAIAccountAuth[], init?: RequestInit) {
   const body = JSON.parse(String(init?.body || '{}'));
   const conversationId = `cracker-${randomBytes(18).toString('base64url')}`;
   const upstreamBody = openAIResponsesBodyToCodex(body, conversationId);
 
-  const upstream = await fetch(CODEX_RESPONSES_URL, {
-    method: 'POST',
-    headers: codexHeaders(auth, conversationId),
-    body: JSON.stringify(upstreamBody),
-  });
+  let upstream: Response | null = null;
+  let lastError: { status: number; body: string } | null = null;
+  for (const auth of auths) {
+    upstream = await fetch(CODEX_RESPONSES_URL, {
+      method: 'POST',
+      headers: codexHeaders(auth, conversationId),
+      body: JSON.stringify(upstreamBody),
+    });
 
-  if (!upstream.ok || !upstream.body) {
-    return new Response(JSON.stringify({ error: { message: `OpenAI account request failed with status ${upstream.status}` } }), {
-      status: upstream.status,
+    if (upstream.ok && upstream.body) break;
+    const bodyText = await upstream.text().catch(() => '');
+    lastError = { status: upstream.status, body: bodyText };
+    if (!isRotatableAccountLimit(upstream.status, bodyText)) break;
+  }
+
+  if (!upstream?.ok || !upstream.body) {
+    const message = friendlyOpenAIAccountError(lastError?.status || upstream?.status || 500, lastError?.body || '');
+    return new Response(JSON.stringify({ error: { message } }), {
+      status: lastError?.status || upstream?.status || 500,
       headers: { 'Content-Type': 'application/json' },
     });
   }
@@ -237,6 +258,27 @@ async function codexResponsesFetch(auth: OpenAIAccountAuth, init?: RequestInit) 
       Connection: 'keep-alive',
     },
   });
+}
+
+function isRotatableAccountLimit(status: number, body: string) {
+  const lower = body.toLowerCase();
+  if (status !== 429) return false;
+  return lower.includes('usage_limit_reached')
+    || lower.includes('rate_limit')
+    || lower.includes('too many requests')
+    || lower.includes('limit reached')
+    || lower.includes('credits');
+}
+
+function friendlyOpenAIAccountError(status: number, body: string) {
+  const lower = body.toLowerCase();
+  if (status === 429) {
+    if (lower.includes('usage_not_included')) return 'This OpenAI account does not include Codex usage. Try another connected account.';
+    return 'All connected OpenAI accounts are currently rate-limited or out of included usage. Try again after reset or connect another account.';
+  }
+  if (status === 401 || status === 403) return 'OpenAI account authentication failed. Reconnect this account or try another connected account.';
+  if (status >= 500) return 'OpenAI account backend is temporarily unavailable. Try again in a moment.';
+  return `OpenAI account request failed with status ${status}.`;
 }
 
 function codexHeaders(auth: OpenAIAccountAuth, conversationId: string) {

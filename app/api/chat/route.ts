@@ -53,7 +53,8 @@ export async function POST(req: Request) {
       useOpenAIAccount,
     } = body;
 
-    const useLocalOpenAIAccount = useOpenAIAccount === true && !!openAIAccountAuth?.accessToken;
+    const openAIAccountAuths = Array.isArray(openAIAccountAuth) ? openAIAccountAuth : openAIAccountAuth ? [openAIAccountAuth] : [];
+    const useLocalOpenAIAccount = useOpenAIAccount === true && openAIAccountAuths.some(auth => !!auth?.accessToken);
     const configError = useLocalOpenAIAccount ? null : getOpenAIConfigError();
     if (configError) {
       return jsonError('AI provider not configured', configError, 500);
@@ -113,7 +114,7 @@ export async function POST(req: Request) {
       tools,
       hasTools,
       providerOptions,
-      openaiProvider: useLocalOpenAIAccount ? createOpenAIAccountProvider(openAIAccountAuth) : undefined,
+      openaiProvider: useLocalOpenAIAccount ? createOpenAIAccountProvider(openAIAccountAuths) : undefined,
     });
 
     extractAndStoreFactsInBackground(

@@ -1,20 +1,19 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { OPENAI_ACCOUNT_ENABLED_KEY, OPENAI_ACCOUNT_STORAGE_KEY, type OpenAIAccountAuth } from '@/lib/openai-account-shared';
+import {
+  OPENAI_ACCOUNT_ENABLED_KEY,
+  OPENAI_ACCOUNT_STORAGE_KEY,
+  OPENAI_ACCOUNTS_STORAGE_KEY,
+  getOpenAIAccountKey,
+  getOpenAIUsageScore,
+  isOpenAIAccountLimited,
+  type OpenAIAccountAuth,
+  type OpenAIStoredAccount,
+  type OpenAIUsagePayload,
+} from '@/lib/openai-account-shared';
 
-type UsageWindow = { used_percent?: number; reset_at?: number; limit_window_seconds?: number };
-type UsagePayload = {
-  plan_type?: string;
-  rate_limit?: {
-    allowed?: boolean;
-    limit_reached?: boolean;
-    primary_window?: UsageWindow;
-    secondary_window?: UsageWindow;
-  };
-};
-
-function usageSignature(usage: UsagePayload | null) {
+function usageSignature(usage: OpenAIUsagePayload | null | undefined) {
   if (!usage) return 'none';
   return JSON.stringify({
     plan: usage.plan_type || null,
@@ -26,48 +25,70 @@ function usageSignature(usage: UsagePayload | null) {
   });
 }
 
-function readAuth(): OpenAIAccountAuth | null {
-  if (typeof window === 'undefined') return null;
-  const raw = localStorage.getItem(OPENAI_ACCOUNT_STORAGE_KEY);
-  if (!raw) return null;
+function accountFromAuth(auth: OpenAIAccountAuth, existing?: Partial<OpenAIStoredAccount>): OpenAIStoredAccount {
+  const now = Date.now();
+  return {
+    id: getOpenAIAccountKey(auth),
+    auth,
+    enabled: existing?.enabled ?? true,
+    usage: existing?.usage ?? null,
+    usageChangedAt: existing?.usageChangedAt ?? null,
+    lastError: existing?.lastError ?? null,
+    exhaustedUntil: existing?.exhaustedUntil ?? null,
+    exhaustedReason: existing?.exhaustedReason ?? null,
+    addedAt: existing?.addedAt ?? now,
+    updatedAt: now,
+  };
+}
+
+function readAccounts(): OpenAIStoredAccount[] {
+  if (typeof window === 'undefined') return [];
+
+  const rawList = localStorage.getItem(OPENAI_ACCOUNTS_STORAGE_KEY);
+  if (rawList) {
+    try {
+      const parsed = JSON.parse(rawList) as OpenAIStoredAccount[];
+      if (Array.isArray(parsed)) return parsed.filter(a => a?.auth?.accessToken && a?.auth?.refreshToken);
+    } catch {
+      // Fall through to single-account migration.
+    }
+  }
+
+  const rawSingle = localStorage.getItem(OPENAI_ACCOUNT_STORAGE_KEY);
+  if (!rawSingle) return [];
   try {
-    const parsed = JSON.parse(raw) as OpenAIAccountAuth;
-    return parsed.accessToken && parsed.refreshToken ? parsed : null;
+    const auth = JSON.parse(rawSingle) as OpenAIAccountAuth;
+    if (!auth.accessToken || !auth.refreshToken) return [];
+    const account = accountFromAuth(auth, { enabled: localStorage.getItem(OPENAI_ACCOUNT_ENABLED_KEY) !== 'false' });
+    writeAccounts([account]);
+    return [account];
   } catch {
-    return null;
+    return [];
   }
 }
 
-function readEnabled() {
-  if (typeof window === 'undefined') return false;
-  return localStorage.getItem(OPENAI_ACCOUNT_ENABLED_KEY) === 'true';
-}
-
-function writeAuth(auth: OpenAIAccountAuth | null) {
+function writeAccounts(accounts: OpenAIStoredAccount[]) {
   if (typeof window === 'undefined') return;
-  if (auth) localStorage.setItem(OPENAI_ACCOUNT_STORAGE_KEY, JSON.stringify(auth));
+  localStorage.setItem(OPENAI_ACCOUNTS_STORAGE_KEY, JSON.stringify(accounts));
+  const best = pickBestAccount(accounts);
+  if (best) localStorage.setItem(OPENAI_ACCOUNT_STORAGE_KEY, JSON.stringify(best.auth));
   else localStorage.removeItem(OPENAI_ACCOUNT_STORAGE_KEY);
+  localStorage.setItem(OPENAI_ACCOUNT_ENABLED_KEY, String(accounts.some(a => a.enabled)));
   window.dispatchEvent(new Event('cracker-openai-account-change'));
 }
 
-function writeEnabled(enabled: boolean) {
-  if (typeof window === 'undefined') return;
-  localStorage.setItem(OPENAI_ACCOUNT_ENABLED_KEY, String(enabled));
-  window.dispatchEvent(new Event('cracker-openai-account-change'));
+function pickBestAccount(accounts: OpenAIStoredAccount[]) {
+  const enabled = accounts.filter(a => a.enabled && !isOpenAIAccountLimited(a));
+  const candidates = enabled.length ? enabled : accounts.filter(a => a.enabled);
+  return [...candidates].sort((a, b) => getOpenAIUsageScore(a.usage) - getOpenAIUsageScore(b.usage))[0] || null;
 }
 
 export function useOpenAIAccount() {
-  const [auth, setAuthState] = useState<OpenAIAccountAuth | null>(null);
-  const [enabled, setEnabledState] = useState(false);
-  const [usage, setUsage] = useState<UsagePayload | null>(null);
-  const [usageChangedAt, setUsageChangedAt] = useState<number | null>(null);
+  const [accounts, setAccounts] = useState<OpenAIStoredAccount[]>([]);
   const [isLoadingUsage, setIsLoadingUsage] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const reload = useCallback(() => {
-    setAuthState(readAuth());
-    setEnabledState(readEnabled());
-  }, []);
+  const reload = useCallback(() => setAccounts(readAccounts()), []);
 
   useEffect(() => {
     reload();
@@ -84,18 +105,23 @@ export function useOpenAIAccount() {
     };
   }, [reload]);
 
-  const setEnabled = useCallback((next: boolean) => {
-    writeEnabled(next);
-    setEnabledState(next);
+  const persist = useCallback((next: OpenAIStoredAccount[]) => {
+    writeAccounts(next);
+    setAccounts(next);
   }, []);
 
-  const unlink = useCallback(() => {
-    writeAuth(null);
-    writeEnabled(false);
-    setAuthState(null);
-    setEnabledState(false);
-    setUsage(null);
-  }, []);
+  const setEnabled = useCallback((next: boolean) => {
+    persist(accounts.map(a => ({ ...a, enabled: next, updatedAt: Date.now() })));
+  }, [accounts, persist]);
+
+  const setAccountEnabled = useCallback((id: string, enabled: boolean) => {
+    persist(accounts.map(a => a.id === id ? { ...a, enabled, updatedAt: Date.now() } : a));
+  }, [accounts, persist]);
+
+  const unlink = useCallback((id?: string) => {
+    const next = id ? accounts.filter(a => a.id !== id) : [];
+    persist(next);
+  }, [accounts, persist]);
 
   const connect = useCallback(() => {
     const accent = getComputedStyle(document.documentElement).getPropertyValue('--text-accent').trim()
@@ -104,78 +130,99 @@ export function useOpenAIAccount() {
     window.open(`/api/openai-account/connect?accent=${encodeURIComponent(accent)}`, '_blank', 'noopener,noreferrer,width=520,height=720');
   }, []);
 
-  const refresh = useCallback(async () => {
-    const current = readAuth();
-    if (!current) return null;
+  const refreshAccount = useCallback(async (account: OpenAIStoredAccount) => {
+    if (account.auth.expiresAtMillis > Date.now() + 60_000 && account.auth.integrityState) return account;
     const res = await fetch('/api/openai-account/refresh', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ auth: current }),
+      body: JSON.stringify({ auth: account.auth }),
     });
     if (!res.ok) throw new Error('Refresh failed');
     const data = await res.json();
-    writeAuth(data.auth);
-    setAuthState(data.auth);
-    return data.auth as OpenAIAccountAuth;
+    return accountFromAuth(data.auth, account);
   }, []);
 
-  const refreshIfNeeded = useCallback(async () => {
-    const current = readAuth();
-    if (!current) return null;
-    if (current.expiresAtMillis > Date.now() + 60_000) return current;
-    return refresh();
-  }, [refresh]);
+  const refresh = useCallback(async () => {
+    const best = pickBestAccount(accounts);
+    if (!best) return null;
+    const refreshed = await refreshAccount(best);
+    persist(accounts.map(a => a.id === best.id ? refreshed : a));
+    return refreshed.auth;
+  }, [accounts, persist, refreshAccount]);
+
+  const refreshIfNeeded = useCallback(async () => refresh(), [refresh]);
+
+  const syncUsageForAccount = useCallback(async (account: OpenAIStoredAccount) => {
+    const refreshed = await refreshAccount(account);
+    const res = await fetch('/api/openai-account/usage', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ auth: refreshed.auth }),
+    });
+    if (!res.ok) throw new Error('Usage unavailable');
+    const data = await res.json();
+    const nextAuth = data.auth || refreshed.auth;
+    const nextUsage = (data.usage || null) as OpenAIUsagePayload | null;
+    const changed = usageSignature(account.usage) !== usageSignature(nextUsage);
+    return accountFromAuth(nextAuth, {
+      ...refreshed,
+      usage: nextUsage,
+      usageChangedAt: changed ? Date.now() : account.usageChangedAt,
+      lastError: null,
+      exhaustedUntil: nextUsage?.rate_limit?.limit_reached ? Math.max(
+        nextUsage.rate_limit.primary_window?.reset_at || 0,
+        nextUsage.rate_limit.secondary_window?.reset_at || 0,
+      ) * 1000 || null : null,
+      exhaustedReason: nextUsage?.rate_limit?.limit_reached ? 'usage_limit_reached' : null,
+    });
+  }, [refreshAccount]);
 
   const syncUsage = useCallback(async () => {
-    const current = await refreshIfNeeded();
-    if (!current) return null;
+    if (accounts.length === 0) return null;
     setIsLoadingUsage(true);
     setError(null);
     try {
-      const res = await fetch('/api/openai-account/usage', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ auth: current }),
+      const results = await Promise.allSettled(accounts.map(syncUsageForAccount));
+      const next = accounts.map((account, index) => {
+        const result = results[index];
+        if (result.status === 'fulfilled') return result.value;
+        return { ...account, lastError: result.reason instanceof Error ? result.reason.message : 'Usage unavailable' };
       });
-      if (!res.ok) throw new Error('Usage unavailable');
-      const data = await res.json();
-      if (data.auth) {
-        writeAuth(data.auth);
-        setAuthState(data.auth);
-      }
-      const nextUsage = (data.usage || null) as UsagePayload | null;
-      setUsage(prevUsage => {
-        const changed = usageSignature(prevUsage) !== usageSignature(nextUsage);
-        if (changed) setUsageChangedAt(Date.now());
-        return nextUsage;
-      });
-      return nextUsage;
+      persist(next);
+      return pickBestAccount(next)?.usage || null;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Usage unavailable');
       return null;
     } finally {
       setIsLoadingUsage(false);
     }
-  }, [refreshIfNeeded]);
+  }, [accounts, persist, syncUsageForAccount]);
 
   useEffect(() => {
-    if (auth && enabled) void syncUsage();
-  }, [auth?.accountId, enabled, syncUsage]);
+    if (accounts.some(a => a.enabled)) void syncUsage();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accounts.length]);
 
-  const requestAuth = useMemo(() => enabled ? auth : null, [auth, enabled]);
+  const enabledAccounts = useMemo(() => accounts.filter(a => a.enabled), [accounts]);
+  const bestAccount = useMemo(() => pickBestAccount(accounts), [accounts]);
+  const requestAuths = useMemo(() => [...enabledAccounts].sort((a, b) => getOpenAIUsageScore(a.usage) - getOpenAIUsageScore(b.usage)).map(a => a.auth), [enabledAccounts]);
 
   return {
-    auth,
-    requestAuth,
-    connected: !!auth,
-    enabled,
-    usage,
-    usageChangedAt,
+    accounts,
+    activeAccount: bestAccount,
+    auth: bestAccount?.auth || null,
+    requestAuth: bestAccount?.auth || null,
+    requestAuths,
+    connected: accounts.length > 0,
+    enabled: enabledAccounts.length > 0,
+    usage: bestAccount?.usage || null,
+    usageChangedAt: bestAccount?.usageChangedAt || null,
     isLoadingUsage,
     error,
     connect,
     unlink,
     setEnabled,
+    setAccountEnabled,
     refresh,
     refreshIfNeeded,
     syncUsage,

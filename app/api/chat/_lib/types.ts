@@ -15,7 +15,7 @@ export type ChatRequestBody = {
   customInstructions?: string;
   enabledMcpServers?: string[];
   fastMode?: boolean;
-  openAIAccountAuth?: OpenAIAccountAuth | null;
+  openAIAccountAuth?: OpenAIAccountAuth | OpenAIAccountAuth[] | null;
   useOpenAIAccount?: boolean;
 };
 

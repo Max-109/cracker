@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { authFromTokenResponse, exchangeAuthorizationCode } from '@/lib/openai-account';
-import { OPENAI_ACCOUNT_ENABLED_KEY, OPENAI_ACCOUNT_STORAGE_KEY } from '@/lib/openai-account-shared';
+import { OPENAI_ACCOUNT_ENABLED_KEY, OPENAI_ACCOUNT_STORAGE_KEY, OPENAI_ACCOUNTS_STORAGE_KEY } from '@/lib/openai-account-shared';
 
 const COOKIE_NAME = 'openai-oauth-pkce';
 
@@ -39,7 +39,15 @@ export async function GET(request: NextRequest) {
 <html><head><title>OpenAI connected</title><style>
 body{margin:0;background:#1a1a1a;color:#fff;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;display:grid;place-items:center;min-height:100dvh}.box{border:1px solid #333;background:#141414;padding:24px;max-width:520px}.k{color:#af8787;text-transform:uppercase;font-size:11px;letter-spacing:.14em}.m{color:#777;font-size:12px;line-height:1.6}
 </style></head><body><div class="box"><div class="k">OpenAI connected</div><p class="m">Token saved in this browser. You can close this tab.</p></div><script>
-localStorage.setItem('${OPENAI_ACCOUNT_STORAGE_KEY}', ${JSON.stringify(authJson)});
+const auth = JSON.parse(${JSON.stringify(authJson)});
+const accountId = auth.accountId || auth.email || auth.refreshToken.slice(0, 16);
+const now = Date.now();
+let accounts = [];
+try { accounts = JSON.parse(localStorage.getItem('${OPENAI_ACCOUNTS_STORAGE_KEY}') || '[]'); } catch { accounts = []; }
+const existing = accounts.find(a => a.id === accountId);
+accounts = [...accounts.filter(a => a.id !== accountId), { ...(existing || {}), id: accountId, auth, enabled: true, addedAt: existing?.addedAt || now, updatedAt: now }];
+localStorage.setItem('${OPENAI_ACCOUNTS_STORAGE_KEY}', JSON.stringify(accounts));
+localStorage.setItem('${OPENAI_ACCOUNT_STORAGE_KEY}', JSON.stringify(auth));
 localStorage.setItem('${OPENAI_ACCOUNT_ENABLED_KEY}', 'true');
 window.dispatchEvent(new Event('cracker-openai-account-change'));
 if (window.opener) window.opener.postMessage({ type: 'cracker-openai-connected' }, window.location.origin);

@@ -156,7 +156,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
 
   const reasoningEffortRef = useRef<ReasoningEffortLevel>('medium'); // Auto-reasoning: updated per-message
   const fastModeRef = useRef(fastMode);
-  const openAIAccountAuthRef = useRef(openAIAccount.requestAuth);
+  const openAIAccountAuthRef = useRef(openAIAccount.requestAuths);
 
   // Sync with URL changes (for history.pushState navigation)
   useEffect(() => {
@@ -205,7 +205,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
   // Use direct assignment - update ref IMMEDIATELY when value changes, not via effect
   // This prevents race condition when user toggles a tool and quickly sends a message
   enabledMcpServersRef.current = enabledMcpServers;
-  openAIAccountAuthRef.current = openAIAccount.requestAuth;
+  openAIAccountAuthRef.current = openAIAccount.requestAuths;
   const learningSubModeRef = useRef(learningSubMode);
   useEffect(() => { learningSubModeRef.current = learningSubMode; }, [learningSubMode]);
 
@@ -292,7 +292,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
         enabledMcpServers: enabledMcpServersRef.current,
         accentColor: getAccentColorFromStorage(),
         fastMode: fastModeRef.current,
-        useOpenAIAccount: !!openAIAccountAuthRef.current,
+        useOpenAIAccount: openAIAccountAuthRef.current.length > 0,
         openAIAccountAuth: openAIAccountAuthRef.current,
       };
     },
@@ -333,7 +333,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
         }
       }
 
-      if (openAIAccountAuthRef.current) {
+      if (openAIAccountAuthRef.current.length > 0) {
         void openAIAccount.syncUsage();
       }
     },
@@ -1278,7 +1278,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
           onAutoScrollChange={setAutoScroll}
           openAIConnected={openAIAccount.connected}
           openAIEnabled={openAIAccount.enabled}
-          openAIEmail={openAIAccount.auth?.email || openAIAccount.auth?.accountId || null}
+          openAIEmail={openAIAccount.accounts.length > 1 ? `${openAIAccount.accounts.length} accounts connected` : (openAIAccount.auth?.email || openAIAccount.auth?.accountId || null)}
           openAIUsage={openAIAccount.usage}
           openAIError={openAIAccount.error}
           onOpenAIConnect={openAIAccount.connect}

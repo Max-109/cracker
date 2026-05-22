@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { OPENAI_ACCOUNT_ENABLED_KEY, OPENAI_ACCOUNT_STORAGE_KEY } from '@/lib/openai-account-shared';
+import { OPENAI_ACCOUNT_ENABLED_KEY, OPENAI_ACCOUNT_STORAGE_KEY, OPENAI_ACCOUNTS_STORAGE_KEY } from '@/lib/openai-account-shared';
 
 function getAccent(request: NextRequest) {
   const accent = request.nextUrl.searchParams.get('accent') || '#af8787';
@@ -14,6 +14,7 @@ export async function GET(request: NextRequest) {
 body{margin:0;background:#1a1a1a;color:#fff;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;display:grid;place-items:center;min-height:100dvh}.box{border:1px solid #333;background:#141414;padding:24px;width:min(520px,calc(100vw - 32px))}.k{color:${accent};text-transform:uppercase;font-size:11px;letter-spacing:.14em}.m{color:#777;font-size:12px;line-height:1.6}.code{margin:18px 0;border:1px solid ${accent}66;background:${accent}14;color:${accent};font-size:30px;letter-spacing:.16em;text-align:center;padding:18px}.row{display:flex;gap:8px}.btn{border:1px solid ${accent};background:${accent};color:#000;text-transform:uppercase;letter-spacing:.12em;font-weight:700;font-size:11px;padding:10px 12px;text-decoration:none}.ghost{border-color:#333;background:#1a1a1a;color:#aaa}.err{color:#ff8a8a}
 </style></head><body><div class="box"><div class="k">Connect OpenAI</div><p id="msg" class="m">Starting device login...</p><div id="code" class="code">------</div><div class="row"><a id="open" class="btn" href="https://auth.openai.com/codex/device" target="_blank" rel="noopener noreferrer">Open OpenAI</a><button id="copy" class="btn ghost">Copy code</button></div></div><script>
 const storageKey = '${OPENAI_ACCOUNT_STORAGE_KEY}';
+const accountsKey = '${OPENAI_ACCOUNTS_STORAGE_KEY}';
 const enabledKey = '${OPENAI_ACCOUNT_ENABLED_KEY}';
 const msg = document.getElementById('msg');
 const code = document.getElementById('code');
@@ -40,6 +41,14 @@ async function poll(){
   const data = await res.json();
   if (data.pending) return;
   clearInterval(timer);
+  const accountId = data.auth.accountId || data.auth.email || data.auth.refreshToken.slice(0, 16);
+  const now = Date.now();
+  let accounts = [];
+  try { accounts = JSON.parse(localStorage.getItem(accountsKey) || '[]'); } catch { accounts = []; }
+  const existing = accounts.find(a => a.id === accountId);
+  const nextAccount = { ...(existing || {}), id: accountId, auth: data.auth, enabled: true, addedAt: existing?.addedAt || now, updatedAt: now };
+  accounts = [...accounts.filter(a => a.id !== accountId), nextAccount];
+  localStorage.setItem(accountsKey, JSON.stringify(accounts));
   localStorage.setItem(storageKey, JSON.stringify(data.auth));
   localStorage.setItem(enabledKey, 'true');
   msg.textContent = 'Connected. You can close this window.';
