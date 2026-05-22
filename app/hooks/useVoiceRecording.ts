@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useCallback } from 'react';
+import { OPENAI_ACCOUNT_ENABLED_KEY, OPENAI_ACCOUNT_STORAGE_KEY, type OpenAIAccountAuth } from '@/lib/openai-account-shared';
 
 export type RecordingState = 'idle' | 'requesting' | 'recording' | 'transcribing';
 
@@ -31,6 +32,99 @@ export function calculateEstimatedTime(audioDurationMs: number, model: 'fast' | 
   const clamped = Math.max(minTime, Math.min(estimated, maxTime));
 
   return clamped * 1000; // Return in ms
+}
+
+function readOpenAIAccountAuth(): OpenAIAccountAuth | null {
+  if (typeof window === 'undefined') return null;
+  if (localStorage.getItem(OPENAI_ACCOUNT_ENABLED_KEY) !== 'true') return null;
+
+  const raw = localStorage.getItem(OPENAI_ACCOUNT_STORAGE_KEY);
+  if (!raw) return null;
+
+  try {
+    const auth = JSON.parse(raw) as OpenAIAccountAuth;
+    return auth.accessToken ? auth : null;
+  } catch {
+    return null;
+  }
+}
+
+async function refreshOpenAIAccountAuthIfNeeded(auth: OpenAIAccountAuth | null) {
+  if (!auth) return null;
+  if (auth.integrityState && auth.expiresAtMillis > Date.now() + 60_000) return auth;
+
+  const response = await fetch('/api/openai-account/refresh', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ auth }),
+  });
+
+  if (!response.ok) return auth;
+
+  const data = await response.json();
+  if (data.auth?.accessToken) {
+    localStorage.setItem(OPENAI_ACCOUNT_STORAGE_KEY, JSON.stringify(data.auth));
+    window.dispatchEvent(new Event('cracker-openai-account-change'));
+    return data.auth as OpenAIAccountAuth;
+  }
+
+  return auth;
+}
+
+function transcribeTextFromPayload(payload: unknown) {
+  if (typeof payload === 'string') return payload.trim();
+  if (!payload || typeof payload !== 'object') return '';
+  const data = payload as Record<string, unknown>;
+  for (const key of ['text', 'transcript', 'transcription']) {
+    if (typeof data[key] === 'string') return data[key].trim();
+  }
+  return '';
+}
+
+function normalizeAudioForChatGPT(audioBlob: Blob, mimeType: string) {
+  const normalizedMimeType = (mimeType || 'audio/webm').split(';')[0] || 'audio/webm';
+  const extension = normalizedMimeType.includes('mp4') ? 'mp4' : normalizedMimeType.includes('mpeg') ? 'mp3' : 'webm';
+  return new File([audioBlob], `recording.${extension}`, { type: normalizedMimeType });
+}
+
+async function transcribeWithChatGPTBackendInBrowser(audioBlob: Blob, mimeType: string, auth: OpenAIAccountAuth) {
+  const requestId = `cracker-transcribe-${crypto.randomUUID?.() || Date.now()}`;
+  const formData = new FormData();
+  formData.append('file', normalizeAudioForChatGPT(audioBlob, mimeType));
+
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${auth.accessToken}`,
+    Accept: 'application/json, text/plain, */*',
+    'x-client-request-id': requestId,
+    session_id: requestId,
+  };
+  if (auth.accountId) headers['ChatGPT-Account-Id'] = auth.accountId;
+  if (auth.integrityState) headers['X-OAI-IS'] = auth.integrityState;
+
+  const response = await fetch('https://chatgpt.com/backend-api/transcribe', {
+    method: 'POST',
+    headers,
+    body: formData,
+    credentials: 'include',
+  });
+
+  const contentType = response.headers.get('content-type') || '';
+  const raw = await response.text();
+  if (!response.ok) {
+    throw new Error(`ChatGPT browser transcription failed ${response.status}: ${raw.slice(0, 300)}`);
+  }
+
+  const payload = contentType.includes('application/json') ? JSON.parse(raw) : raw;
+  const text = transcribeTextFromPayload(payload);
+  if (!text) throw new Error('ChatGPT browser transcription returned no text');
+
+  const integrityState = response.headers.get('x-oai-is-update') || response.headers.get('x-oai-is') || auth.integrityState || null;
+  if (integrityState && integrityState !== auth.integrityState) {
+    localStorage.setItem(OPENAI_ACCOUNT_STORAGE_KEY, JSON.stringify({ ...auth, integrityState }));
+    window.dispatchEvent(new Event('cracker-openai-account-change'));
+  }
+
+  return text;
 }
 
 export function useVoiceRecording({ onTranscription, onError }: UseVoiceRecordingOptions = {}) {
@@ -100,22 +194,37 @@ export function useVoiceRecording({ onTranscription, onError }: UseVoiceRecordin
         const audioBlob = new Blob(chunksRef.current, { type: mimeType });
 
         try {
-          // Send to transcription API
+          const openAIAccountAuth = await refreshOpenAIAccountAuthIfNeeded(readOpenAIAccountAuth());
+          if (!openAIAccountAuth) {
+            throw new Error('OpenAI account is required for ChatGPT backend transcription');
+          }
+
+          try {
+            const text = await transcribeWithChatGPTBackendInBrowser(audioBlob, mimeType, openAIAccountAuth);
+            onTranscription?.(text);
+            return;
+          } catch (browserError) {
+            console.warn('Browser ChatGPT transcription failed, trying server proxy:', browserError);
+          }
+
           const formData = new FormData();
           formData.append('audio', audioBlob, `recording.${mimeType.includes('webm') ? 'webm' : 'mp4'}`);
-          formData.append('model', selectedModelRef.current);
+          formData.append('openAIAccountAuth', JSON.stringify(openAIAccountAuth));
 
           const response = await fetch('/api/transcribe', {
             method: 'POST',
             body: formData,
           });
 
+          const data = await response.json().catch(() => null);
           if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || 'Transcription failed');
+            throw new Error(data?.details || data?.error || 'Transcription failed');
           }
 
-          const data = await response.json();
+          if (data.auth?.accessToken) {
+            localStorage.setItem(OPENAI_ACCOUNT_STORAGE_KEY, JSON.stringify(data.auth));
+            window.dispatchEvent(new Event('cracker-openai-account-change'));
+          }
 
           if (data.text) {
             onTranscription?.(data.text);

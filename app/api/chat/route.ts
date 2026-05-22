@@ -2,6 +2,7 @@ import { getDb } from '@/db';
 import { getOpenAIConfigError } from '@/lib/ai-provider';
 import { createOpenAIAccountProvider } from '@/lib/openai-account';
 import { getModelCapabilities, modelSupportsPriority, normalizeModelId } from '@/lib/model-capabilities';
+import { deleteTempAttachments, getTempAttachmentIdFromUrl } from '@/lib/temp-attachments';
 import { NextResponse } from 'next/server';
 import { extractAndStoreFactsInBackground, loadChatMemory } from './_lib/memory';
 import { extractTextFromLastUserMessage, prepareModelMessages } from './_lib/messages';
@@ -122,7 +123,8 @@ export async function POST(req: Request) {
       extractTextFromLastUserMessage(messages),
     );
 
-    return result.toUIMessageStreamResponse({ sendReasoning: true });
+    const response = result.toUIMessageStreamResponse({ sendReasoning: true });
+    return cleanupTempAttachmentsAfterStream(response, collectTempAttachmentIds(messages));
   } catch (error) {
     console.error('API Route Error:', error);
     return jsonError('Internal Server Error', error instanceof Error ? error.message : String(error), 500);
@@ -133,6 +135,44 @@ function jsonError(error: string, details: string, status: number) {
   return new Response(JSON.stringify({ error, details }), {
     status,
     headers: { 'Content-Type': 'application/json' },
+  });
+}
+
+function collectTempAttachmentIds(messages: ChatRequestBody['messages']) {
+  const ids = new Set<string>();
+
+  const visit = (value: unknown) => {
+    if (!value || typeof value !== 'object') return;
+    const part = value as { data?: unknown; image?: unknown; url?: unknown };
+    for (const candidate of [part.data, part.image, part.url]) {
+      if (typeof candidate !== 'string') continue;
+      const id = getTempAttachmentIdFromUrl(candidate);
+      if (id) ids.add(id);
+    }
+  };
+
+  for (const message of messages || []) {
+    if (Array.isArray(message.content)) message.content.forEach(visit);
+    if (Array.isArray(message.parts)) message.parts.forEach(visit);
+    visit(message.content);
+  }
+
+  return [...ids];
+}
+
+function cleanupTempAttachmentsAfterStream(response: Response, attachmentIds: string[]) {
+  if (attachmentIds.length === 0 || !response.body) return response;
+
+  return new Response(response.body.pipeThrough(new TransformStream({
+    flush() {
+      deleteTempAttachments(attachmentIds).catch((error) => {
+        console.warn('[attachments] cleanup after chat failed:', error);
+      });
+    },
+  })), {
+    status: response.status,
+    statusText: response.statusText,
+    headers: response.headers,
   });
 }
 

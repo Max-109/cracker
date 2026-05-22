@@ -13,6 +13,7 @@ type TokenResponse = {
   access_token: string;
   id_token?: string;
   expires_in?: number;
+  integrity_state?: string | null;
 };
 
 export type OpenAIDeviceCode = {
@@ -74,7 +75,9 @@ export async function exchangeAuthorizationCode(args: { code: string; redirectUr
     body,
   });
   if (!response.ok) throw new Error(`OpenAI auth failed with status ${response.status}`);
-  return response.json() as Promise<TokenResponse>;
+  const tokenResponse = await response.json() as TokenResponse;
+  tokenResponse.integrity_state = integrityStateFromHeaders(response.headers);
+  return tokenResponse;
 }
 
 export async function requestOpenAIDeviceCode() {
@@ -118,10 +121,16 @@ export async function refreshOpenAIAccountAuth(auth: OpenAIAccountAuth): Promise
     body,
   });
   if (!response.ok) throw new Error(`OpenAI refresh failed with status ${response.status}`);
-  return authFromTokenResponse(await response.json() as TokenResponse, auth);
+  const tokenResponse = await response.json() as TokenResponse;
+  tokenResponse.integrity_state = integrityStateFromHeaders(response.headers);
+  return authFromTokenResponse(tokenResponse, auth, tokenResponse.integrity_state || auth.integrityState || null);
 }
 
-export function authFromTokenResponse(tokenResponse: TokenResponse, previous?: OpenAIAccountAuth): OpenAIAccountAuth {
+function integrityStateFromHeaders(headers: Headers) {
+  return headers.get('x-oai-is-update') || headers.get('x-oai-is');
+}
+
+export function authFromTokenResponse(tokenResponse: TokenResponse, previous?: OpenAIAccountAuth, integrityState?: string | null): OpenAIAccountAuth {
   const idClaims = parseJwtClaims(tokenResponse.id_token);
   const accessClaims = parseJwtClaims(tokenResponse.access_token);
   const refreshToken = tokenResponse.refresh_token || previous?.refreshToken;
@@ -132,6 +141,7 @@ export function authFromTokenResponse(tokenResponse: TokenResponse, previous?: O
     expiresAtMillis: Date.now() + (tokenResponse.expires_in || 3600) * 1000,
     accountId: accountIdFromClaims(idClaims) || accountIdFromClaims(accessClaims) || previous?.accountId || null,
     email: emailFromClaims(idClaims) || emailFromClaims(accessClaims) || previous?.email || null,
+    integrityState: integrityState || tokenResponse.integrity_state || previous?.integrityState || null,
   };
 }
 
@@ -141,6 +151,7 @@ export async function fetchOpenAIUsageWithAuth(auth: OpenAIAccountAuth) {
     'User-Agent': 'codex-cli',
   };
   if (auth.accountId) headers['ChatGPT-Account-Id'] = auth.accountId;
+  if (auth.integrityState) headers['X-OAI-IS'] = auth.integrityState;
   const response = await fetch(CODEX_USAGE_URL, { headers, cache: 'no-store' });
   if (!response.ok) throw new Error(`usage request failed with status ${response.status}`);
   return response.json();
@@ -236,6 +247,7 @@ function codexHeaders(auth: OpenAIAccountAuth, conversationId: string) {
     session_id: conversationId,
   };
   if (auth.accountId) headers['ChatGPT-Account-Id'] = auth.accountId;
+  if (auth.integrityState) headers['X-OAI-IS'] = auth.integrityState;
   return headers;
 }
 
@@ -327,9 +339,33 @@ function chatMessageToCodexInput(message: any) {
 
 function codexContentPart(part: any) {
   if (part?.type === 'text') return { type: 'input_text', text: part.text || '' };
-  const imageUrl = part?.image_url?.url || part?.imageUrl?.url || part?.url;
-  if ((part?.type === 'image_url' || part?.type === 'file') && imageUrl) return { type: 'input_image', image_url: imageUrl };
+
+  const imageUrl = part?.image_url?.url || part?.imageUrl?.url;
+  if (part?.type === 'image_url' && imageUrl) return { type: 'input_image', image_url: imageUrl };
+
+  if (part?.type === 'file') {
+    const fileData = part?.file?.file_data || (isPdfDataUrl(part?.url) ? part.url : null);
+    if (fileData) {
+      return {
+        type: 'input_file',
+        filename: part?.file?.filename || part?.filename || 'attachment.pdf',
+        file_data: fileData,
+      };
+    }
+
+    const fileUrl = part?.file?.url || part?.url;
+    if (fileUrl && isImageUrl(fileUrl)) return { type: 'input_image', image_url: fileUrl };
+  }
+
   return null;
+}
+
+function isPdfDataUrl(value: unknown) {
+  return typeof value === 'string' && value.startsWith('data:application/pdf');
+}
+
+function isImageUrl(value: unknown) {
+  return typeof value === 'string' && (value.startsWith('data:image/') || /^https?:\/\/.*\.(png|jpe?g|webp|gif)(\?|#|$)/i.test(value));
 }
 
 async function collectOpenAITextFromCodexStream(body: ReadableStream<Uint8Array>) {

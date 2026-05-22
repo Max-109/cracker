@@ -1,4 +1,5 @@
 import { convertToModelMessages, type UIMessage } from 'ai';
+import { getTempAttachmentIdFromUrl, readTempAttachment } from '@/lib/temp-attachments';
 import type { ChatInputMessage } from './types';
 
 export async function prepareModelMessages(messages: ChatInputMessage[]) {
@@ -56,13 +57,14 @@ async function hydrateBlobParts(messages: ChatInputMessage[]) {
     if (!msg.parts || !Array.isArray(msg.parts)) return msg;
 
     const newParts = await Promise.all(msg.parts.map(async (part: unknown) => {
-      const p = part as { type?: string; data?: string; image?: string };
+      const p = part as { type?: string; data?: string; url?: string; image?: string };
+      const fileUrl = typeof p.data === 'string' ? p.data : typeof p.url === 'string' ? p.url : '';
 
-      if (p.type === 'file' && typeof p.data === 'string' && p.data.startsWith('http')) {
+      if (p.type === 'file' && fileUrl && shouldHydrateUrl(fileUrl)) {
         return hydrateFilePart(p);
       }
 
-      if (p.type === 'image' && typeof p.image === 'string' && p.image.startsWith('http')) {
+      if (p.type === 'image' && typeof p.image === 'string' && shouldHydrateUrl(p.image)) {
         return hydrateImagePart(p);
       }
 
@@ -73,28 +75,44 @@ async function hydrateBlobParts(messages: ChatInputMessage[]) {
   }));
 }
 
-async function hydrateFilePart<T extends { data?: string }>(part: T) {
-  console.log(`[API] Downloading file from Blob: ${part.data}`);
+function shouldHydrateUrl(value: string) {
+  return value.startsWith('http') || getTempAttachmentIdFromUrl(value) !== null;
+}
+
+async function readAttachmentBytes(value: string) {
+  const tempId = getTempAttachmentIdFromUrl(value);
+  if (tempId) {
+    const attachment = await readTempAttachment(tempId);
+    if (!attachment) throw new Error(`Temporary attachment not found: ${tempId}`);
+    return attachment.data;
+  }
+
+  const response = await fetch(value);
+  if (!response.ok) throw new Error(`Failed to fetch ${value}: ${response.statusText}`);
+  return Buffer.from(await response.arrayBuffer());
+}
+
+async function hydrateFilePart<T extends { data?: string; url?: string; mediaType?: string; mimeType?: string }>(part: T) {
+  const source = part.data || part.url;
+  console.log(`[API] Hydrating file attachment: ${source}`);
   try {
-    const response = await fetch(part.data!);
-    if (!response.ok) throw new Error(`Failed to fetch ${part.data}: ${response.statusText}`);
-    const arrayBuffer = await response.arrayBuffer();
-    return { ...part, data: Buffer.from(arrayBuffer).toString('base64') };
+    if (!source) return part;
+    const bytes = await readAttachmentBytes(source);
+    const mediaType = part.mediaType || part.mimeType || 'application/octet-stream';
+    return { ...part, data: undefined, url: `data:${mediaType};base64,${bytes.toString('base64')}` };
   } catch (e) {
-    console.error('[API] Failed to download file:', e);
+    console.error('[API] Failed to hydrate file:', e);
     return part;
   }
 }
 
 async function hydrateImagePart<T extends { image?: string }>(part: T) {
-  console.log(`[API] Downloading image from Blob: ${part.image}`);
+  console.log(`[API] Hydrating image attachment: ${part.image}`);
   try {
-    const response = await fetch(part.image!);
-    if (!response.ok) throw new Error(`Failed to fetch ${part.image}: ${response.statusText}`);
-    const arrayBuffer = await response.arrayBuffer();
-    return { ...part, image: Buffer.from(arrayBuffer).toString('base64') };
+    const bytes = await readAttachmentBytes(part.image!);
+    return { ...part, image: bytes.toString('base64') };
   } catch (e) {
-    console.error('[API] Failed to download image:', e);
+    console.error('[API] Failed to hydrate image:', e);
     return part;
   }
 }
@@ -107,16 +125,96 @@ function normalizeUiMessages(messages: ChatInputMessage[]) {
     }
 
     if (Array.isArray(msg.content)) {
-      return { id: msg.id || `msg-${Date.now()}`, role: msg.role, content: msg.content, parts: msg.content };
+      const parts = normalizePartsForModel(msg.content, msg.role);
+      return { id: msg.id || `msg-${Date.now()}`, role: msg.role, content: parts, parts };
     }
 
     if (msg.parts && Array.isArray(msg.parts)) {
-      return { id: msg.id || `msg-${Date.now()}`, role: msg.role, content: msg.parts, parts: msg.parts };
+      const parts = normalizePartsForModel(msg.parts, msg.role);
+      return { id: msg.id || `msg-${Date.now()}`, role: msg.role, content: parts, parts };
     }
 
     const parts = [{ type: 'text', text: String(msg.content || '') }];
     return { id: msg.id || `msg-${Date.now()}`, role: msg.role, content: parts, parts };
   });
+}
+
+function normalizePartsForModel(parts: unknown[], role: string) {
+  const normalizedParts = normalizeParts(parts);
+  if (role !== 'user') return normalizedParts;
+
+  const attachments = parts
+    .map((part) => {
+      const p = part as { type?: string; filename?: string; name?: string; mediaType?: string; mimeType?: string };
+      if (p.type !== 'file' && p.type !== 'image') return null;
+      return {
+        name: p.filename || p.name || 'unnamed attachment',
+        mediaType: p.mediaType || p.mimeType || 'application/octet-stream',
+      };
+    })
+    .filter(Boolean) as Array<{ name: string; mediaType: string }>;
+
+  if (attachments.length === 0) return normalizedParts;
+
+  const manifest = {
+    type: 'text',
+    text: `\n\n[Attached files in this user message: ${attachments.length}]\n${attachments.map((file, index) => `${index + 1}. ${file.name} (${file.mediaType})`).join('\n')}\n`,
+  };
+
+  const firstNonTextIndex = normalizedParts.findIndex((part) => (part as { type?: string }).type !== 'text');
+  if (firstNonTextIndex === -1) return [...normalizedParts, manifest];
+
+  return [
+    ...normalizedParts.slice(0, firstNonTextIndex),
+    manifest,
+    ...normalizedParts.slice(firstNonTextIndex),
+  ];
+}
+
+function normalizeParts(parts: unknown[]) {
+  return parts.map((part) => {
+    const p = part as { type?: string; data?: string; url?: string; mediaType?: string; mimeType?: string; filename?: string; name?: string };
+    const mediaType = p.mediaType || p.mimeType || '';
+    const fileData = typeof p.data === 'string' ? p.data : typeof p.url === 'string' ? p.url : '';
+
+    if (p.type === 'file' && fileData && isTextLikeAttachment(mediaType)) {
+      const text = decodeAttachmentText(fileData);
+      if (text !== null) {
+        return {
+          type: 'text',
+          text: `[Attached file: ${p.filename || p.name || 'file'}]\n\n${text}`,
+        };
+      }
+    }
+
+    return part;
+  });
+}
+
+function isTextLikeAttachment(mediaType: string) {
+  return mediaType.startsWith('text/')
+    || mediaType === 'application/json'
+    || mediaType === 'application/javascript'
+    || mediaType === 'application/xml'
+    || mediaType === 'application/sql';
+}
+
+function decodeAttachmentText(data: string) {
+  try {
+    if (data.startsWith('data:')) {
+      const commaIndex = data.indexOf(',');
+      if (commaIndex === -1) return null;
+      const meta = data.slice(0, commaIndex);
+      const payload = data.slice(commaIndex + 1);
+      return meta.includes(';base64')
+        ? Buffer.from(payload, 'base64').toString('utf8')
+        : decodeURIComponent(payload);
+    }
+
+    return Buffer.from(data, 'base64').toString('utf8');
+  } catch {
+    return null;
+  }
 }
 
 function flattenAssistantHistory<T extends Array<{ role: string; content?: unknown }>>(modelMessages: T) {

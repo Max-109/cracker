@@ -2,7 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import { convertFile, isSupportedMimeType, isConvertibleMimeType, createTextDataUrl } from '@/lib/file-converter';
-import { upload } from '@vercel/blob/client';
+
 
 const generateId = () =>
   typeof crypto !== 'undefined' && 'randomUUID' in crypto
@@ -77,6 +77,43 @@ function readFileWithProgress(file: File, onProgress: (percent: number) => void)
     };
     reader.onload = () => resolve(reader.result as string);
     reader.onerror = (error) => reject(error);
+  });
+}
+
+function uploadFileWithProgress(
+  file: File,
+  onProgress: (percent: number) => void
+): Promise<{ url: string }> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    const formData = new FormData();
+    formData.append('file', file, file.name);
+
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable) {
+        onProgress(Math.round((event.loaded / event.total) * 100));
+      }
+    };
+
+    xhr.onload = () => {
+      let response: { url?: string; error?: string } | null = null;
+      try {
+        response = JSON.parse(xhr.responseText || '{}');
+      } catch {
+        response = null;
+      }
+
+      if (xhr.status >= 200 && xhr.status < 300 && response?.url) {
+        resolve({ url: response.url });
+        return;
+      }
+
+      reject(new Error(response?.error || `Upload failed with status ${xhr.status}`));
+    };
+
+    xhr.onerror = () => reject(new Error('Upload failed'));
+    xhr.open('POST', '/api/upload');
+    xhr.send(formData);
   });
 }
 
@@ -175,37 +212,25 @@ export function useAttachments() {
     setAttachments(prev => [...prev, ...newAttachments]);
 
     newAttachments.forEach((attachment) => {
-      // Check file size - if > 4MB, use Vercel Blob
+      // Check file size - if > 4MB, upload to the app server and store under public/uploads.
       if (attachment.file.size > 4 * 1024 * 1024) {
-        // Generate unique filename to avoid "Blob already exists" error
-        // @vercel/blob/client types might not support addRandomSuffix, so we do it manually
-        const uniqueFilename = `${Date.now()}-${attachment.file.name}`;
-
-        // Upload to Vercel Blob
-        upload(uniqueFilename, attachment.file, {
-          access: 'public',
-          handleUploadUrl: '/api/upload',
-          onUploadProgress: (progressEvent) => {
-            updateAttachment(attachment.id, (prev) => ({
-              ...prev,
-              progress: progressEvent.percentage
-            }));
-          },
+        uploadFileWithProgress(attachment.file, (percent) => {
+          updateAttachment(attachment.id, (prev) => ({
+            ...prev,
+            progress: percent,
+          }));
         })
-          .then((blob) => {
+          .then((uploaded) => {
             updateAttachment(attachment.id, (prev) => ({
               ...prev,
-              url: blob.url,
-              // For images and videos, we can use the blob URL as preview
-              previewUrl: (prev.originalMediaType?.startsWith('image/') || prev.originalMediaType?.startsWith('video/')) ? blob.url : prev.previewUrl,
-              // We set dataUrl to blob.url as well so consumers using dataUrl might still work if they just put it in src
-              // But we should prefer 'url' property in consumers
+              url: uploaded.url,
+              previewUrl: (prev.originalMediaType?.startsWith('image/') || prev.originalMediaType?.startsWith('video/')) ? uploaded.url : prev.previewUrl,
               isUploading: false,
               progress: 100,
             }));
           })
           .catch((error) => {
-            console.error('Blob upload error:', error);
+            console.error('File upload error:', error);
             updateAttachment(attachment.id, (prev) => ({
               ...prev,
               isUploading: false,

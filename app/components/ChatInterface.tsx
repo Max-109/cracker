@@ -992,7 +992,20 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
       let saveUserMessagePromise: Promise<Response | void> | null = null;
 
       if (activeChatId) {
-        const partsToSave = Array.isArray(finalContent) ? finalContent : [{ type: 'text', text: finalContent }];
+        const partsToSave = Array.isArray(finalContent)
+          ? finalContent.map((part) => {
+            const candidate = part as MessagePart & { data?: string; image?: string; url?: string; temporary?: boolean };
+            const tempUrl = [candidate.data, candidate.image, candidate.url]
+              .find((value) => typeof value === 'string' && value.startsWith('/api/upload?id='));
+            if (!tempUrl) return part;
+
+            const { data: _data, image: _image, url: _url, ...rest } = candidate;
+            void _data;
+            void _image;
+            void _url;
+            return { ...rest, temporary: true };
+          })
+          : [{ type: 'text', text: finalContent }];
         saveUserMessagePromise = fetch('/api/messages', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

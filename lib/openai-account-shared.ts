@@ -7,4 +7,5 @@ export type OpenAIAccountAuth = {
   expiresAtMillis: number;
   accountId: string | null;
   email: string | null;
+  integrityState?: string | null;
 };
