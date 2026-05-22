@@ -3,9 +3,9 @@
   <p><strong>A private AI chat app with a sharp, dark interface and support for Codex-style account usage.</strong></p>
   <p>
     <img alt="Self-hostable" src="https://img.shields.io/badge/self--hostable-yes-%23d4a86b?style=for-the-badge&labelColor=3f3f46" />
-    <img alt="OpenAI accounts" src="https://img.shields.io/badge/OpenAI%20accounts-multi--account-%23d4a86b?style=for-the-badge&labelColor=3f3f46" />
-    <img alt="Private access" src="https://img.shields.io/badge/access-invite--only-%23d4a86b?style=for-the-badge&labelColor=3f3f46" />
-    <img alt="Mobile app" src="https://img.shields.io/badge/mobile-Expo-%23d4a86b?style=for-the-badge&labelColor=3f3f46" />
+    <img alt="Multi-account" src="https://img.shields.io/badge/accounts-multi--account-%23d4a86b?style=for-the-badge&labelColor=3f3f46" />
+    <img alt="OpenAI accounts" src="https://img.shields.io/badge/OpenAI%20accounts-supported-%23d4a86b?style=for-the-badge&labelColor=3f3f46" />
+    <img alt="Admin dashboard" src="https://img.shields.io/badge/admin-invite%20dashboard-%23d4a86b?style=for-the-badge&labelColor=3f3f46" />
   </p>
   <img src="./cracker.gif" alt="Cracker app preview" width="900" />
 </div>
