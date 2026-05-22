@@ -9,9 +9,10 @@ interface DialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   children: React.ReactNode;
+  className?: string;
 }
 
-function Dialog({ open, onOpenChange, children }: DialogProps) {
+function Dialog({ open, onOpenChange, children, className }: DialogProps) {
   const [shouldRender, setShouldRender] = useState(open);
 
   useEffect(() => {
@@ -39,7 +40,8 @@ function Dialog({ open, onOpenChange, children }: DialogProps) {
       <div
         className={cn(
           "bg-[var(--bg-sidebar-solid)] border border-[var(--border-color)] w-[90%] max-w-md transition-all duration-200 transform",
-          open ? "scale-100 opacity-100" : "scale-95 opacity-0"
+          open ? "scale-100 opacity-100" : "scale-95 opacity-0",
+          className
         )}
         onClick={(e) => e.stopPropagation()}
       >

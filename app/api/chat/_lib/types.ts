@@ -1,5 +1,7 @@
 export type LearningSubMode = 'summary' | 'flashcard' | 'teaching';
 
+import type { OpenAIAccountAuth } from '@/lib/openai-account-shared';
+
 export type ChatRequestBody = {
   messages?: ChatInputMessage[];
   model?: string;
@@ -13,6 +15,8 @@ export type ChatRequestBody = {
   customInstructions?: string;
   enabledMcpServers?: string[];
   fastMode?: boolean;
+  openAIAccountAuth?: OpenAIAccountAuth | null;
+  useOpenAIAccount?: boolean;
 };
 
 export type ChatInputMessage = {

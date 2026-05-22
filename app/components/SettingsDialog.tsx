@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { HexColorPicker } from "react-colorful";
-import { Settings2, User, Pencil, Palette, Sparkles, GaugeCircle, MessageSquareText, Search, Globe, Youtube, Sliders, Brain, X, Trash2 } from 'lucide-react';
+import { Settings2, User, Pencil, Palette, Sparkles, GaugeCircle, MessageSquareText, Search, Globe, Youtube, Sliders, Brain, X, Trash2, KeyRound, Link2, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Dialog } from '@/components/ui';
 
@@ -34,6 +34,15 @@ const PRESET_COLORS = [
   '#ff6b6b', // Coral
 ];
 
+type OpenAIUsagePayload = {
+  plan_type?: string;
+  rate_limit?: {
+    primary_window?: { used_percent?: number; reset_at?: number };
+    secondary_window?: { used_percent?: number; reset_at?: number };
+    limit_reached?: boolean;
+  };
+};
+
 interface SettingsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -59,6 +68,16 @@ interface SettingsDialogProps {
   onCodeWrapChange: (enabled: boolean) => void;
   autoScroll: boolean;
   onAutoScrollChange: (enabled: boolean) => void;
+  // OpenAI account connection (stored in browser localStorage)
+  openAIConnected: boolean;
+  openAIEnabled: boolean;
+  openAIEmail: string | null;
+  openAIUsage: OpenAIUsagePayload | null;
+  openAIError: string | null;
+  onOpenAIConnect: () => void;
+  onOpenAIUnlink: () => void;
+  onOpenAIEnabledChange: (enabled: boolean) => void;
+  onOpenAISync: () => void | Promise<unknown>;
 }
 
 export function SettingsDialog({
@@ -80,8 +99,17 @@ export function SettingsDialog({
   onCodeWrapChange,
   autoScroll,
   onAutoScrollChange,
+  openAIConnected,
+  openAIEnabled,
+  openAIEmail,
+  openAIUsage,
+  openAIError,
+  onOpenAIConnect,
+  onOpenAIUnlink,
+  onOpenAIEnabledChange,
+  onOpenAISync,
 }: SettingsDialogProps) {
-  const [activeSection, setActiveSection] = useState<'response' | 'profile' | 'appearance' | 'tools' | 'behavior' | 'memory'>('response');
+  const [activeSection, setActiveSection] = useState<'response' | 'profile' | 'connections' | 'appearance' | 'tools' | 'behavior' | 'memory'>('response');
   const DEFAULT_ACCENT_COLOR = '#af8787';
 
   // Get reliable accent color - prefer prop, fall back to localStorage
@@ -139,7 +167,7 @@ export function SettingsDialog({
   );
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={onOpenChange} className="max-w-[640px] xl:max-w-[680px]">
       {/* Header */}
       <div className="px-4 py-3 border-b border-[var(--border-color)] bg-[#0f0f0f]">
         <div className="flex items-center gap-2">
@@ -152,12 +180,13 @@ export function SettingsDialog({
         </div>
       </div>
 
-      <div className="flex min-h-[400px]">
+      <div className="flex min-h-[430px]">
         {/* Sidebar Navigation */}
-        <div className="w-[160px] border-r border-[var(--border-color)] bg-[#0f0f0f] p-2">
+        <div className="w-[170px] border-r border-[var(--border-color)] bg-[#0f0f0f] p-2">
           {[
             { id: 'response' as const, icon: GaugeCircle, label: 'Response' },
             { id: 'profile' as const, icon: User, label: 'Profile' },
+            { id: 'connections' as const, icon: Link2, label: 'Connect' },
             { id: 'tools' as const, icon: Globe, label: 'Tools' },
             { id: 'appearance' as const, icon: Palette, label: 'Appearance' },
             { id: 'behavior' as const, icon: Sliders, label: 'Behavior' },
@@ -196,6 +225,19 @@ export function SettingsDialog({
               onUserNameChange={setLocalUserName}
               userGender={localUserGender}
               onUserGenderChange={setLocalUserGender}
+            />
+          )}
+          {activeSection === 'connections' && (
+            <ConnectionsSection
+              connected={openAIConnected}
+              enabled={openAIEnabled}
+              identity={openAIEmail}
+              usage={openAIUsage}
+              error={openAIError}
+              onConnect={onOpenAIConnect}
+              onUnlink={onOpenAIUnlink}
+              onEnabledChange={onOpenAIEnabledChange}
+              onSync={onOpenAISync}
             />
           )}
           {activeSection === 'tools' && (
@@ -628,6 +670,114 @@ function AppearanceSection({ accentColor, onAccentColorChange }: AppearanceSecti
         >
           Reset to Default
         </button>
+      </div>
+    </div>
+  );
+}
+
+interface ConnectionsSectionProps {
+  connected: boolean;
+  enabled: boolean;
+  identity: string | null;
+  usage: OpenAIUsagePayload | null;
+  error: string | null;
+  onConnect: () => void;
+  onUnlink: () => void;
+  onEnabledChange: (enabled: boolean) => void;
+  onSync: () => void | Promise<unknown>;
+}
+
+function ConnectionsSection({ connected, enabled, identity, usage, error, onConnect, onUnlink, onEnabledChange, onSync }: ConnectionsSectionProps) {
+  const used = usage?.rate_limit?.primary_window?.used_percent;
+  const remaining = typeof used === 'number' ? Math.max(0, 100 - Math.round(used)) : null;
+  const status = !connected ? 'NOT LINKED' : error ? 'ACTION NEEDED' : enabled ? 'LINKED' : 'PAUSED';
+  const description = !connected
+    ? 'Use your OpenAI account allowed usage.'
+    : error
+      ? 'Connection needs a refresh. Try sync or reconnect.'
+      : enabled
+        ? 'Cracker will use this browser account for compatible models.'
+        : 'Linked, but Cracker will use the server API instead.';
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center gap-2 mb-4">
+        <KeyRound size={12} className="text-[var(--text-accent)]" />
+        <span className="text-[10px] uppercase tracking-[0.16em] font-semibold text-[var(--text-secondary)]">
+          Connections
+        </span>
+      </div>
+
+      <p className="text-[10px] text-[var(--text-secondary)] leading-relaxed">
+        Tokens stay in this browser localStorage. The server receives them only for refresh, usage, or chat requests.
+      </p>
+
+      <div className={cn(
+        "border bg-[#1a1a1a] p-3 transition-colors border-l-2",
+        connected ? "border-[var(--border-color)] border-l-[var(--text-accent)]" : "border-[var(--border-color)] border-l-[#333333]"
+      )}>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-wider text-[var(--text-primary)]">OpenAI</div>
+            <div className="text-[9px] text-[var(--text-secondary)] mt-1 leading-relaxed">{description}</div>
+          </div>
+          <div className={cn(
+            "px-2 py-1 border text-[9px] uppercase tracking-[0.12em]",
+            connected && enabled && !error ? "border-[var(--text-accent)]/40 bg-[var(--text-accent)]/10 text-[var(--text-accent)]" : "border-[var(--border-color)] bg-[#252525] text-[var(--text-secondary)]"
+          )}>
+            {status}
+          </div>
+        </div>
+
+        {connected && (
+          <div className="mt-4 grid grid-cols-2 gap-2 border-t border-[var(--border-color)] pt-3">
+            <div>
+              <div className="text-[8px] uppercase tracking-[0.14em] text-[var(--text-secondary)]">Signed in as</div>
+              <div className="mt-1 truncate text-[10px] text-[var(--text-primary)]">{identity || 'Account linked'}</div>
+            </div>
+            <div>
+              <div className="text-[8px] uppercase tracking-[0.14em] text-[var(--text-secondary)]">Usage</div>
+              <div className="mt-1 text-[10px] text-[var(--text-primary)]">
+                5H <span className="text-[var(--text-accent)]">{remaining === null ? '--' : `${remaining}%`}</span>
+                <span className="text-[var(--text-secondary)]"> · </span>
+                Week <span className="text-[var(--text-accent)]">{typeof usage?.rate_limit?.secondary_window?.used_percent === 'number' ? `${Math.max(0, 100 - Math.round(usage.rate_limit.secondary_window.used_percent))}%` : '--'}</span>
+                {usage?.plan_type ? <span className="text-[var(--text-secondary)]"> · {usage.plan_type}</span> : null}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {connected && (
+          <button
+            onClick={() => onEnabledChange(!enabled)}
+            className="mt-4 flex items-center justify-between w-full p-3 bg-[#141414] border border-[var(--border-color)] hover:border-[var(--text-accent)]/30 transition-all duration-150"
+          >
+            <div className="text-left">
+              <div className="text-xs font-semibold uppercase tracking-wider text-[var(--text-primary)]">Use OpenAI account</div>
+              <div className="text-[9px] text-[var(--text-secondary)] mt-0.5">Turn off to fall back to the server API</div>
+            </div>
+            <div className={cn("w-10 h-5 rounded-full transition-all duration-200 relative", enabled ? "bg-[var(--text-accent)]" : "bg-[#2a2a2a]")}> 
+              <div className={cn("absolute top-0.5 w-4 h-4 rounded-full transition-all duration-200", enabled ? "left-[22px] bg-black" : "left-0.5 bg-[#4a4a4a]")} />
+            </div>
+          </button>
+        )}
+
+        <div className="mt-4 flex gap-2">
+          {!connected ? (
+            <button onClick={onConnect} className="px-3 py-2 bg-[var(--text-accent)] text-black border border-[var(--text-accent)] hover:bg-black hover:text-[var(--text-accent)] font-semibold transition-colors uppercase tracking-[0.12em] text-[10px]">
+              Connect OpenAI
+            </button>
+          ) : (
+            <>
+              <button onClick={() => void onSync()} className="flex items-center gap-2 px-3 py-2 text-[var(--text-primary)] border border-[var(--border-color)] hover:border-[var(--text-accent)]/50 hover:text-[var(--text-accent)] transition-colors uppercase tracking-[0.12em] text-[10px]">
+                <RefreshCw size={12} /> Sync
+              </button>
+              <button onClick={onUnlink} className="px-3 py-2 text-[var(--text-secondary)] border border-[var(--border-color)] hover:border-red-500/50 hover:text-red-400 transition-colors uppercase tracking-[0.12em] text-[10px]">
+                Unlink
+              </button>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );

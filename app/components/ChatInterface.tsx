@@ -3,12 +3,13 @@
 import React, { useMemo, useState, useRef, useEffect, useCallback } from 'react';
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
-import { PanelLeft, Settings2, Plus } from 'lucide-react';
+import { PanelLeft, Settings2, Plus, GaugeCircle } from 'lucide-react';
 import type { ChatMessage, MessagePart } from '@/lib/chat-types';
 import { useChatContext } from './ChatContext';
 import { updateFavicon, getAccentColorFromStorage } from './SettingsContext';
 import { useAttachments } from '@/app/hooks/useAttachments';
 import { usePersistedSetting, useAccentColor, useResponseLength, useUserProfile, useLearningMode, useChatMode, useLearningSubMode, useCustomInstructions, useEnabledMcpServers, useCodeWrap, useAutoScroll, ReasoningEffortLevel, ChatMode, LearningSubMode } from '@/app/hooks/usePersistedSettings';
+import { useOpenAIAccount } from '@/app/hooks/useOpenAIAccount';
 import { ModelSelector } from './ModelSelector';
 import { EnhancedChatInput } from './EnhancedChatInput';
 import { MessageList } from './MessageList';
@@ -22,6 +23,54 @@ import { modelSupportsImages, modelSupportsPriority } from '@/lib/model-capabili
 
 interface ChatInterfaceProps {
   initialChatId?: string;
+}
+
+type OpenAIUsagePayload = {
+  plan_type?: string;
+  rate_limit?: {
+    primary_window?: { used_percent?: number; reset_at?: number };
+    secondary_window?: { used_percent?: number; reset_at?: number };
+    limit_reached?: boolean;
+  };
+};
+
+function OpenAIUsageIndicator({
+  connected,
+  enabled,
+  usage,
+  onClick,
+}: {
+  connected: boolean;
+  enabled: boolean;
+  usage: OpenAIUsagePayload | null;
+  onClick: () => void | Promise<unknown>;
+}) {
+  if (!connected || !enabled) return null;
+
+  const primaryUsed = usage?.rate_limit?.primary_window?.used_percent;
+  const weeklyUsed = usage?.rate_limit?.secondary_window?.used_percent;
+  const primaryLeft = typeof primaryUsed === 'number' ? Math.max(0, 100 - Math.round(primaryUsed)) : null;
+  const weeklyLeft = typeof weeklyUsed === 'number' ? Math.max(0, 100 - Math.round(weeklyUsed)) : null;
+
+  return (
+    <button
+      onClick={() => void onClick()}
+      className="hidden md:flex h-9 items-center border border-[var(--border-color)] border-l-[var(--text-accent)] bg-[#141414] text-[9px] uppercase tracking-[0.12em] text-[var(--text-secondary)] hover:border-[var(--text-accent)]/60 transition-all duration-150 active:scale-95 overflow-hidden"
+      title="OpenAI account usage"
+    >
+      <div className="h-full w-8 flex items-center justify-center border-r border-[var(--border-color)] bg-[var(--text-accent)]/10">
+        <GaugeCircle size={13} className={enabled ? 'text-[var(--text-accent)]' : 'text-[var(--text-secondary)]'} />
+      </div>
+      <div className="flex h-full items-center divide-x divide-[var(--border-color)]">
+        <span className="px-2.5 leading-none">
+          5H <span className="text-[var(--text-accent)] font-semibold">{primaryLeft === null ? '--' : primaryLeft}%</span>
+        </span>
+        <span className="px-2.5 leading-none">
+          Week <span className="text-[var(--text-accent)] font-semibold">{weeklyLeft === null ? '--' : weeklyLeft}%</span>
+        </span>
+      </div>
+    </button>
+  );
 }
 
 type EditAttachment = { id: string; url: string; name: string; mediaType: string };
@@ -50,6 +99,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
   const { learningSubMode, setLearningSubMode, isHydrated: isLearningSubModeHydrated } = useLearningSubMode();
   const { codeWrap, setCodeWrap } = useCodeWrap();
   const { autoScroll, setAutoScroll } = useAutoScroll();
+  const openAIAccount = useOpenAIAccount();
 
   const isSettingsHydrated = isModelIdHydrated && isModelNameHydrated && isColorHydrated && isResponseLengthHydrated && isProfileHydrated && isLearningModeHydrated && isChatModeHydrated && isCustomInstructionsHydrated && isMcpServersHydrated && isLearningSubModeHydrated;
 
@@ -106,6 +156,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
 
   const reasoningEffortRef = useRef<ReasoningEffortLevel>('medium'); // Auto-reasoning: updated per-message
   const fastModeRef = useRef(fastMode);
+  const openAIAccountAuthRef = useRef(openAIAccount.requestAuth);
 
   // Sync with URL changes (for history.pushState navigation)
   useEffect(() => {
@@ -154,6 +205,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
   // Use direct assignment - update ref IMMEDIATELY when value changes, not via effect
   // This prevents race condition when user toggles a tool and quickly sends a message
   enabledMcpServersRef.current = enabledMcpServers;
+  openAIAccountAuthRef.current = openAIAccount.requestAuth;
   const learningSubModeRef = useRef(learningSubMode);
   useEffect(() => { learningSubModeRef.current = learningSubMode; }, [learningSubMode]);
 
@@ -240,6 +292,8 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
         enabledMcpServers: enabledMcpServersRef.current,
         accentColor: getAccentColorFromStorage(),
         fastMode: fastModeRef.current,
+        useOpenAIAccount: !!openAIAccountAuthRef.current,
+        openAIAccountAuth: openAIAccountAuthRef.current,
       };
     },
   }), []);
@@ -839,6 +893,10 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
       return;
     }
 
+    if (openAIAccount.enabled && openAIAccount.connected) {
+      await openAIAccount.refreshIfNeeded();
+    }
+
     // Show immediate loading feedback
     setIsSending(true);
 
@@ -1072,7 +1130,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
       console.error("[CLIENT DEBUG] Failed to send message:", err);
       setIsSending(false);
     }
-  }, [input, attachments, hasPendingAttachments, currentChatId, clearAttachments, refreshChats, sendMessage]);
+  }, [input, attachments, hasPendingAttachments, currentChatId, clearAttachments, refreshChats, sendMessage, openAIAccount]);
 
   const handleModelChange = useCallback((id: string, name: string) => {
     setCurrentModelId(id);
@@ -1147,6 +1205,13 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
               onAccentColorChange={setAccentColor}
               isHydrated={isSettingsHydrated}
             />
+
+            <OpenAIUsageIndicator
+              connected={openAIAccount.connected}
+              enabled={openAIAccount.enabled}
+              usage={openAIAccount.usage}
+              onClick={openAIAccount.connected ? openAIAccount.syncUsage : () => setIsSettingsOpen(true)}
+            />
           </div>
 
           {/* Right: Settings Button */}
@@ -1181,6 +1246,15 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
           onCodeWrapChange={setCodeWrap}
           autoScroll={autoScroll}
           onAutoScrollChange={setAutoScroll}
+          openAIConnected={openAIAccount.connected}
+          openAIEnabled={openAIAccount.enabled}
+          openAIEmail={openAIAccount.auth?.email || openAIAccount.auth?.accountId || null}
+          openAIUsage={openAIAccount.usage}
+          openAIError={openAIAccount.error}
+          onOpenAIConnect={openAIAccount.connect}
+          onOpenAIUnlink={openAIAccount.unlink}
+          onOpenAIEnabledChange={openAIAccount.setEnabled}
+          onOpenAISync={openAIAccount.syncUsage}
         />
 
         <QuoteProvider>

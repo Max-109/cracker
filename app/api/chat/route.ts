@@ -1,10 +1,11 @@
 import { getDb } from '@/db';
 import { getOpenAIConfigError } from '@/lib/ai-provider';
+import { createOpenAIAccountProvider } from '@/lib/openai-account';
 import { getModelCapabilities, modelSupportsPriority, normalizeModelId } from '@/lib/model-capabilities';
 import { NextResponse } from 'next/server';
 import { extractAndStoreFactsInBackground, loadChatMemory } from './_lib/memory';
 import { extractTextFromLastUserMessage, prepareModelMessages } from './_lib/messages';
-import { createOpenAIProviderOptions, normalizeReasoningEffort } from './_lib/provider-options';
+import { createOpenAIProviderOptions } from './_lib/provider-options';
 import { generateSystemPrompt } from './_lib/prompt';
 import { getLatestAssistantStats } from './_lib/storage';
 import { streamChatCompletion } from './_lib/streaming';
@@ -47,9 +48,12 @@ export async function POST(req: Request) {
       customInstructions,
       enabledMcpServers,
       fastMode,
+      openAIAccountAuth,
+      useOpenAIAccount,
     } = body;
 
-    const configError = getOpenAIConfigError();
+    const useLocalOpenAIAccount = useOpenAIAccount === true && !!openAIAccountAuth?.accessToken;
+    const configError = useLocalOpenAIAccount ? null : getOpenAIConfigError();
     if (configError) {
       return jsonError('AI provider not configured', configError, 500);
     }
@@ -74,7 +78,6 @@ export async function POST(req: Request) {
 
     const effectiveModelId = normalizeModelId(modelId);
     const modelCapabilities = getModelCapabilities(effectiveModelId);
-    const normalizedEffort = normalizeReasoningEffort(effort);
     const usePriorityService = fastMode === true && modelSupportsPriority(effectiveModelId);
     const providerOptions = createOpenAIProviderOptions(effort, effectiveModelId, fastMode === true);
 
@@ -109,6 +112,7 @@ export async function POST(req: Request) {
       tools,
       hasTools,
       providerOptions,
+      openaiProvider: useLocalOpenAIAccount ? createOpenAIAccountProvider(openAIAccountAuth) : undefined,
     });
 
     extractAndStoreFactsInBackground(

@@ -14,13 +14,14 @@ export function streamChatCompletion(params: {
   tools: Record<string, unknown>;
   hasTools: boolean;
   providerOptions: Record<string, unknown>;
+  openaiProvider?: typeof openai;
 }) {
   const requestStartTime = Date.now();
   let firstChunkTime: number | null = null;
   let firstReasoningTime: number | null = null;
 
   return streamText({
-    model: openai.chat(params.cleanModelId),
+    model: (params.openaiProvider || openai).chat(params.cleanModelId),
     system: params.systemPrompt,
     messages: params.modelMessages,
     tools: params.hasTools ? params.tools as any : undefined,
