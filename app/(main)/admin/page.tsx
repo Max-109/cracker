@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
   Shield, Users, Ticket, Plus, Copy, Check, ArrowLeft,
-  User, Mail, Calendar, AlertTriangle, Sparkles, Zap, Clock,
+  User, Mail, Calendar, AlertTriangle, Terminal, Zap, Clock,
   Power, PowerOff, ShieldCheck, ShieldOff
 } from 'lucide-react';
 import { useAuth } from '@/app/components/AuthContext';
@@ -393,7 +393,7 @@ export default function AdminPage() {
                           ) : code.disabled ? (
                             <PowerOff size={16} className="text-red-400" />
                           ) : (
-                            <Sparkles size={16} className="text-[var(--text-accent)]" />
+                            <Terminal size={16} className="text-[var(--text-accent)]" />
                           )}
                         </div>
                         

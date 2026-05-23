@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { MessageSquare, Sparkles, Brain, Zap, Code, FileText, Lightbulb, Terminal } from 'lucide-react';
+import { MessageSquare, Radio, Brain, Zap, Code, FileText, Lightbulb, Terminal } from 'lucide-react';
 
 interface FloatingIcon {
   id: number;
@@ -17,7 +17,7 @@ export function ChatBackground() {
   const [icons, setIcons] = useState<FloatingIcon[]>([]);
 
   useEffect(() => {
-    const iconComponents = [MessageSquare, Sparkles, Brain, Zap, Code, FileText, Lightbulb, Terminal];
+    const iconComponents = [MessageSquare, Radio, Brain, Zap, Code, FileText, Lightbulb, Terminal];
     
     const generated: FloatingIcon[] = Array.from({ length: 10 }, (_, i) => ({
       id: i,

@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useCallback, useEffect } from 'react';
 import { HexColorPicker } from "react-colorful";
-import { Settings2, User, Pencil, Palette, Sparkles, GaugeCircle, MessageSquareText, Search, Globe, Youtube, Sliders, Brain, X, Trash2, KeyRound, Link2, RefreshCw } from 'lucide-react';
+import { Settings2, User, Pencil, Palette, Terminal, GaugeCircle, MessageSquareText, Search, Globe, Youtube, Sliders, Brain, X, Trash2, KeyRound, Link2, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Dialog } from '@/components/ui';
 import { formatOpenAIUsageReset, type OpenAIUsagePayload } from '@/lib/openai-account-shared';
@@ -608,7 +608,7 @@ function AppearanceSection({ accentColor, onAccentColorChange }: AppearanceSecti
       {/* Color Picker */}
       <div className="space-y-4">
         <label className="text-[9px] uppercase tracking-wider text-[var(--text-secondary)] flex items-center gap-2">
-          <Sparkles size={10} />
+          <Terminal size={10} />
           Accent Color
         </label>
 

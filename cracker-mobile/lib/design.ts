@@ -120,7 +120,7 @@ export const ICON_MAP = {
     'Zap': 'flash',
     'Brain': 'bulb',
     'Flame': 'flame',
-    'Sparkles': 'sparkles',
+    'Sparkles': 'radio',
     'Cpu': 'hardware-chip',
     'Rocket': 'rocket',
     'Settings': 'settings-sharp',
@@ -214,7 +214,7 @@ export const ICON_MAP = {
 
 // Model tiers (matching web ModelSelector.tsx)
 export const MODEL_TIERS = [
-    { id: 'gpt-5.5', name: 'Expert', tier: 4, icon: 'sparkles', description: 'GPT-5.5 - Most capable' },
+    { id: 'gpt-5.5', name: 'Expert', tier: 4, icon: 'terminal', description: 'GPT-5.5 - Most capable' },
     { id: 'gpt-5.4-mini', name: 'Balanced', tier: 3, icon: 'hardware-chip', description: 'GPT-5.4 Mini - Fast and accurate' },
     { id: 'gpt-5.3-codex-spark', name: 'Ultra Fast', tier: 2, icon: 'rocket', description: 'GPT-5.3 Codex Spark - Fastest' },
 ] as const;

@@ -9,7 +9,7 @@ const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 // Icon types - EXACT match to web (8 icon types, 10 instances)
 const ICON_TYPES = [
     'chatbubble-outline',  // MessageSquare
-    'sparkles',            // Sparkles
+    'terminal-outline',    // Terminal
     'bulb-outline',        // Brain (closest)
     'flash-outline',       // Zap
     'code-slash-outline',  // Code

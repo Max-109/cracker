@@ -6,7 +6,7 @@ import {
     Search,
     ArrowRight,
     Cpu,
-    Sparkles,
+    Radio,
     Zap,
     Brain,
     Monitor,
@@ -124,7 +124,7 @@ export function CommandPalette() {
             id: 'model-balanced',
             label: 'Switch to Balanced',
             description: 'GPT-5.4 Mini - Fast & smart',
-            icon: Sparkles,
+            icon: Radio,
             group: 'Models',
             action: () => {
                 setCurrentModelId('gpt-5.4-mini');

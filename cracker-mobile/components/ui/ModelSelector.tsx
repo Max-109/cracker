@@ -17,8 +17,8 @@ type ModelOption = {
 };
 
 const MODEL_OPTIONS: ModelOption[] = [
-    { id: "gpt-5.5", name: "Expert", description: "GPT-5.5", tier: 'expert', icon: 'bulb-outline' },
-    { id: "gpt-5.4-mini", name: "Balanced", description: "GPT-5.4 Mini", tier: 'balanced', icon: 'hardware-chip-outline' },
+    { id: "gpt-5.5", name: "Expert", description: "GPT-5.5", tier: 'expert', icon: 'terminal-outline' },
+    { id: "gpt-5.4-mini", name: "Balanced", description: "GPT-5.4 Mini", tier: 'balanced', icon: 'radio-outline' },
     { id: "gpt-5.3-codex-spark", name: "Ultra Fast", description: "GPT-5.3 Codex Spark", tier: 'fast', icon: 'flash' },
 ];
 

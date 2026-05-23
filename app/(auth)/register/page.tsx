@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { UserPlus, Mail, Lock, User, Ticket, AlertTriangle, Sparkles, Check, ArrowRight, Shield, ArrowLeft, Fingerprint } from 'lucide-react';
+import { UserPlus, Mail, Lock, User, Ticket, AlertTriangle, Terminal, Check, ArrowRight, Shield, ArrowLeft, Fingerprint } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AuthBackground } from '../components/AuthBackground';
 import { FloatingIcons } from '../components/FeatureShowcase';
@@ -149,7 +149,7 @@ export default function RegisterPage() {
               <div className="absolute -inset-6 border border-[var(--text-accent)]/5 group-hover:border-[var(--text-accent)]/15 transition-colors duration-700" />
               
               <div className="w-16 h-16 border-2 border-[var(--text-accent)] bg-[var(--text-accent)]/10 flex items-center justify-center relative overflow-hidden group-hover:bg-[var(--text-accent)]/20 transition-colors">
-                <Sparkles size={26} className="text-[var(--text-accent)] relative z-10" />
+                <Terminal size={26} className="text-[var(--text-accent)] relative z-10" />
                 <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[var(--text-accent)]/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity animate-scanline" style={{ animationDuration: '2s' }} />
               </div>
             </div>

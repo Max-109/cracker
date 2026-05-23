@@ -59,7 +59,7 @@ export default function Logo({ size = 'large' }: LogoProps) {
                     }}
                 >
                     <Ionicons
-                        name="sparkles"
+                        name="terminal-outline"
                         size={sparkleSize}
                         color={theme.accent}
                     />

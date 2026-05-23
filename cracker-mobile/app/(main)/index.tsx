@@ -257,7 +257,7 @@ export default function HomeScreen() {
                                 justifyContent: 'center',
                             }}
                         >
-                            <Ionicons name="sparkles" size={28} color={theme.accent} />
+                            <Ionicons name="terminal-outline" size={28} color={theme.accent} />
                         </View>
                     </Animated.View>
 

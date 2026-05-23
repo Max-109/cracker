@@ -11,7 +11,7 @@ import {
   ChevronDown,
   ChevronUp,
   ExternalLink,
-  Sparkles,
+  Radio,
   Brain,
   Loader2,
   AlertTriangle
@@ -45,7 +45,7 @@ interface DeepResearchProgressProps {
 
 const PHASE_CONFIG: Record<ResearchPhase | 'error', { icon: typeof Microscope; label: string; color: string }> = {
   clarify: { icon: Brain, label: 'Understanding', color: 'text-purple-400' },
-  planning: { icon: Sparkles, label: 'Planning', color: 'text-blue-400' },
+  planning: { icon: Radio, label: 'Planning', color: 'text-blue-400' },
   searching: { icon: Search, label: 'Searching', color: 'text-yellow-400' },
   analyzing: { icon: Brain, label: 'Analyzing', color: 'text-orange-400' },
   'deep-dive': { icon: Microscope, label: 'Deep Dive', color: 'text-pink-400' },

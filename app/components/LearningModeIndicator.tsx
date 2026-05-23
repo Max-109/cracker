@@ -9,7 +9,6 @@ import {
   Brain,
   ChevronDown,
   ChevronUp,
-  Sparkles,
   Plus,
   Minus,
   FileText,

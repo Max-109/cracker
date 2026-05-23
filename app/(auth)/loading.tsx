@@ -1,6 +1,6 @@
 'use client';
 
-import { Sparkles } from 'lucide-react';
+import { Terminal } from 'lucide-react';
 
 export default function AuthLoading() {
   return (
@@ -30,7 +30,7 @@ export default function AuthLoading() {
           
           {/* Main logo */}
           <div className="w-16 h-16 border-2 border-[var(--text-accent)] bg-[var(--text-accent)]/10 flex items-center justify-center relative overflow-hidden">
-            <Sparkles size={26} className="text-[var(--text-accent)] animate-pulse" />
+            <Terminal size={26} className="text-[var(--text-accent)] animate-pulse" />
             {/* Inner scan effect */}
             <div className="absolute inset-0 bg-gradient-to-b from-transparent via-[var(--text-accent)]/30 to-transparent animate-scanline" style={{ animationDuration: '1.5s' }} />
           </div>

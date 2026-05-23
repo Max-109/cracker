@@ -3,12 +3,12 @@
 import React, { useEffect, useState } from 'react';
 import { cn } from '@/lib/utils';
 import { ResearchProgress, ResearchPhase } from './DeepResearchProgress';
-import { Brain, Sparkles, Search, Microscope, FileText, CheckCircle2, AlertTriangle, Loader2 } from 'lucide-react';
+import { Brain, Radio, Search, Microscope, FileText, CheckCircle2, AlertTriangle, Loader2 } from 'lucide-react';
 
 const PHASE_ORDER: ResearchPhase[] = ['planning', 'searching', 'analyzing', 'deep-dive', 'writing', 'complete'];
 
 const PHASE_ICONS: Record<ResearchPhase, React.ElementType> = {
-    planning: Sparkles,
+    planning: Radio,
     searching: Search,
     analyzing: Brain,
     'deep-dive': Microscope,

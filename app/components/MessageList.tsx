@@ -7,7 +7,7 @@ import { Skeleton } from './Skeleton';
 import { LoadingIndicator } from './LoadingIndicator';
 
 import { FadeWrapper, ErrorAlert } from '@/components/ui';
-import { Sparkles, Brain, Code, Lightbulb, PenLine, Zap, ArrowRight } from 'lucide-react';
+import { Brain, Code, Lightbulb, PenLine, Zap, ArrowRight, Terminal } from 'lucide-react';
 import type { ChatMode, LearningSubMode } from '@/app/hooks/usePersistedSettings';
 
 // Autoscroll hook - improved with requestAnimationFrame and near-bottom detection
@@ -585,7 +585,7 @@ export function MessageList({
               <div className="flex flex-col items-center justify-center min-h-[60vh] px-4 py-8">
                 <div className="flex flex-col items-center">
                   <div className="w-16 h-16 flex items-center justify-center border border-[var(--text-accent)]/30 bg-[var(--text-accent)]/10 mb-6 relative">
-                    <Sparkles size={28} className="text-[var(--text-accent)] animate-pulse" />
+                    <Terminal size={28} className="text-[var(--text-accent)] animate-pulse" />
                     <div className="absolute inset-0 border border-[var(--text-accent)] animate-ping opacity-20" />
                   </div>
                   <p className="text-sm text-[var(--text-secondary)] uppercase tracking-wider">

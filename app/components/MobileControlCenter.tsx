@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence, useDragControls } from 'framer-motion';
-import { Settings2, ChevronUp, History, Sparkles, Brain, Zap, MessageSquare, GraduationCap, Microscope, X } from 'lucide-react';
+import { Settings2, ChevronUp, History, Radio, Brain, Zap, MessageSquare, GraduationCap, Microscope, X } from 'lucide-react';
 import { useChatContext } from './ChatContext';
 import { usePersistedSetting, useChatMode, useAccentColor } from '@/app/hooks/usePersistedSettings';
 import { cn } from '@/lib/utils';
@@ -97,7 +97,7 @@ export function MobileControlCenter() {
                         {/* Tabs */}
                         <div className="flex bg-[#0f0f0f] border-b border-[var(--border-color)]">
                             <TabBtn active={activeTab === 'models'} onClick={() => setActiveTab('models')} icon={Brain}>Models</TabBtn>
-                            <TabBtn active={activeTab === 'modes'} onClick={() => setActiveTab('modes')} icon={Sparkles}>Modes</TabBtn>
+                            <TabBtn active={activeTab === 'modes'} onClick={() => setActiveTab('modes')} icon={Radio}>Modes</TabBtn>
                         </div>
 
                         {/* Content Area */}
@@ -120,7 +120,7 @@ export function MobileControlCenter() {
                                         desc="Balanced speed & intelligence"
                                         currentId={currentModelId}
                                         onSelect={setCurrentModelId}
-                                        icon={Sparkles}
+                                        icon={Radio}
                                     />
                                     <ModelOption
                                         id="gpt-5.3-codex-spark"

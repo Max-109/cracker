@@ -1,6 +1,6 @@
 'use client';
 
-import { Brain, Zap, Shield, MessageSquare, Cpu, Sparkles, Lock, Globe } from 'lucide-react';
+import { Brain, Zap, Shield, MessageSquare, Cpu, Radio, Lock, Globe } from 'lucide-react';
 
 const floatingIcons = [
   { icon: Brain, x: 8, y: 20, size: 56, blur: 0, opacity: 0.06, delay: 0 },
@@ -8,7 +8,7 @@ const floatingIcons = [
   { icon: Shield, x: 10, y: 68, size: 50, blur: 0, opacity: 0.05, delay: 2 },
   { icon: MessageSquare, x: 88, y: 72, size: 48, blur: 0, opacity: 0.06, delay: 0.5 },
   { icon: Cpu, x: 15, y: 42, size: 40, blur: 0, opacity: 0.05, delay: 1.5 },
-  { icon: Sparkles, x: 82, y: 42, size: 52, blur: 0, opacity: 0.06, delay: 2.5 },
+  { icon: Radio, x: 82, y: 42, size: 52, blur: 0, opacity: 0.06, delay: 2.5 },
   { icon: Lock, x: 5, y: 88, size: 36, blur: 0, opacity: 0.05, delay: 3 },
   { icon: Globe, x: 92, y: 28, size: 42, blur: 0, opacity: 0.05, delay: 1.8 },
 ];

@@ -106,7 +106,7 @@ export default function MemorySection() {
                     justifyContent: 'center',
                 }}
             >
-                <Ionicons name="sparkles" size={12} color={theme.accent} />
+                <Ionicons name="bulb-outline" size={12} color={theme.accent} />
             </View>
             <Text
                 style={{
@@ -160,7 +160,7 @@ export default function MemorySection() {
                 }}
             >
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    <Ionicons name="sparkles" size={16} color={theme.accent} />
+                    <Ionicons name="bulb-outline" size={16} color={theme.accent} />
                     <Text
                         style={{
                             color: COLORS.textSecondary,
@@ -237,7 +237,7 @@ export default function MemorySection() {
                             marginBottom: 16,
                         }}
                     >
-                        <Ionicons name="sparkles-outline" size={24} color={COLORS.textMuted} />
+                        <Ionicons name="bulb-outline" size={24} color={COLORS.textMuted} />
                     </View>
                     <Text style={{ color: COLORS.textSecondary, fontSize: 14, marginBottom: 4 }}>
                         No memories yet

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { ArrowUp, Paperclip, Square, X, File as FileIcon, Mic, AudioLines, Sparkles, Zap } from 'lucide-react';
+import { ArrowUp, Paperclip, Square, X, File as FileIcon, Mic, AudioLines, Terminal, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { AttachmentItem } from '@/app/hooks/useAttachments';
 import type { LearningSubMode } from '@/app/hooks/usePersistedSettings';
@@ -466,7 +466,7 @@ export function ChatInput({
                               ? "bg-[var(--text-accent)] border-[var(--text-accent)] text-black"
                               : "bg-[#1a1a1a] border-[var(--border-color)] text-[var(--text-secondary)] group-hover:border-[var(--text-accent)]/50 group-hover:text-[var(--text-accent)]"
                           )}>
-                            <Sparkles size={16} />
+                            <Terminal size={16} />
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className={cn(
