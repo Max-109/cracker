@@ -3,6 +3,7 @@ import * as SecureStore from 'expo-secure-store';
 const DEFAULT_API_BASE = 'https://cracker.mom';
 const API_BASE_STORAGE_KEY = 'cracker-api-base-url';
 const PROVIDER_API_BASE_STORAGE_KEY = 'cracker-provider-api-base-url';
+const PROVIDER_ENABLED_STORAGE_KEY = 'cracker-provider-enabled';
 const API_KEY_STORAGE_KEY = 'cracker-provider-api-key';
 
 export async function getApiBaseUrl(): Promise<string> {
@@ -39,6 +40,18 @@ export async function setProviderApiBaseUrl(url: string): Promise<void> {
     await SecureStore.setItemAsync(PROVIDER_API_BASE_STORAGE_KEY, trimmed);
 }
 
+export async function getProviderEnabled(): Promise<boolean> {
+    try {
+        return (await SecureStore.getItemAsync(PROVIDER_ENABLED_STORAGE_KEY)) === 'true';
+    } catch {
+        return false;
+    }
+}
+
+export async function setProviderEnabled(enabled: boolean): Promise<void> {
+    await SecureStore.setItemAsync(PROVIDER_ENABLED_STORAGE_KEY, String(enabled));
+}
+
 export async function getProviderApiKey(): Promise<string> {
     try {
         return (await SecureStore.getItemAsync(API_KEY_STORAGE_KEY)) || '';
@@ -57,8 +70,8 @@ export async function setProviderApiKey(key: string): Promise<void> {
 }
 
 export async function getProviderConfig(): Promise<{ providerApiBaseUrl?: string; providerApiKey?: string }> {
-    const [baseUrl, key] = await Promise.all([getProviderApiBaseUrl(), getProviderApiKey()]);
-    return key && baseUrl ? { providerApiBaseUrl: baseUrl, providerApiKey: key } : {};
+    const [enabled, baseUrl, key] = await Promise.all([getProviderEnabled(), getProviderApiBaseUrl(), getProviderApiKey()]);
+    return enabled && key && baseUrl ? { providerApiBaseUrl: baseUrl, providerApiKey: key } : {};
 }
 
 async function parseApiError(response: Response, fallback: string) {
@@ -146,7 +159,7 @@ export async function apiFetch<T = unknown>(
 export async function apiStreamFetch(
     path: string,
     body: Record<string, unknown>,
-    onEvent: (event: unknown) => void,
+    onEvent: (event: unknown) => void | boolean,
     onError?: (error: Error) => void,
     signal?: AbortSignal
 ): Promise<void> {
@@ -199,11 +212,12 @@ export async function apiStreamFetch(
                 for (const line of lines) {
                     if (line.startsWith('data: ')) {
                         const data = line.slice(6).trim();
-                        if (data === '[DONE]') continue;
+                        if (data === '[DONE]') return;
 
                         try {
                             const event = JSON.parse(data);
-                            onEvent(event);
+                            const shouldContinue = onEvent(event);
+                            if (shouldContinue === false || (event as { type?: string }).type === 'finish') return;
                         } catch {
                             // Skip invalid JSON
                         }

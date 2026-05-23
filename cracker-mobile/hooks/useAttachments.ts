@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
-import { Alert } from 'react-native';
+import { showAppDialog } from '../components/ui/AppDialog';
 
 export interface Attachment {
     id: string;
@@ -54,7 +54,7 @@ export function useAttachments(): UseAttachmentsReturn {
                 setAttachments(prev => [...prev, ...newAttachments]);
             }
         } catch {
-            Alert.alert('Error', 'Failed to pick file');
+            showAppDialog({ title: 'Error', message: 'Failed to pick file', tone: 'error' });
         }
     }, []);
 

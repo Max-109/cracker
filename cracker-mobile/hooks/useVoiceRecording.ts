@@ -1,7 +1,8 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { Audio } from 'expo-av';
 import * as FileSystem from 'expo-file-system';
-import { Alert, Platform } from 'react-native';
+import { Platform } from 'react-native';
+import { showAppDialog } from '../components/ui/AppDialog';
 
 interface UseVoiceRecordingReturn {
     isRecording: boolean;
@@ -36,7 +37,7 @@ export function useVoiceRecording(): UseVoiceRecordingReturn {
             // Request permissions
             const { status } = await Audio.requestPermissionsAsync();
             if (status !== 'granted') {
-                Alert.alert('Permission Required', 'Microphone permission is needed to record audio.');
+                showAppDialog({ title: 'Permission Required', message: 'Microphone permission is needed to record audio.', tone: 'warning' });
                 return;
             }
 
@@ -62,7 +63,7 @@ export function useVoiceRecording(): UseVoiceRecordingReturn {
             }, 1000);
 
         } catch {
-            Alert.alert('Error', 'Failed to start recording');
+            showAppDialog({ title: 'Error', message: 'Failed to start recording', tone: 'error' });
         }
     }, []);
 

@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, TouchableOpacity, FlatList, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, FlatList, ActivityIndicator } from 'react-native';
 import Animated, { FadeIn, FadeOut, SlideInRight } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../store/theme';
 import { COLORS, FONTS } from '../../lib/design';
 import { api } from '../../lib/api';
+import { showAppConfirm, showAppDialog } from '../ui/AppDialog';
 
 interface UserFact {
     id: string;
@@ -38,55 +39,45 @@ export default function MemorySection() {
     }, [fetchFacts]);
 
     const handleDeleteFact = async (factId: string) => {
-        Alert.alert(
-            'Delete Memory',
-            'Are you sure you want to delete this memory?',
-            [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                    text: 'Delete',
-                    style: 'destructive',
-                    onPress: async () => {
-                        try {
-                            setIsDeleting(factId);
-                            await api.deleteFact(factId);
-                            setFacts(prev => prev.filter(f => f.id !== factId));
-                        } catch {
-                            Alert.alert('Error', 'Failed to delete memory');
-                        } finally {
-                            setIsDeleting(null);
-                        }
-                    },
-                },
-            ]
-        );
+        showAppConfirm({
+            title: 'Delete Memory',
+            message: 'Are you sure you want to delete this memory?',
+            confirmLabel: 'Delete',
+            destructive: true,
+            onConfirm: async () => {
+                try {
+                    setIsDeleting(factId);
+                    await api.deleteFact(factId);
+                    setFacts(prev => prev.filter(f => f.id !== factId));
+                } catch {
+                    showAppDialog({ title: 'Error', message: 'Failed to delete memory', tone: 'error' });
+                } finally {
+                    setIsDeleting(null);
+                }
+            },
+        });
     };
 
     const handleClearAll = () => {
         if (facts.length === 0) return;
 
-        Alert.alert(
-            'Clear All Memories',
-            'This will permanently delete all your saved memories. This cannot be undone.',
-            [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                    text: 'Clear All',
-                    style: 'destructive',
-                    onPress: async () => {
-                        try {
-                            setIsLoading(true);
-                            await api.clearAllFacts();
-                            setFacts([]);
-                        } catch {
-                            Alert.alert('Error', 'Failed to clear memories');
-                        } finally {
-                            setIsLoading(false);
-                        }
-                    },
-                },
-            ]
-        );
+        showAppConfirm({
+            title: 'Clear All Memories',
+            message: 'This will permanently delete all your saved memories. This cannot be undone.',
+            confirmLabel: 'Clear All',
+            destructive: true,
+            onConfirm: async () => {
+                try {
+                    setIsLoading(true);
+                    await api.clearAllFacts();
+                    setFacts([]);
+                } catch {
+                    showAppDialog({ title: 'Error', message: 'Failed to clear memories', tone: 'error' });
+                } finally {
+                    setIsLoading(false);
+                }
+            },
+        });
     };
 
     const renderFact = ({ item, index }: { item: UserFact; index: number }) => (

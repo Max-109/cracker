@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, TextInput, Platform, Alert, StyleSheet } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, TextInput, Platform, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
@@ -10,8 +10,9 @@ import HSVColorPicker from '../../components/ui/HSVColorPicker';
 import Toggle from '../../components/ui/Toggle';
 import ArcDial from '../../components/ui/ArcDial';
 import { COLORS, FONTS } from '../../lib/design';
-import { api, getProviderApiBaseUrl, getProviderApiKey, setProviderApiBaseUrl, setProviderApiKey } from '../../lib/api';
-import { getOpenAIUsagePercent, useOpenAIAccountStore } from '../../store/openaiAccount';
+import { api, getProviderApiBaseUrl, getProviderApiKey, getProviderEnabled, setProviderApiBaseUrl, setProviderApiKey, setProviderEnabled } from '../../lib/api';
+import { useOpenAIAccountStore } from '../../store/openaiAccount';
+import { showAppConfirm, showAppDialog } from '../../components/ui/AppDialog';
 
 // Pronoun options - same as web
 const GENDER_OPTIONS = [
@@ -54,7 +55,10 @@ export default function SettingsScreen() {
     const [apiBaseUrl, setApiBaseUrlState] = useState('');
     const [providerKey, setProviderKey] = useState('');
     const [isSavingProvider, setIsSavingProvider] = useState(false);
+    const [isAlternativeApiOpen, setIsAlternativeApiOpen] = useState(false);
+    const [alternativeApiEnabled, setAlternativeApiEnabled] = useState(false);
     const {
+        accounts: openAIAccounts,
         auth: openAIAuth,
         usage: openAIUsage,
         enabled: openAIEnabled,
@@ -73,6 +77,10 @@ export default function SettingsScreen() {
         syncFromServer().catch(() => { });
         getProviderApiBaseUrl().then(setApiBaseUrlState).catch(() => { });
         getProviderApiKey().then(setProviderKey).catch(() => { });
+        getProviderEnabled().then((enabled) => {
+            setAlternativeApiEnabled(enabled);
+            setIsAlternativeApiOpen(enabled);
+        }).catch(() => { });
         // Fetch memory facts
         api.getUserFacts().then(data => {
             setFacts(data.facts || []);
@@ -126,45 +134,43 @@ export default function SettingsScreen() {
             await api.deleteFact(factId);
             setFacts(prev => prev.filter(f => f.id !== factId));
         } catch (e) {
-            Alert.alert('Error', 'Failed to delete fact');
+            showAppDialog({ title: 'Error', message: 'Failed to delete fact', tone: 'error' });
         }
     };
 
     const handleClearMemory = () => {
-        Alert.alert(
-            'Clear Memory',
-            `This will delete all ${facts.length} stored facts. This action cannot be undone.`,
-            [
-                { text: 'Cancel', style: 'cancel' },
-                {
-                    text: 'Clear All', style: 'destructive', onPress: async () => {
-                        try {
-                            await api.clearAllFacts();
-                            setFacts([]);
-                            Alert.alert('Memory Cleared', 'All facts have been deleted.');
-                        } catch (error) {
-                            Alert.alert('Error', 'Failed to clear memory.');
-                        }
-                    }
-                },
-            ]
-        );
+        showAppConfirm({
+            title: 'Clear Memory',
+            message: `This will delete all ${facts.length} stored facts. This action cannot be undone.`,
+            confirmLabel: 'Clear All',
+            destructive: true,
+            onConfirm: async () => {
+                try {
+                    await api.clearAllFacts();
+                    setFacts([]);
+                    showAppDialog({ title: 'Memory Cleared', message: 'All facts have been deleted.', tone: 'success' });
+                } catch (error) {
+                    showAppDialog({ title: 'Error', message: 'Failed to clear memory.', tone: 'error' });
+                }
+            },
+        });
     };
 
     const handleSaveProvider = async () => {
         if (providerKey.trim() && !apiBaseUrl.trim()) {
-            Alert.alert('API URL Required', 'Paste your provider URL before saving an API key.');
+            showAppDialog({ title: 'API URL Required', message: 'Paste your API URL before saving an API key.', tone: 'warning' });
             return;
         }
         setIsSavingProvider(true);
         try {
             await setProviderApiBaseUrl(apiBaseUrl);
             await setProviderApiKey(providerKey);
+            await setProviderEnabled(alternativeApiEnabled);
             setApiBaseUrlState(await getProviderApiBaseUrl());
             setProviderKey(await getProviderApiKey());
-            Alert.alert('Saved', 'Provider fallback settings were saved securely on this device.');
+            showAppDialog({ title: 'Saved', message: 'Alternative API settings were saved securely on this device.', tone: 'success' });
         } catch (error) {
-            Alert.alert('Error', error instanceof Error ? error.message : 'Failed to save provider settings.');
+            showAppDialog({ title: 'Error', message: error instanceof Error ? error.message : 'Failed to save API settings.', tone: 'error' });
         } finally {
             setIsSavingProvider(false);
         }
@@ -173,13 +179,16 @@ export default function SettingsScreen() {
     const handleConnectOpenAI = async () => {
         try {
             await connectOpenAI();
-            Alert.alert('Connected', 'OpenAI account linked successfully.');
+            showAppDialog({ title: 'Connected', message: 'OpenAI account linked successfully.', tone: 'success' });
         } catch (error) {
-            Alert.alert('OpenAI Login', error instanceof Error ? error.message : 'OpenAI account login failed.');
+            showAppDialog({ title: 'OpenAI Login', message: error instanceof Error ? error.message : 'OpenAI account login failed.', tone: 'error' });
         }
     };
 
-    const usagePercent = getOpenAIUsagePercent(openAIUsage);
+    const primaryUsed = openAIUsage?.rate_limit?.primary_window?.used_percent;
+    const weeklyUsed = openAIUsage?.rate_limit?.secondary_window?.used_percent;
+    const primaryLeft = typeof primaryUsed === 'number' ? Math.max(0, 100 - Math.round(primaryUsed)) : null;
+    const weeklyLeft = typeof weeklyUsed === 'number' ? Math.max(0, 100 - Math.round(weeklyUsed)) : null;
     const openAIStatus = openAIError ? 'ACTION NEEDED' : openAIAuth ? (openAIEnabled ? 'LINKED' : 'PAUSED') : 'NOT LINKED';
 
     const SectionHeader = ({ icon, title }: { icon: keyof typeof Ionicons.glyphMap, title: string }) => (
@@ -386,15 +395,22 @@ export default function SettingsScreen() {
                             </Text>
                         </View>
 
-                        {typeof usagePercent === 'number' && (
-                            <View style={{ marginTop: 12 }}>
-                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
-                                    <Text style={styles.descText}>Codex usage</Text>
-                                    <Text style={[styles.descText, { color: theme.accent }]}>{Math.round(usagePercent)}%</Text>
-                                </View>
-                                <View style={styles.usageTrack}>
-                                    <View style={[styles.usageFill, { width: `${Math.min(100, usagePercent)}%`, backgroundColor: usagePercent >= 90 ? '#ef4444' : theme.accent }]} />
-                                </View>
+                        {(primaryLeft !== null || weeklyLeft !== null) && (
+                            <View style={{ marginTop: 12, gap: 10 }}>
+                                {[
+                                    { label: '5H', value: primaryLeft, used: primaryUsed },
+                                    { label: 'Week', value: weeklyLeft, used: weeklyUsed },
+                                ].map((item) => item.value !== null && (
+                                    <View key={item.label}>
+                                        <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
+                                            <Text style={styles.descText}>Codex {item.label}</Text>
+                                            <Text style={[styles.descText, { color: theme.accent }]}>{item.value}% left</Text>
+                                        </View>
+                                        <View style={styles.usageTrack}>
+                                            <View style={[styles.usageFill, { width: `${Math.min(100, Number(item.used) || 0)}%`, backgroundColor: Number(item.used) >= 90 ? '#ef4444' : theme.accent }]} />
+                                        </View>
+                                    </View>
+                                ))}
                             </View>
                         )}
 
@@ -416,8 +432,11 @@ export default function SettingsScreen() {
                                     <TouchableOpacity style={styles.secondaryButton} onPress={() => refreshOpenAIUsage()} disabled={isOpenAILoading}>
                                         <Text style={styles.secondaryButtonText}>{isOpenAILoading ? 'SYNCING' : 'SYNC'}</Text>
                                     </TouchableOpacity>
+                                    <TouchableOpacity style={styles.secondaryButton} onPress={handleConnectOpenAI} disabled={isOpenAIConnecting}>
+                                        <Text style={styles.secondaryButtonText}>{isOpenAIConnecting ? 'ADDING...' : 'ADD ACCOUNT'}</Text>
+                                    </TouchableOpacity>
                                     <TouchableOpacity style={styles.secondaryButton} onPress={() => disconnectOpenAI()}>
-                                        <Text style={[styles.secondaryButtonText, { color: '#ef4444' }]}>UNLINK</Text>
+                                        <Text style={[styles.secondaryButtonText, { color: '#ef4444' }]}>UNLINK ALL</Text>
                                     </TouchableOpacity>
                                 </>
                             ) : (
@@ -433,33 +452,54 @@ export default function SettingsScreen() {
                         </View>
                     </View>
 
+                    {openAIAccounts.length > 1 && (
+                        <Text style={[styles.descText, { marginHorizontal: 20, marginTop: 8 }]}>{openAIAccounts.length} accounts linked. The least-used enabled account is selected automatically.</Text>
+                    )}
+
                     <View style={[styles.connectionCard, { marginTop: 10 }]}>
-                        <Text style={styles.labelText}>Fallback API</Text>
-                        <Text style={[styles.descText, { marginTop: 3, marginBottom: 12 }]}>Used when OpenAI account is not enabled. Paste your custom OpenAI-compatible URL and key. Key stays in secure storage on this device.</Text>
-                        <Text style={styles.inputLabel}>API URL</Text>
-                        <TextInput
-                            style={styles.textInput}
-                            value={apiBaseUrl}
-                            onChangeText={setApiBaseUrlState}
-                            autoCapitalize="none"
-                            autoCorrect={false}
-                            placeholder="Paste your provider URL"
-                            placeholderTextColor={COLORS.textMuted}
-                        />
-                        <Text style={[styles.inputLabel, { marginTop: 12 }]}>API Key</Text>
-                        <TextInput
-                            style={styles.textInput}
-                            value={providerKey}
-                            onChangeText={setProviderKey}
-                            autoCapitalize="none"
-                            autoCorrect={false}
-                            secureTextEntry
-                            placeholder="OpenAI-compatible provider key"
-                            placeholderTextColor={COLORS.textMuted}
-                        />
-                        <TouchableOpacity style={[styles.primaryButton, { marginTop: 12, borderColor: theme.accent }]} onPress={handleSaveProvider} disabled={isSavingProvider}>
-                            <Text style={[styles.primaryButtonText, { color: theme.accent }]}>{isSavingProvider ? 'SAVING...' : 'SAVE FALLBACK'}</Text>
+                        <TouchableOpacity
+                            onPress={() => setIsAlternativeApiOpen(!isAlternativeApiOpen)}
+                            activeOpacity={0.75}
+                            style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}
+                        >
+                            <View style={{ flex: 1 }}>
+                                <Text style={styles.labelText}>Alternative API</Text>
+                                <Text style={[styles.descText, { marginTop: 3 }]}>Use your own API URL and API key when OpenAI account is paused.</Text>
+                            </View>
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                                <Toggle value={alternativeApiEnabled} onValueChange={(value) => { setAlternativeApiEnabled(value); setIsAlternativeApiOpen(value || isAlternativeApiOpen); }} />
+                                <Ionicons name={isAlternativeApiOpen ? 'chevron-up' : 'chevron-down'} size={16} color={COLORS.textMuted} />
+                            </View>
                         </TouchableOpacity>
+
+                        {isAlternativeApiOpen && (
+                            <View style={{ marginTop: 12 }}>
+                                <Text style={styles.inputLabel}>API URL</Text>
+                                <TextInput
+                                    style={styles.textInput}
+                                    value={apiBaseUrl}
+                                    onChangeText={setApiBaseUrlState}
+                                    autoCapitalize="none"
+                                    autoCorrect={false}
+                                    placeholder="Paste your API URL"
+                                    placeholderTextColor={COLORS.textMuted}
+                                />
+                                <Text style={[styles.inputLabel, { marginTop: 12 }]}>API Key</Text>
+                                <TextInput
+                                    style={styles.textInput}
+                                    value={providerKey}
+                                    onChangeText={setProviderKey}
+                                    autoCapitalize="none"
+                                    autoCorrect={false}
+                                    secureTextEntry
+                                    placeholder="API key"
+                                    placeholderTextColor={COLORS.textMuted}
+                                />
+                                <TouchableOpacity style={[styles.primaryButton, { marginTop: 12, borderColor: theme.accent }]} onPress={handleSaveProvider} disabled={isSavingProvider}>
+                                    <Text style={[styles.primaryButtonText, { color: theme.accent }]}>{isSavingProvider ? 'SAVING...' : 'SAVE API'}</Text>
+                                </TouchableOpacity>
+                            </View>
+                        )}
                     </View>
                 </View>
 

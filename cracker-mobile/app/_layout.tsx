@@ -8,6 +8,7 @@ import type { MMKV } from 'react-native-mmkv';
 import { useAuthStore } from '../store/auth';
 import { useSettingsStore } from '../store/settings';
 import { useOpenAIAccountStore } from '../store/openaiAccount';
+import { AppDialogProvider } from '../components/ui/AppDialog';
 import '../global.css';
 
 // Get cached accent color for instant loading indicator
@@ -111,6 +112,7 @@ export default function RootLayout() {
                     animation: 'fade',
                 }}
             />
+            <AppDialogProvider />
         </GestureHandlerRootView>
     );
 }

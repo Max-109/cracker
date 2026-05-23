@@ -7,7 +7,6 @@ import {
     Platform,
     SafeAreaView,
     StatusBar,
-    Alert,
     ScrollView,
     Image,
 } from 'react-native';
@@ -23,10 +22,10 @@ import SuggestionCard, { SUGGESTIONS } from '../../components/ui/SuggestionCard'
 import ChatBackground from '../../components/ui/ChatBackground';
 import { ModelSelector, AccentColorPicker } from '../../components/ui/ModelSelector';
 import PanelLeftIcon from '../../components/ui/PanelLeftIcon';
-import OpenAIUsageIndicator from '../../components/ui/OpenAIUsageIndicator';
 import Drawer from '../../components/navigation/Drawer';
 import { useAttachments } from '../../hooks/useAttachments';
 import { COLORS, FONTS } from '../../lib/design';
+import { showAppDialog } from '../../components/ui/AppDialog';
 
 interface ChatItem {
     id: string;
@@ -90,7 +89,7 @@ export default function HomeScreen() {
             const chat = await api.createChat((message || 'New Chat').slice(0, 50), 'chat');
 
             if (!chat?.id) {
-                Alert.alert('Error', 'Failed to create chat: No ID returned');
+                showAppDialog({ title: 'Error', message: 'Failed to create chat: No ID returned', tone: 'error' });
                 return;
             }
 
@@ -106,7 +105,7 @@ export default function HomeScreen() {
             clearAttachments();
             loadChats();
         } catch (error: any) {
-            Alert.alert('Error', error?.message || 'Failed to create chat');
+            showAppDialog({ title: 'Error', message: error?.message || 'Failed to create chat', tone: 'error' });
         } finally {
             setIsCreating(false);
         }
@@ -122,7 +121,7 @@ export default function HomeScreen() {
                 loadChats();
             }
         } catch (error: any) {
-            Alert.alert('Error', error?.message || 'Failed to create chat');
+            showAppDialog({ title: 'Error', message: error?.message || 'Failed to create chat', tone: 'error' });
         } finally {
             setIsCreating(false);
         }
@@ -228,7 +227,6 @@ export default function HomeScreen() {
 
                         {/* Interactive Accent Color Picker - matches web */}
                         <AccentColorPicker />
-                        <OpenAIUsageIndicator />
                     </View>
                 </View>
 

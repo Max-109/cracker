@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Text, FlatList, KeyboardAvoidingView, Platform, TouchableOpacity, StatusBar, ScrollView, Alert } from 'react-native';
+import { View, Text, FlatList, KeyboardAvoidingView, Platform, TouchableOpacity, StatusBar, ScrollView } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router'
 import { Ionicons } from '@expo/vector-icons';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
@@ -15,11 +15,11 @@ import ThinkingIndicator from '../../../components/ui/ThinkingIndicator';
 import { DotGridIndicator } from '../../../components/ui/ConnectionIndicator';
 import { ModelSelector, AccentColorPicker } from '../../../components/ui/ModelSelector';
 import PanelLeftIcon from '../../../components/ui/PanelLeftIcon';
-import OpenAIUsageIndicator from '../../../components/ui/OpenAIUsageIndicator';
 import { MessageSkeleton } from '../../../components/ui/Skeleton';
 import Drawer from '../../../components/navigation/Drawer';
 import ErrorBoundary from '../../../components/ErrorBoundary';
 import { COLORS, FONTS } from '../../../lib/design';
+import { showAppDialog } from '../../../components/ui/AppDialog';
 
 interface ChatItem {
     id: string;
@@ -204,7 +204,7 @@ export default function ChatScreen() {
         try {
             await api.saveMessage(id, 'user', userContent);
         } catch {
-            Alert.alert('Error', 'Failed to save your message. Please try again.');
+            showAppDialog({ title: 'Error', message: 'Failed to save your message. Please try again.', tone: 'error' });
             setMessages(prev => prev.filter(message => message.id !== userMessage.id));
             return;
         }
@@ -383,7 +383,7 @@ export default function ChatScreen() {
                                 .then(() => loadChats())
                                 .catch(() => { });
                         }
-                        break;
+                        return false;
                 }
             },
             (error) => {
@@ -402,6 +402,9 @@ export default function ChatScreen() {
             setIsStreaming(false);
             setIsThinking(false);
             setIsConnecting(false);
+            abortControllerRef.current = null;
+        }).finally(() => {
+            abortControllerRef.current = null;
         });
     }, [id, messages, isStreaming, chatMode, reasoningEffort, enabledMcpServers, responseLength, currentModelId, userName, userGender, customInstructions, learningSubMode, learningMode, useOpenAIAccount, openAIAccountAuth, refreshUsage]);
 
@@ -444,7 +447,7 @@ export default function ChatScreen() {
                 loadChats();
             }
         } catch (error: any) {
-            Alert.alert('Error', error?.message || 'Failed to create chat');
+            showAppDialog({ title: 'Error', message: error?.message || 'Failed to create chat', tone: 'error' });
         }
     };
 
@@ -628,7 +631,6 @@ export default function ChatScreen() {
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                     <ModelSelector />
                     <AccentColorPicker />
-                    <OpenAIUsageIndicator />
                 </View>
             </View>
 
