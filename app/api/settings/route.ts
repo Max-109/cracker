@@ -74,6 +74,7 @@ export async function PUT(request: NextRequest) {
       'userName',
       'userGender',
       'enabledMcpServers',
+      'memoryEnabled',
       'accentColor', // Accent color for UI theming
     ];
 

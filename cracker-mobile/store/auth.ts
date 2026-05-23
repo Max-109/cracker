@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import * as SecureStore from 'expo-secure-store';
 import { User } from '../lib/types';
-import { api, apiFetch } from '../lib/api';
+import { api, apiFetch, getApiBaseUrl } from '../lib/api';
 
 interface AuthState {
     user: User | null;
@@ -63,7 +63,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     loginWithEmail: async (email: string, password: string) => {
         set({ isLoading: true });
         try {
-            const response = await fetch('https://cracker.mom/api/auth/login', {
+            const apiBase = await getApiBaseUrl();
+            const response = await fetch(`${apiBase}/api/auth/login`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email, password }),
@@ -94,7 +95,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     register: async (email: string, password: string, name: string, invitationCode: string) => {
         set({ isLoading: true });
         try {
-            const response = await fetch('https://cracker.mom/api/auth/register', {
+            const apiBase = await getApiBaseUrl();
+            const response = await fetch(`${apiBase}/api/auth/register`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({

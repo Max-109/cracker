@@ -4,21 +4,22 @@ import { chats } from '@/db/schema';
 import { eq } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 import { getOrCreateChatDek, encryptTitle } from '@/lib/encryption';
-import { openai, openAIProviderOptions } from '@/lib/ai-provider';
+import { createOpenAIProviderOverride, openai, openAIProviderOptions } from '@/lib/ai-provider';
 import { createOpenAIAccountProvider } from '@/lib/openai-account';
 import type { OpenAIAccountAuth } from '@/lib/openai-account-shared';
 
 export async function POST(req: Request) {
   try {
     const db = getDb();
-    const { chatId, prompt, openAIAccountAuth } = await req.json() as { chatId?: string; prompt?: string; openAIAccountAuth?: OpenAIAccountAuth | OpenAIAccountAuth[] | null };
+    const { chatId, prompt, openAIAccountAuth, providerApiBaseUrl, providerApiKey } = await req.json() as { chatId?: string; prompt?: string; openAIAccountAuth?: OpenAIAccountAuth | OpenAIAccountAuth[] | null; providerApiBaseUrl?: string | null; providerApiKey?: string | null };
 
     if (!prompt) {
       return NextResponse.json({ error: 'Prompt required' }, { status: 400 });
     }
 
     const openAIAccountAuths = Array.isArray(openAIAccountAuth) ? openAIAccountAuth : openAIAccountAuth ? [openAIAccountAuth] : [];
-    const provider = openAIAccountAuths.length > 0 ? createOpenAIAccountProvider(openAIAccountAuths) : openai;
+    const overrideProvider = createOpenAIProviderOverride({ baseURL: providerApiBaseUrl, apiKey: providerApiKey });
+    const provider = openAIAccountAuths.length > 0 ? createOpenAIAccountProvider(openAIAccountAuths) : overrideProvider || openai;
     const { text } = await generateText({
       model: provider.chat('gpt-5.3-codex-spark'),
       prompt: `Summarize this conversation start in 3-5 words for a title. Avoid using symbols like quotes, asterisks, plus, minus, colons, or special characters unless absolutely necessary. For example, write "2 plus 2" not "2+2". Text: "${prompt.substring(0, 300)}..."`,

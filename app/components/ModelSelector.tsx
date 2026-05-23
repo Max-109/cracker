@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { HexColorPicker } from "react-colorful";
 import { cn } from '@/lib/utils';
-import { ChevronDown, Cpu, Brain, Sparkles, Zap } from 'lucide-react';
+import { ChevronDown, Cpu, Brain, Zap } from 'lucide-react';
 
 type ModelOption = {
   id: string;
@@ -15,7 +15,7 @@ type ModelOption = {
 
 const MODEL_OPTIONS: ModelOption[] = [
   { id: "gpt-5.5", name: "Expert", description: "GPT-5.5", tier: 'expert', icon: Brain },
-  { id: "gpt-5.4-mini", name: "Balanced", description: "GPT-5.4 Mini", tier: 'balanced', icon: Sparkles },
+  { id: "gpt-5.4-mini", name: "Balanced", description: "GPT-5.4 Mini", tier: 'balanced', icon: Cpu },
   { id: "gpt-5.3-codex-spark", name: "Ultra Fast", description: "GPT-5.3 Codex Spark", tier: 'fast', icon: Zap },
 ];
 

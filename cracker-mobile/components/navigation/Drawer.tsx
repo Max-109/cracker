@@ -48,6 +48,7 @@ interface DrawerProps {
     onClose: () => void;
     chats: ChatItem[];
     onChatPress: (id: string) => void;
+    onNewChat?: () => void;
     currentChatId?: string | null;
 }
 
@@ -107,6 +108,7 @@ export default function Drawer({
     onClose,
     chats,
     onChatPress,
+    onNewChat,
     currentChatId,
 }: DrawerProps) {
     const theme = useTheme();
@@ -215,6 +217,48 @@ export default function Drawer({
             >
                 {/* Top spacing for status bar */}
                 <View style={{ paddingTop: statusBarHeight }} />
+
+                <View style={{ paddingHorizontal: 10, paddingBottom: 10 }}>
+                    <TouchableOpacity
+                        onPress={() => {
+                            onClose();
+                            onNewChat?.();
+                        }}
+                        activeOpacity={0.75}
+                        style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            gap: 10,
+                            paddingVertical: 11,
+                            paddingHorizontal: 10,
+                            borderWidth: 1,
+                            borderColor: COLORS.borderColor,
+                            backgroundColor: COLORS.bgMain,
+                        }}
+                    >
+                        <View style={{
+                            width: 24,
+                            height: 24,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            borderWidth: 1,
+                            borderColor: theme.accent,
+                            backgroundColor: `${theme.accent}18`,
+                        }}>
+                            <Ionicons name="add" size={16} color={theme.accent} />
+                        </View>
+                        <Text style={{
+                            color: COLORS.textPrimary,
+                            fontSize: 12,
+                            fontFamily: FONTS.mono,
+                            fontWeight: '600',
+                            letterSpacing: 0.8,
+                            textTransform: 'uppercase',
+                        }}>
+                            New Chat
+                        </Text>
+                    </TouchableOpacity>
+                </View>
 
                 {/* Scrollable Chat List with Time Groups */}
                 <ScrollView

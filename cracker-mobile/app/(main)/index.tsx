@@ -393,6 +393,7 @@ export default function HomeScreen() {
                 onClose={() => setIsDrawerOpen(false)}
                 chats={chats}
                 onChatPress={handleChatPress}
+                onNewChat={handleNewChat}
             />
         </SafeAreaView>
     );

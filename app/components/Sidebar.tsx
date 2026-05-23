@@ -1,4 +1,4 @@
-import { X, Pencil, Trash2, Check, MessageSquare, Clock, Sparkles, AlertTriangle, LogOut, Shield, User, GraduationCap, Microscope } from 'lucide-react';
+import { X, Pencil, Trash2, Check, MessageSquare, Clock, Plus, AlertTriangle, LogOut, Shield, User, GraduationCap, Microscope } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Skeleton } from './Skeleton';
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -342,7 +342,7 @@ export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose
                     {/* Base Layer */}
                     <span className="relative z-10 flex items-center gap-3 text-[var(--text-primary)]">
                         <span className="w-7 h-7 flex items-center justify-center border border-[var(--border-color)] bg-[#1a1a1a] group-[.is-hovered]:bg-black group-[.is-hovered]:border-black transition-colors flex-shrink-0">
-                            <Sparkles size={14} className="text-[var(--text-accent)] group-[.is-hovered]:text-[var(--text-accent)]" />
+                            <Plus size={14} className="text-[var(--text-accent)] group-[.is-hovered]:text-[var(--text-accent)]" />
                         </span>
                         <span>New Chat</span>
                     </span>
@@ -350,7 +350,7 @@ export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose
                     {/* Overlay Layer */}
                     <div className="absolute inset-0 flex items-center gap-3 px-3 py-2.5 bg-[var(--text-accent)] text-[var(--accent-contrast)] z-20 pointer-events-none cursor-aware-button">
                         <span className="w-7 h-7 flex items-center justify-center border border-black/20 bg-black/20 flex-shrink-0">
-                            <Sparkles size={14} />
+                            <Plus size={14} />
                         </span>
                         <span>New Chat</span>
                     </div>

@@ -1,6 +1,6 @@
 import { generateText } from "ai";
 import { NextResponse } from "next/server";
-import { openai, openAIProviderOptions } from '@/lib/ai-provider';
+import { createOpenAIProviderOverride, openai, openAIProviderOptions } from '@/lib/ai-provider';
 import { createOpenAIAccountProvider } from '@/lib/openai-account';
 import type { OpenAIAccountAuth } from '@/lib/openai-account-shared';
 
@@ -64,7 +64,7 @@ function parseEffort(response: string): GptReasoningEffort {
 
 export async function POST(req: Request) {
     try {
-        const { prompt, openAIAccountAuth } = await req.json() as { prompt?: string; openAIAccountAuth?: OpenAIAccountAuth | OpenAIAccountAuth[] | null };
+        const { prompt, openAIAccountAuth, providerApiBaseUrl, providerApiKey } = await req.json() as { prompt?: string; openAIAccountAuth?: OpenAIAccountAuth | OpenAIAccountAuth[] | null; providerApiBaseUrl?: string | null; providerApiKey?: string | null };
 
         if (!prompt || typeof prompt !== 'string') {
             return NextResponse.json({ effort: 'medium' });
@@ -74,7 +74,8 @@ export async function POST(req: Request) {
         console.log('[AUTO-REASONING] Analyzing prompt:', prompt.slice(0, 200) + (prompt.length > 200 ? '...' : ''));
 
         const openAIAccountAuths = Array.isArray(openAIAccountAuth) ? openAIAccountAuth : openAIAccountAuth ? [openAIAccountAuth] : [];
-        const provider = openAIAccountAuths.length > 0 ? createOpenAIAccountProvider(openAIAccountAuths) : openai;
+        const overrideProvider = createOpenAIProviderOverride({ baseURL: providerApiBaseUrl, apiKey: providerApiKey });
+        const provider = openAIAccountAuths.length > 0 ? createOpenAIAccountProvider(openAIAccountAuths) : overrideProvider || openai;
         const result = await generateText({
             model: provider.chat('gpt-5.3-codex-spark'),
             system: CLASSIFIER_SYSTEM_PROMPT,

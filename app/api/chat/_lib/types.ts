@@ -17,6 +17,8 @@ export type ChatRequestBody = {
   fastMode?: boolean;
   openAIAccountAuth?: OpenAIAccountAuth | OpenAIAccountAuth[] | null;
   useOpenAIAccount?: boolean;
+  providerApiBaseUrl?: string | null;
+  providerApiKey?: string | null;
 };
 
 export type ChatInputMessage = {

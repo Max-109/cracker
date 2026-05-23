@@ -1,5 +1,5 @@
 import { getDb } from '@/db';
-import { getOpenAIConfigError } from '@/lib/ai-provider';
+import { createOpenAIProviderOverride, getOpenAIConfigError } from '@/lib/ai-provider';
 import { createOpenAIAccountProvider } from '@/lib/openai-account';
 import { getModelCapabilities, modelSupportsPriority, normalizeModelId } from '@/lib/model-capabilities';
 import { deleteTempAttachments, getTempAttachmentIdFromUrl } from '@/lib/temp-attachments';
@@ -51,11 +51,16 @@ export async function POST(req: Request) {
       fastMode,
       openAIAccountAuth,
       useOpenAIAccount,
+      providerApiBaseUrl,
+      providerApiKey,
     } = body;
 
+    const providerOverride = !useOpenAIAccount && providerApiKey
+      ? { baseURL: providerApiBaseUrl, apiKey: providerApiKey }
+      : null;
     const openAIAccountAuths = Array.isArray(openAIAccountAuth) ? openAIAccountAuth : openAIAccountAuth ? [openAIAccountAuth] : [];
     const useLocalOpenAIAccount = useOpenAIAccount === true && openAIAccountAuths.some(auth => !!auth?.accessToken);
-    const configError = useLocalOpenAIAccount ? null : getOpenAIConfigError();
+    const configError = useLocalOpenAIAccount ? null : getOpenAIConfigError(providerOverride);
     if (configError) {
       return jsonError('AI provider not configured', configError, 500);
     }
@@ -114,7 +119,9 @@ export async function POST(req: Request) {
       tools,
       hasTools,
       providerOptions,
-      openaiProvider: useLocalOpenAIAccount ? createOpenAIAccountProvider(openAIAccountAuths) : undefined,
+      openaiProvider: useLocalOpenAIAccount
+        ? createOpenAIAccountProvider(openAIAccountAuths)
+        : createOpenAIProviderOverride(providerOverride) || undefined,
     });
 
     extractAndStoreFactsInBackground(

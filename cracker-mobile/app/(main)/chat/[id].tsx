@@ -5,7 +5,8 @@ import { Ionicons } from '@expo/vector-icons';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { useTheme } from '../../../store/theme';
 import { useSettingsStore } from '../../../store/settings';
-import { api, apiStreamFetch } from '../../../lib/api';
+import { useOpenAIAccountStore } from '../../../store/openaiAccount';
+import { api, apiStreamFetch, getProviderConfig } from '../../../lib/api';
 import { ChatMessage, MessagePart, StreamEvent } from '../../../lib/types';
 import MessageItem from '../../../components/chat/MessageItem';
 import ChatInput from '../../../components/ui/ChatInput';
@@ -42,6 +43,7 @@ export default function ChatScreen() {
     const [hasAutoSent, setHasAutoSent] = useState(false);
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
     const [chats, setChats] = useState<ChatItem[]>([]);
+    const [chatError, setChatError] = useState<string | null>(null);
     const flatListRef = useRef<FlatList>(null);
     const abortControllerRef = useRef<AbortController | null>(null);
     const streamingReasoningRef = useRef('');
@@ -60,6 +62,7 @@ export default function ChatScreen() {
         currentModelId,
     } = useSettingsStore();
     const learningMode = chatMode === 'learning';
+    const { auth: openAIAccountAuth, enabled: useOpenAIAccount, refreshUsage } = useOpenAIAccountStore();
 
     const statusBarHeight = Platform.OS === 'android' ? (StatusBar.currentHeight || 24) : 0;
 
@@ -195,6 +198,7 @@ export default function ChatScreen() {
 
         setMessages(prev => [...prev, userMessage]);
         setInput('');
+        setChatError(null);
 
         try {
             await api.saveMessage(id, 'user', userContent);
@@ -224,10 +228,14 @@ export default function ChatScreen() {
         };
         setMessages(prev => [...prev, assistantMessage]);
 
+        const accountContext = useOpenAIAccount && openAIAccountAuth
+            ? { useOpenAIAccount: true, openAIAccountAuth: [openAIAccountAuth] }
+            : { useOpenAIAccount: false, ...(await getProviderConfig()) };
+
         // Get auto-reasoning
         let effort = reasoningEffort;
         try {
-            const autoReasoning = await api.getReasoningEffort(messageText.trim());
+            const autoReasoning = await api.getReasoningEffort(messageText.trim(), accountContext);
             effort = autoReasoning.effort;
         } catch { }
 
@@ -255,6 +263,7 @@ export default function ChatScreen() {
                 learningMode,
                 learningSubMode,
                 customInstructions,
+                ...accountContext,
             },
             (event: unknown) => {
                 const e = event as StreamEvent;
@@ -364,22 +373,36 @@ export default function ChatScreen() {
                         setIsConnecting(false);
 
                         // Generate title for first message (matches web behavior)
+                        if (useOpenAIAccount && openAIAccountAuth) {
+                            refreshUsage().catch(() => { });
+                        }
+
                         if (isFirstMessage && id) {
-                            api.generateTitle(id, messageText.trim().substring(0, 300))
+                            api.generateTitle(id, messageText.trim().substring(0, 300), accountContext)
                                 .then(() => loadChats())
                                 .catch(() => { });
                         }
                         break;
                 }
             },
-            () => {
+            (error) => {
+                const message = error.message || 'The model request failed.';
+                setChatError(message);
+                setMessages(prev => prev.filter(messageItem => messageItem.id !== assistantMessage.id));
                 setIsStreaming(false);
                 setIsThinking(false);
                 setIsConnecting(false);
             },
             abortControllerRef.current.signal
-        );
-    }, [id, messages, isStreaming, chatMode, reasoningEffort, enabledMcpServers, responseLength, currentModelId, userName, userGender, customInstructions, learningSubMode, learningMode]);
+        ).catch((error) => {
+            const message = error instanceof Error ? error.message : 'The model request failed.';
+            setChatError(message);
+            setMessages(prev => prev.filter(messageItem => messageItem.id !== assistantMessage.id));
+            setIsStreaming(false);
+            setIsThinking(false);
+            setIsConnecting(false);
+        });
+    }, [id, messages, isStreaming, chatMode, reasoningEffort, enabledMcpServers, responseLength, currentModelId, userName, userGender, customInstructions, learningSubMode, learningMode, useOpenAIAccount, openAIAccountAuth, refreshUsage]);
 
     // Auto-send initial message if provided
     useEffect(() => {
@@ -408,6 +431,19 @@ export default function ChatScreen() {
         setIsDrawerOpen(false);
         if (chatId !== id) {
             router.push(`/(main)/chat/${chatId}`);
+        }
+    };
+
+    const handleNewChat = async () => {
+        setIsDrawerOpen(false);
+        try {
+            const chat = await api.createChat('New Chat', 'chat');
+            if (chat?.id) {
+                router.push(`/(main)/chat/${chat.id}`);
+                loadChats();
+            }
+        } catch (error: any) {
+            Alert.alert('Error', error?.message || 'Failed to create chat');
         }
     };
 
@@ -474,6 +510,29 @@ export default function ChatScreen() {
         );
     };
 
+    const ErrorBanner = () => chatError ? (
+        <View style={{
+            marginHorizontal: 16,
+            marginTop: 12,
+            padding: 12,
+            backgroundColor: 'rgba(239, 68, 68, 0.08)',
+            borderWidth: 1,
+            borderColor: 'rgba(239, 68, 68, 0.35)',
+            flexDirection: 'row',
+            alignItems: 'flex-start',
+            gap: 10,
+        }}>
+            <Ionicons name="warning-outline" size={18} color="#ef4444" />
+            <View style={{ flex: 1 }}>
+                <Text style={{ color: '#ef4444', fontSize: 10, fontFamily: FONTS.monoSemiBold, letterSpacing: 1, marginBottom: 4 }}>ERROR</Text>
+                <Text style={{ color: COLORS.textPrimary, fontSize: 12, lineHeight: 18, fontFamily: FONTS.mono }}>{chatError}</Text>
+            </View>
+            <TouchableOpacity onPress={() => setChatError(null)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Ionicons name="close" size={16} color={COLORS.textMuted} />
+            </TouchableOpacity>
+        </View>
+    ) : null;
+
     if (isLoading) {
         return (
             <View style={{ flex: 1, backgroundColor: COLORS.bgMain }}>
@@ -504,6 +563,7 @@ export default function ChatScreen() {
                 onClose={() => setIsDrawerOpen(false)}
                 chats={chats}
                 onChatPress={handleChatPress}
+                onNewChat={handleNewChat}
                 currentChatId={id}
             />
 
@@ -584,7 +644,7 @@ export default function ChatScreen() {
                         </Text>
                     </Animated.View>
                 }
-                ListFooterComponent={null}
+                ListFooterComponent={<ErrorBanner />}
             />
 
             {/* Input */}

@@ -7,6 +7,7 @@ import * as Font from 'expo-font';
 import type { MMKV } from 'react-native-mmkv';
 import { useAuthStore } from '../store/auth';
 import { useSettingsStore } from '../store/settings';
+import { useOpenAIAccountStore } from '../store/openaiAccount';
 import '../global.css';
 
 // Get cached accent color for instant loading indicator
@@ -31,6 +32,7 @@ const customFonts = {
 export default function RootLayout() {
     const { initialize: initAuth, isInitialized } = useAuthStore();
     const { initialize: initSettings, syncFromServer } = useSettingsStore();
+    const { initialize: initOpenAIAccount } = useOpenAIAccountStore();
     const [error, setError] = useState<string | null>(null);
     const [fontsLoaded, setFontsLoaded] = useState(false);
 
@@ -56,8 +58,9 @@ export default function RootLayout() {
                 // Initialize settings first (MMKV - instant from cache)
                 initSettings();
 
-                // Then initialize auth
+                // Then initialize auth + local OpenAI account state
                 await initAuth();
+                await initOpenAIAccount();
 
                 // Sync from server in background (non-blocking)
                 syncFromServer().catch(() => { });

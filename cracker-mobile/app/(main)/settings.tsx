@@ -10,7 +10,8 @@ import HSVColorPicker from '../../components/ui/HSVColorPicker';
 import Toggle from '../../components/ui/Toggle';
 import ArcDial from '../../components/ui/ArcDial';
 import { COLORS, FONTS } from '../../lib/design';
-import { api } from '../../lib/api';
+import { api, getProviderApiBaseUrl, getProviderApiKey, setProviderApiBaseUrl, setProviderApiKey } from '../../lib/api';
+import { getOpenAIUsagePercent, useOpenAIAccountStore } from '../../store/openaiAccount';
 
 // Pronoun options - same as web
 const GENDER_OPTIONS = [
@@ -50,9 +51,26 @@ export default function SettingsScreen() {
     const [isSaving, setIsSaving] = useState(false);
     const [facts, setFacts] = useState<Array<{ id: string, fact: string }>>([]);
     const [loadingFacts, setLoadingFacts] = useState(true);
+    const [apiBaseUrl, setApiBaseUrlState] = useState('');
+    const [providerKey, setProviderKey] = useState('');
+    const [isSavingProvider, setIsSavingProvider] = useState(false);
+    const {
+        auth: openAIAuth,
+        usage: openAIUsage,
+        enabled: openAIEnabled,
+        isConnecting: isOpenAIConnecting,
+        isLoading: isOpenAILoading,
+        lastError: openAIError,
+        connect: connectOpenAI,
+        refreshUsage: refreshOpenAIUsage,
+        setEnabled: setOpenAIEnabled,
+        disconnect: disconnectOpenAI,
+    } = useOpenAIAccountStore();
 
     useEffect(() => {
         syncFromServer().catch(() => { });
+        getProviderApiBaseUrl().then(setApiBaseUrlState).catch(() => { });
+        getProviderApiKey().then(setProviderKey).catch(() => { });
         // Fetch memory facts
         api.getUserFacts().then(data => {
             setFacts(data.facts || []);
@@ -130,6 +148,37 @@ export default function SettingsScreen() {
             ]
         );
     };
+
+    const handleSaveProvider = async () => {
+        if (providerKey.trim() && !apiBaseUrl.trim()) {
+            Alert.alert('API URL Required', 'Paste your provider URL before saving an API key.');
+            return;
+        }
+        setIsSavingProvider(true);
+        try {
+            await setProviderApiBaseUrl(apiBaseUrl);
+            await setProviderApiKey(providerKey);
+            setApiBaseUrlState(await getProviderApiBaseUrl());
+            setProviderKey(await getProviderApiKey());
+            Alert.alert('Saved', 'Provider fallback settings were saved securely on this device.');
+        } catch (error) {
+            Alert.alert('Error', error instanceof Error ? error.message : 'Failed to save provider settings.');
+        } finally {
+            setIsSavingProvider(false);
+        }
+    };
+
+    const handleConnectOpenAI = async () => {
+        try {
+            await connectOpenAI();
+            Alert.alert('Connected', 'OpenAI account linked successfully.');
+        } catch (error) {
+            Alert.alert('OpenAI Login', error instanceof Error ? error.message : 'OpenAI account login failed.');
+        }
+    };
+
+    const usagePercent = getOpenAIUsagePercent(openAIUsage);
+    const openAIStatus = openAIError ? 'ACTION NEEDED' : openAIAuth ? (openAIEnabled ? 'LINKED' : 'PAUSED') : 'NOT LINKED';
 
     const SectionHeader = ({ icon, title }: { icon: keyof typeof Ionicons.glyphMap, title: string }) => (
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12, paddingHorizontal: 20 }}>
@@ -317,6 +366,88 @@ export default function SettingsScreen() {
                         <Text style={{ color: COLORS.textMuted, fontSize: 10, marginTop: 6, fontFamily: FONTS.mono }}>
                             These instructions will be included in every conversation.
                         </Text>
+                    </View>
+                </View>
+
+                {/* Connections Section */}
+                <View style={styles.section}>
+                    <SectionHeader icon="link-outline" title="CONNECTIONS" />
+
+                    <View style={styles.connectionCard}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+                            <View style={{ flex: 1 }}>
+                                <Text style={styles.labelText}>OpenAI Account</Text>
+                                <Text style={styles.descText}>{openAIAuth?.email || 'Use your Codex/OpenAI account for chat responses'}</Text>
+                            </View>
+                            <Text style={[styles.statusPill, { color: openAIError ? '#ef4444' : openAIAuth && openAIEnabled ? theme.accent : COLORS.textMuted, borderColor: openAIError ? '#ef4444' : openAIAuth && openAIEnabled ? theme.accent : COLORS.borderColor }]}>
+                                {openAIStatus}
+                            </Text>
+                        </View>
+
+                        {typeof usagePercent === 'number' && (
+                            <View style={{ marginTop: 12 }}>
+                                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
+                                    <Text style={styles.descText}>Codex usage</Text>
+                                    <Text style={[styles.descText, { color: theme.accent }]}>{Math.round(usagePercent)}%</Text>
+                                </View>
+                                <View style={styles.usageTrack}>
+                                    <View style={[styles.usageFill, { width: `${Math.min(100, usagePercent)}%`, backgroundColor: usagePercent >= 90 ? '#ef4444' : theme.accent }]} />
+                                </View>
+                            </View>
+                        )}
+
+                        {openAIError && <Text style={[styles.descText, { color: '#ef4444', marginTop: 10 }]}>{openAIError}</Text>}
+
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 14 }}>
+                            {openAIAuth ? (
+                                <>
+                                    <TouchableOpacity style={styles.secondaryButton} onPress={() => refreshOpenAIUsage()} disabled={isOpenAILoading}>
+                                        <Text style={styles.secondaryButtonText}>{isOpenAILoading ? 'SYNCING' : 'SYNC'}</Text>
+                                    </TouchableOpacity>
+                                    <TouchableOpacity style={styles.secondaryButton} onPress={() => disconnectOpenAI()}>
+                                        <Text style={[styles.secondaryButtonText, { color: '#ef4444' }]}>UNLINK</Text>
+                                    </TouchableOpacity>
+                                </>
+                            ) : (
+                                <TouchableOpacity style={[styles.primaryButton, { borderColor: theme.accent }]} onPress={handleConnectOpenAI} disabled={isOpenAIConnecting}>
+                                    <Text style={[styles.primaryButtonText, { color: theme.accent }]}>{isOpenAIConnecting ? 'WAITING FOR LOGIN...' : 'CONNECT OPENAI'}</Text>
+                                </TouchableOpacity>
+                            )}
+                            {openAIAuth && (
+                                <View style={{ marginLeft: 'auto' }}>
+                                    <Toggle value={openAIEnabled} onValueChange={setOpenAIEnabled} />
+                                </View>
+                            )}
+                        </View>
+                    </View>
+
+                    <View style={[styles.connectionCard, { marginTop: 10 }]}>
+                        <Text style={styles.labelText}>Fallback API</Text>
+                        <Text style={[styles.descText, { marginTop: 3, marginBottom: 12 }]}>Used when OpenAI account is not enabled. Paste your custom OpenAI-compatible URL and key. Key stays in secure storage on this device.</Text>
+                        <Text style={styles.inputLabel}>API URL</Text>
+                        <TextInput
+                            style={styles.textInput}
+                            value={apiBaseUrl}
+                            onChangeText={setApiBaseUrlState}
+                            autoCapitalize="none"
+                            autoCorrect={false}
+                            placeholder="Paste your provider URL"
+                            placeholderTextColor={COLORS.textMuted}
+                        />
+                        <Text style={[styles.inputLabel, { marginTop: 12 }]}>API Key</Text>
+                        <TextInput
+                            style={styles.textInput}
+                            value={providerKey}
+                            onChangeText={setProviderKey}
+                            autoCapitalize="none"
+                            autoCorrect={false}
+                            secureTextEntry
+                            placeholder="OpenAI-compatible provider key"
+                            placeholderTextColor={COLORS.textMuted}
+                        />
+                        <TouchableOpacity style={[styles.primaryButton, { marginTop: 12, borderColor: theme.accent }]} onPress={handleSaveProvider} disabled={isSavingProvider}>
+                            <Text style={[styles.primaryButtonText, { color: theme.accent }]}>{isSavingProvider ? 'SAVING...' : 'SAVE FALLBACK'}</Text>
+                        </TouchableOpacity>
                     </View>
                 </View>
 
@@ -536,6 +667,58 @@ const styles = {
         backgroundColor: '#222',
         marginHorizontal: 20,
         marginVertical: 4,
+    },
+    connectionCard: {
+        marginHorizontal: 20,
+        padding: 14,
+        borderWidth: 1,
+        borderColor: COLORS.borderColor,
+        borderRadius: 0,
+        backgroundColor: '#141414',
+    },
+    statusPill: {
+        paddingVertical: 4,
+        paddingHorizontal: 8,
+        borderWidth: 1,
+        fontSize: 9,
+        fontFamily: FONTS.monoSemiBold,
+        letterSpacing: 1,
+    },
+    usageTrack: {
+        height: 4,
+        backgroundColor: '#252525',
+        overflow: 'hidden' as const,
+    },
+    usageFill: {
+        height: 4,
+    },
+    primaryButton: {
+        borderWidth: 1,
+        borderRadius: 0,
+        paddingVertical: 10,
+        paddingHorizontal: 12,
+        alignItems: 'center' as const,
+        justifyContent: 'center' as const,
+    },
+    primaryButtonText: {
+        fontSize: 11,
+        fontFamily: FONTS.monoSemiBold,
+        letterSpacing: 1,
+    },
+    secondaryButton: {
+        borderWidth: 1,
+        borderColor: COLORS.borderColor,
+        borderRadius: 0,
+        paddingVertical: 10,
+        paddingHorizontal: 12,
+        alignItems: 'center' as const,
+        justifyContent: 'center' as const,
+    },
+    secondaryButtonText: {
+        fontSize: 11,
+        color: COLORS.textSecondary,
+        fontFamily: FONTS.monoSemiBold,
+        letterSpacing: 1,
     },
     logoutButton: {
         flexDirection: 'row' as const,

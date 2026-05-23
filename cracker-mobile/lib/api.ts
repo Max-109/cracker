@@ -1,7 +1,76 @@
 import * as SecureStore from 'expo-secure-store';
 
-// Use your deployed Next.js backend URL
-const API_BASE = 'https://cracker.mom';
+const DEFAULT_API_BASE = 'https://cracker.mom';
+const API_BASE_STORAGE_KEY = 'cracker-api-base-url';
+const PROVIDER_API_BASE_STORAGE_KEY = 'cracker-provider-api-base-url';
+const API_KEY_STORAGE_KEY = 'cracker-provider-api-key';
+
+export async function getApiBaseUrl(): Promise<string> {
+    try {
+        return (await SecureStore.getItemAsync(API_BASE_STORAGE_KEY)) || DEFAULT_API_BASE;
+    } catch {
+        return DEFAULT_API_BASE;
+    }
+}
+
+export async function setApiBaseUrl(url: string): Promise<void> {
+    const trimmed = url.trim().replace(/\/+$/, '');
+    if (!trimmed) {
+        await SecureStore.deleteItemAsync(API_BASE_STORAGE_KEY);
+        return;
+    }
+    await SecureStore.setItemAsync(API_BASE_STORAGE_KEY, trimmed);
+}
+
+export async function getProviderApiBaseUrl(): Promise<string> {
+    try {
+        return (await SecureStore.getItemAsync(PROVIDER_API_BASE_STORAGE_KEY)) || '';
+    } catch {
+        return '';
+    }
+}
+
+export async function setProviderApiBaseUrl(url: string): Promise<void> {
+    const trimmed = url.trim().replace(/\/+$/, '');
+    if (!trimmed) {
+        await SecureStore.deleteItemAsync(PROVIDER_API_BASE_STORAGE_KEY);
+        return;
+    }
+    await SecureStore.setItemAsync(PROVIDER_API_BASE_STORAGE_KEY, trimmed);
+}
+
+export async function getProviderApiKey(): Promise<string> {
+    try {
+        return (await SecureStore.getItemAsync(API_KEY_STORAGE_KEY)) || '';
+    } catch {
+        return '';
+    }
+}
+
+export async function setProviderApiKey(key: string): Promise<void> {
+    const trimmed = key.trim();
+    if (!trimmed) {
+        await SecureStore.deleteItemAsync(API_KEY_STORAGE_KEY);
+        return;
+    }
+    await SecureStore.setItemAsync(API_KEY_STORAGE_KEY, trimmed);
+}
+
+export async function getProviderConfig(): Promise<{ providerApiBaseUrl?: string; providerApiKey?: string }> {
+    const [baseUrl, key] = await Promise.all([getProviderApiBaseUrl(), getProviderApiKey()]);
+    return key && baseUrl ? { providerApiBaseUrl: baseUrl, providerApiKey: key } : {};
+}
+
+async function parseApiError(response: Response, fallback: string) {
+    const text = await response.text().catch(() => '');
+    if (!text) return fallback;
+    try {
+        const data = JSON.parse(text) as { error?: string; details?: string; message?: string };
+        return data.details || data.error || data.message || text;
+    } catch {
+        return text;
+    }
+}
 
 export class ApiError extends Error {
     constructor(public status: number, message: string) {
@@ -35,6 +104,7 @@ export async function apiFetch<T = unknown>(
     options: RequestInit = {}
 ): Promise<T> {
     const token = await getAuthToken();
+    const apiBase = await getApiBaseUrl();
     const timeoutMs = 15000;
     const controller = options.signal ? null : new AbortController();
     const timeout = controller
@@ -47,7 +117,7 @@ export async function apiFetch<T = unknown>(
         ...options.headers,
     };
 
-    const response = await fetch(`${API_BASE}${path}`, {
+    const response = await fetch(`${apiBase}${path}`, {
         ...options,
         headers,
         signal: options.signal || controller?.signal,
@@ -56,8 +126,7 @@ export async function apiFetch<T = unknown>(
     });
 
     if (!response.ok) {
-        const errorText = await response.text().catch(() => 'Unknown error');
-        throw new ApiError(response.status, errorText);
+        throw new ApiError(response.status, await parseApiError(response, 'Unknown error'));
     }
 
     // Check if response is JSON
@@ -82,9 +151,10 @@ export async function apiStreamFetch(
     signal?: AbortSignal
 ): Promise<void> {
     const token = await getAuthToken();
+    const apiBase = await getApiBaseUrl();
 
     try {
-        const response = await fetch(`${API_BASE}${path}`, {
+        const response = await fetch(`${apiBase}${path}`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -98,7 +168,7 @@ export async function apiStreamFetch(
         });
 
         if (!response.ok) {
-            throw new ApiError(response.status, response.statusText || 'Request failed');
+            throw new ApiError(response.status, await parseApiError(response, response.statusText || 'Request failed'));
         }
 
         // Try to use ReadableStream (real-time streaming)
@@ -176,14 +246,15 @@ function processSSEBuffer(buffer: string, onEvent: (event: unknown) => void) {
 export const api = {
     // Auth
     async guestLogin(loginName: string): Promise<{ userId: string; loginName: string }> {
-        const response = await fetch(`${API_BASE}/api/auth/guest`, {
+        const apiBase = await getApiBaseUrl();
+        const response = await fetch(`${apiBase}/api/auth/guest`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ login: loginName }),
         });
 
         if (!response.ok) {
-            throw new ApiError(response.status, 'Guest login failed');
+            throw new ApiError(response.status, await parseApiError(response, 'Guest login failed'));
         }
 
         // Extract JWT from Set-Cookie header (if exposed) or response body
@@ -266,7 +337,8 @@ export const api = {
         } as unknown as Blob);
 
         const token = await getAuthToken();
-        const response = await fetch(`${API_BASE}/api/upload`, {
+        const apiBase = await getApiBaseUrl();
+        const response = await fetch(`${apiBase}/api/upload`, {
             method: 'POST',
             headers: {
                 ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
@@ -275,8 +347,7 @@ export const api = {
         });
 
         if (!response.ok) {
-            const errorText = await response.text().catch(() => 'Upload failed');
-            throw new ApiError(response.status, errorText);
+            throw new ApiError(response.status, await parseApiError(response, 'Upload failed'));
         }
 
         return response.json();
@@ -297,7 +368,8 @@ export const api = {
         formData.append('openAIAccountAuth', JSON.stringify(openAIAccountAuth));
 
         const token = await getAuthToken();
-        const response = await fetch(`${API_BASE}/api/transcribe`, {
+        const apiBase = await getApiBaseUrl();
+        const response = await fetch(`${apiBase}/api/transcribe`, {
             method: 'POST',
             headers: {
                 ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
@@ -306,25 +378,25 @@ export const api = {
         });
 
         if (!response.ok) {
-            throw new ApiError(response.status, 'Transcription failed');
+            throw new ApiError(response.status, await parseApiError(response, 'Transcription failed'));
         }
 
         return response.json();
     },
 
     // Auto-reasoning
-    async getReasoningEffort(message: string): Promise<{ effort: 'low' | 'medium' | 'high' | 'xhigh' }> {
+    async getReasoningEffort(message: string, providerContext: Record<string, unknown> = {}): Promise<{ effort: 'low' | 'medium' | 'high' | 'xhigh' }> {
         return apiFetch('/api/auto-reasoning', {
             method: 'POST',
-            body: JSON.stringify({ prompt: message }),
+            body: JSON.stringify({ prompt: message, ...providerContext }),
         });
     },
 
     // Title generation (matches web API signature)
-    async generateTitle(chatId: string, prompt: string): Promise<{ title: string }> {
+    async generateTitle(chatId: string, prompt: string, providerContext: Record<string, unknown> = {}): Promise<{ title: string }> {
         return apiFetch('/api/generate-title', {
             method: 'POST',
-            body: JSON.stringify({ chatId, prompt }),
+            body: JSON.stringify({ chatId, prompt, ...providerContext }),
         });
     },
 
