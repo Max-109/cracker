@@ -1,25 +1,35 @@
 <div align="center">
   <img src="./app/icon-template.svg" width="84" alt="Cracker mark" />
   <h1>Cracker</h1>
-  <p><strong>Private AI chat with encrypted history, web tools, and a matching Expo Android app.</strong></p>
+  <p><strong>A private AI chat app with a sharp, dark interface and support for Codex-style account usage.</strong></p>
+  <p>
+    <img alt="Next.js" src="https://img.shields.io/badge/Next.js-16-%23d4a86b?style=for-the-badge&labelColor=3f3f46" />
+    <img alt="React" src="https://img.shields.io/badge/React-19-%23d4a86b?style=for-the-badge&labelColor=3f3f46" />
+    <img alt="Tailwind CSS" src="https://img.shields.io/badge/Tailwind-v4-%23d4a86b?style=for-the-badge&labelColor=3f3f46" />
+    <img alt="AI SDK" src="https://img.shields.io/badge/AI%20SDK-v5-%23d4a86b?style=for-the-badge&labelColor=3f3f46" />
+  </p>
   <img src="./cracker.gif" alt="Cracker app preview" width="900" />
 </div>
 
 ## What is Cracker?
 
-Cracker is a dark, sharp-edged AI chat app with a Next.js web client and an Expo React Native mobile client. It stores users, chats, settings, memory, and encrypted messages in PostgreSQL. The current backend is OpenAI-compatible, with browser-connected OpenAI account support on web and a server-side API-key fallback.
+Cracker is a private AI chat app built around an OpenAI-compatible backend. It has encrypted chat storage, local auth, model switching, file attachments, web tools, learning mode, memory, and a matching mobile app.
+
+You can also connect OpenAI accounts in the browser and use their Codex/ChatGPT-plan usage for compatible models. Add more than one account if you want. Cracker checks usage, picks the account with the most room left, and tries the next account when one hits a limit.
 
 ## Features
 
-- Streaming chat with reasoning parts, tool events, markdown, code blocks, and tokens/sec stats.
-- File and image attachments through the web UI and mobile upload flow.
-- Model presets: `gpt-5.5` Expert, `gpt-5.4-mini` Balanced, and `gpt-5.3-codex-spark` Ultra Fast.
-- Adaptive reasoning: prompts are classified as `low`, `medium`, `high`, or `xhigh`.
-- Chat, deep-search, and learning workflows; learning has summary, flashcard, and teaching submodes.
-- Settings for model, reasoning, response length, custom instructions, tools, memory, profile, and accent color.
-- Email/password auth, guest auth, admin-created invitation codes, and JWT-backed mobile sessions.
-- Per-chat encrypted message storage with an `ENCRYPTION_KEK`-wrapped data key.
-- Optional tools for Brave Search, YouTube, and Tavily-backed deep search.
+- Browser-connected OpenAI accounts with usage-aware rotation for Codex/ChatGPT-plan usage.
+- Model presets: Expert (GPT 5.5), Balanced (GPT 5.4 Mini), and Ultra Fast (GPT 5.3 Codex Spark).
+- Fast mode support.
+- PostgreSQL + Drizzle ORM for chats, settings, users, memory, encrypted messages, and email/password auth.
+- Admin dashboard with invitation-code signup for private access.
+- Guest mode.
+- File and image attachments.
+- Streaming chat with reasoning, tool events, and tokens/sec stats.
+- Accent-color theming across the UI, favicon, app icon, and code highlighting.
+- MCP tools for Brave Search and YouTube.
+- Learning mode for summaries, flashcards, and guided explanations.
 - Expo SDK 54 / React Native Android app in `cracker-mobile/`, targeting `https://cracker.mom` by default.
 
 ## Tech stack
