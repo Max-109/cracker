@@ -16,13 +16,13 @@ import { Ionicons } from '@expo/vector-icons';
 import Animated, { FadeIn, FadeInDown, FadeInUp } from 'react-native-reanimated';
 import { useTheme } from '../../store/theme';
 import { api } from '../../lib/api';
+import type { MessagePart } from '../../lib/types';
 import { useAuthStore } from '../../store/auth';
 import ChatInput from '../../components/ui/ChatInput';
 import SuggestionCard, { SUGGESTIONS } from '../../components/ui/SuggestionCard';
 import ChatBackground from '../../components/ui/ChatBackground';
 import { ModelSelector, AccentColorPicker } from '../../components/ui/ModelSelector';
 import Drawer from '../../components/navigation/Drawer';
-import { useVoiceRecording, formatDuration } from '../../hooks/useVoiceRecording';
 import { useAttachments } from '../../hooks/useAttachments';
 import { COLORS, FONTS } from '../../lib/design';
 
@@ -41,10 +41,7 @@ export default function HomeScreen() {
     const [isCreating, setIsCreating] = useState(false);
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-    const [isTranscribing, setIsTranscribing] = useState(false);
-
     // Hooks
-    const { isRecording, recordingDuration, startRecording, stopRecording, cancelRecording } = useVoiceRecording();
     const { attachments, pickAttachment, removeAttachment, clearAttachments } = useAttachments();
 
     // Load chats for drawer
@@ -59,38 +56,36 @@ export default function HomeScreen() {
         loadChats();
     }, [loadChats]);
 
-    // Voice handling
-    const handleMicPress = async () => {
-        if (isRecording) {
-            // Stop and transcribe
-            setIsTranscribing(true);
-            try {
-                const uri = await stopRecording();
-                if (uri) {
-                    const result = await api.transcribe(uri, 'gemini');
-                    if (result.text) {
-                        setInputValue(prev => prev + (prev ? ' ' : '') + result.text);
-                    }
-                }
-            } catch {
-                Alert.alert('Error', 'Failed to transcribe audio');
-            } finally {
-                setIsTranscribing(false);
-            }
-        } else {
-            // Start recording
-            await startRecording();
-        }
+    const uploadInitialAttachments = async (): Promise<MessagePart[]> => {
+        if (attachments.length === 0) return [];
+
+        const uploaded = await Promise.all(attachments.map(async (attachment) => {
+            const result = await api.uploadFile({
+                uri: attachment.uri,
+                name: attachment.name,
+                mimeType: attachment.mimeType,
+            });
+
+            return {
+                type: 'file' as const,
+                filename: attachment.name,
+                mediaType: result.contentType || attachment.mimeType || 'application/octet-stream',
+                url: result.url,
+            };
+        }));
+
+        return uploaded;
     };
 
     // Create chat and navigate
     const handleStartChat = async (initialMessage?: string) => {
         const message = initialMessage || inputValue.trim();
-        if (!message || isCreating) return;
+        if ((!message && attachments.length === 0) || isCreating) return;
 
         setIsCreating(true);
         try {
-            const chat = await api.createChat(message.slice(0, 50), 'cracking');
+            const uploadedAttachments = await uploadInitialAttachments();
+            const chat = await api.createChat((message || 'New Chat').slice(0, 50), 'chat');
 
             if (!chat?.id) {
                 Alert.alert('Error', 'Failed to create chat: No ID returned');
@@ -99,7 +94,11 @@ export default function HomeScreen() {
 
             router.push({
                 pathname: '/(main)/chat/[id]',
-                params: { id: chat.id, initialMessage: message },
+                params: {
+                    id: chat.id,
+                    initialMessage: message,
+                    initialAttachments: uploadedAttachments.length > 0 ? JSON.stringify(uploadedAttachments) : undefined,
+                },
             });
             setInputValue('');
             clearAttachments();
@@ -115,7 +114,7 @@ export default function HomeScreen() {
     const handleNewChat = async () => {
         setIsCreating(true);
         try {
-            const chat = await api.createChat('New Chat', 'cracking');
+            const chat = await api.createChat('New Chat', 'chat');
             if (chat?.id) {
                 router.push(`/(main)/chat/${chat.id}`);
                 loadChats();
@@ -212,32 +211,6 @@ export default function HomeScreen() {
                         <AccentColorPicker />
                     </View>
                 </View>
-
-                {/* Recording Indicator */}
-                {isRecording && (
-                    <Animated.View
-                        entering={FadeInUp.duration(200)}
-                        style={{
-                            flexDirection: 'row',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                            paddingVertical: 12,
-                            backgroundColor: COLORS.bgMain,
-                            borderWidth: 1,
-                            borderColor: COLORS.border,
-                            marginHorizontal: 16,
-                            marginTop: 8,
-                        }}
-                    >
-                        <View style={{ width: 8, height: 8, backgroundColor: '#ef4444', marginRight: 8 }} />
-                        <Text style={{ color: COLORS.textPrimary, fontSize: 14, marginRight: 12 }}>
-                            Recording {formatDuration(recordingDuration)}
-                        </Text>
-                        <TouchableOpacity onPress={cancelRecording}>
-                            <Text style={{ color: COLORS.textSecondary, fontSize: 12 }}>Cancel</Text>
-                        </TouchableOpacity>
-                    </Animated.View>
-                )}
 
                 {/* Main Content */}
                 <ScrollView
@@ -407,10 +380,9 @@ export default function HomeScreen() {
                     onChangeText={setInputValue}
                     onSend={() => handleStartChat()}
                     onAttachment={pickAttachment}
-                    onMic={handleMicPress}
-                    isLoading={isCreating || isTranscribing}
-                    isRecording={isRecording}
-                    placeholder={isRecording ? 'Recording...' : "Let's crack..."}
+                    isLoading={isCreating}
+                    isRecording={false}
+                    placeholder="Let's crack..."
                 />
             </KeyboardAvoidingView>
 

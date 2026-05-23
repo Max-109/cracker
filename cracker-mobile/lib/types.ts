@@ -86,7 +86,7 @@ export interface Chat {
 
 export type ChatMode = 'chat' | 'image' | 'learning' | 'deep-search';
 export type LearningSubMode = 'summary' | 'flashcard' | 'teaching';
-export type ReasoningEffort = 'low' | 'medium' | 'high';
+export type ReasoningEffort = 'low' | 'medium' | 'high' | 'xhigh';
 
 // SSE Stream events from /api/chat (AI SDK v4 format)
 // Original format events

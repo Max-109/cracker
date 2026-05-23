@@ -224,11 +224,12 @@ export const REASONING_LEVELS = [
     { level: 'low', icon: 'flash', label: 'Quick', description: 'Fast responses', bars: 1 },
     { level: 'medium', icon: 'bulb', label: 'Balanced', description: 'Standard reasoning', bars: 2 },
     { level: 'high', icon: 'flame', label: 'Deep', description: 'Maximum analysis', bars: 3 },
+    { level: 'xhigh', icon: 'flame', label: 'Max', description: 'Hard problems', bars: 4 },
 ] as const;
 
 // Chat modes
 export const CHAT_MODES = [
-    { id: 'cracking', name: 'Chat', icon: 'chatbubble', description: 'General conversation' },
+    { id: 'chat', name: 'Chat', icon: 'chatbubble', description: 'General conversation' },
     { id: 'deep-search', name: 'Deep Research', icon: 'search', description: 'In-depth research' },
     { id: 'learning', name: 'Learning', icon: 'school', description: 'Educational mode' },
 ] as const;

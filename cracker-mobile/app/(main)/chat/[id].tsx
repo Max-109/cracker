@@ -6,7 +6,7 @@ import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { useTheme } from '../../../store/theme';
 import { useSettingsStore } from '../../../store/settings';
 import { api, apiStreamFetch } from '../../../lib/api';
-import { ChatMessage, StreamEvent } from '../../../lib/types';
+import { ChatMessage, MessagePart, StreamEvent } from '../../../lib/types';
 import MessageItem from '../../../components/chat/MessageItem';
 import ChatInput from '../../../components/ui/ChatInput';
 import ChatBackground from '../../../components/ui/ChatBackground';
@@ -17,7 +17,6 @@ import { MessageSkeleton } from '../../../components/ui/Skeleton';
 import Drawer from '../../../components/navigation/Drawer';
 import ErrorBoundary from '../../../components/ErrorBoundary';
 import { COLORS, FONTS } from '../../../lib/design';
-import { useVoiceRecording } from '../../../hooks/useVoiceRecording';
 
 interface ChatItem {
     id: string;
@@ -27,7 +26,7 @@ interface ChatItem {
 }
 
 export default function ChatScreen() {
-    const { id, initialMessage } = useLocalSearchParams<{ id: string; initialMessage?: string }>();
+    const { id, initialMessage, initialAttachments } = useLocalSearchParams<{ id: string; initialMessage?: string; initialAttachments?: string }>();
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [chatTitle, setChatTitle] = useState('Chat');
     const [input, setInput] = useState('');
@@ -42,15 +41,11 @@ export default function ChatScreen() {
     const [hasAutoSent, setHasAutoSent] = useState(false);
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
     const [chats, setChats] = useState<ChatItem[]>([]);
-    const [isTranscribing, setIsTranscribing] = useState(false);
-
-    // Voice recording
-    const { isRecording, startRecording, stopRecording } = useVoiceRecording();
-
     const flatListRef = useRef<FlatList>(null);
     const abortControllerRef = useRef<AbortController | null>(null);
     const streamingReasoningRef = useRef('');
     const accumulatedTextRef = useRef('');
+    const currentTpsRef = useRef<number | undefined>(undefined);
     const theme = useTheme();
     const {
         chatMode,
@@ -179,46 +174,35 @@ export default function ChatScreen() {
         setIsConnecting(false);
     }, []);
 
-    // Voice handling
-    const handleMicPress = async () => {
-        if (isRecording) {
-            // Stop and transcribe
-            setIsTranscribing(true);
-            try {
-                const uri = await stopRecording();
-                if (uri) {
-                    const result = await api.transcribe(uri, 'gemini');
-                    if (result.text) {
-                        setInput(prev => prev + (prev ? ' ' : '') + result.text);
-                    }
-                }
-            } catch {
-                Alert.alert('Error', 'Failed to transcribe audio');
-            } finally {
-                setIsTranscribing(false);
-            }
-        } else {
-            // Start recording
-            await startRecording();
-        }
-    };
-
     // Send message function
-    const sendMessage = useCallback(async (messageText: string) => {
-        if (!messageText.trim() || isStreaming) return;
+    const sendMessage = useCallback(async (messageText: string, attachmentParts: MessagePart[] = []) => {
+        if ((!messageText.trim() && attachmentParts.length === 0) || isStreaming) return;
 
         // Check if this is the first message (for title generation)
         const isFirstMessage = messages.length === 0;
 
+        const userContent: string | MessagePart[] = attachmentParts.length > 0
+            ? [{ type: 'text', text: messageText.trim() }, ...attachmentParts]
+            : messageText.trim();
+
         const userMessage: ChatMessage = {
             id: `temp-${Date.now()}`,
             role: 'user',
-            content: messageText.trim(),
+            content: userContent,
             createdAt: new Date(),
         };
 
         setMessages(prev => [...prev, userMessage]);
         setInput('');
+
+        try {
+            await api.saveMessage(id, 'user', userContent);
+        } catch {
+            Alert.alert('Error', 'Failed to save your message. Please try again.');
+            setMessages(prev => prev.filter(message => message.id !== userMessage.id));
+            return;
+        }
+
         setIsConnecting(true);
         setIsStreaming(true);
         setIsThinking(false);
@@ -229,6 +213,7 @@ export default function ChatScreen() {
         // Reset refs for new message
         streamingReasoningRef.current = '';
         accumulatedTextRef.current = '';
+        currentTpsRef.current = undefined;
 
         const assistantMessage: ChatMessage = {
             id: `temp-assistant-${Date.now()}`,
@@ -310,7 +295,9 @@ export default function ChatScreen() {
                         // Calculate TPS
                         const elapsed = (Date.now() - startTime) / 1000;
                         if (elapsed > 0) {
-                            setCurrentTps(tokenCount / elapsed);
+                            const nextTps = tokenCount / elapsed;
+                            currentTpsRef.current = nextTps;
+                            setCurrentTps(nextTps);
                         }
 
                         setStreamingContent(accumulatedTextRef.current);
@@ -366,7 +353,7 @@ export default function ChatScreen() {
                                 updated[lastIndex] = {
                                     ...updated[lastIndex],
                                     content: contentParts.length > 0 ? contentParts : finalText,
-                                    tokensPerSecond: currentTps,
+                                    tokensPerSecond: currentTpsRef.current,
                                 };
                             }
                             return updated;
@@ -388,19 +375,29 @@ export default function ChatScreen() {
                 setIsStreaming(false);
                 setIsThinking(false);
                 setIsConnecting(false);
-            }
+            },
+            abortControllerRef.current.signal
         );
-    }, [id, messages, isStreaming, chatMode, reasoningEffort, enabledMcpServers, responseLength, currentTps, currentModelId, userName, userGender, customInstructions, learningSubMode, learningMode]);
+    }, [id, messages, isStreaming, chatMode, reasoningEffort, enabledMcpServers, responseLength, currentModelId, userName, userGender, customInstructions, learningSubMode, learningMode]);
 
     // Auto-send initial message if provided
     useEffect(() => {
-        if (initialMessage && !hasAutoSent && !isLoading && messages.length === 0) {
+        if ((initialMessage || initialAttachments) && !hasAutoSent && !isLoading && messages.length === 0) {
             setHasAutoSent(true);
             setTimeout(() => {
-                sendMessage(initialMessage);
+                let attachmentParts: MessagePart[] = [];
+                if (initialAttachments) {
+                    try {
+                        const parsed = JSON.parse(initialAttachments);
+                        attachmentParts = Array.isArray(parsed) ? parsed : [];
+                    } catch {
+                        attachmentParts = [];
+                    }
+                }
+                sendMessage(initialMessage || '', attachmentParts);
             }, 300);
         }
-    }, [initialMessage, hasAutoSent, isLoading, messages.length, sendMessage]);
+    }, [initialMessage, initialAttachments, hasAutoSent, isLoading, messages.length, sendMessage]);
 
     const handleSend = () => {
         sendMessage(input);
@@ -595,9 +592,8 @@ export default function ChatScreen() {
                 onChangeText={setInput}
                 onSend={handleSend}
                 onStop={handleStop}
-                onMic={handleMicPress}
-                isLoading={isTranscribing}
-                isRecording={isRecording}
+                isLoading={false}
+                isRecording={false}
                 isStreaming={isStreaming}
                 placeholder="Let's crack..."
             />

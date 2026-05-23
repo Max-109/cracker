@@ -211,8 +211,8 @@ export default function ChatInput({
                             <Ionicons name="arrow-up" size={18} color="#000" />
                         </TouchableOpacity>
                     </Animated.View>
-                ) : (
-                    // Mic button - web: Mic icon
+                ) : onMic ? (
+                    // Mic button - only shown when transcription is wired for this client.
                     <TouchableOpacity
                         onPress={handleMicPress}
                         activeOpacity={0.7}
@@ -233,7 +233,7 @@ export default function ChatInput({
                             color={isRecording ? "#000" : COLORS.textSecondary}
                         />
                     </TouchableOpacity>
-                )}
+                ) : null}
             </View>
         </View>
     );

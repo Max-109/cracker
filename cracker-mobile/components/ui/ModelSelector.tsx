@@ -41,7 +41,7 @@ export function ModelSelector({ onModelChange, small = false }: ModelSelectorPro
     const currentModel = MODEL_OPTIONS.find(m => m.id === currentModelId) || MODEL_OPTIONS[0];
 
     const handleSelect = (model: ModelOption) => {
-        setCurrentModelId(model.id);
+        setCurrentModelId(model.id, model.name);
         onModelChange?.(model.id, model.name);
         setIsOpen(false);
     };

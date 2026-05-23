@@ -35,6 +35,11 @@ export async function apiFetch<T = unknown>(
     options: RequestInit = {}
 ): Promise<T> {
     const token = await getAuthToken();
+    const timeoutMs = 15000;
+    const controller = options.signal ? null : new AbortController();
+    const timeout = controller
+        ? setTimeout(() => controller.abort(), timeoutMs)
+        : null;
 
     const headers: HeadersInit = {
         'Content-Type': 'application/json',
@@ -45,6 +50,9 @@ export async function apiFetch<T = unknown>(
     const response = await fetch(`${API_BASE}${path}`, {
         ...options,
         headers,
+        signal: options.signal || controller?.signal,
+    }).finally(() => {
+        if (timeout) clearTimeout(timeout);
     });
 
     if (!response.ok) {
@@ -70,7 +78,8 @@ export async function apiStreamFetch(
     path: string,
     body: Record<string, unknown>,
     onEvent: (event: unknown) => void,
-    onError?: (error: Error) => void
+    onError?: (error: Error) => void,
+    signal?: AbortSignal
 ): Promise<void> {
     const token = await getAuthToken();
 
@@ -83,6 +92,7 @@ export async function apiStreamFetch(
                 ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
             },
             body: JSON.stringify(body),
+            signal,
             // @ts-ignore - React Native specific option for streaming
             reactNative: { textStreaming: true },
         });
@@ -227,7 +237,7 @@ export const api = {
     },
 
     // Messages
-    async saveMessage(chatId: string, role: string, content: string): Promise<{ id: string }> {
+    async saveMessage(chatId: string, role: string, content: unknown): Promise<{ id: string }> {
         return apiFetch('/api/messages', {
             method: 'POST',
             body: JSON.stringify({ chatId, role, content }),
@@ -246,15 +256,45 @@ export const api = {
         });
     },
 
+    // Uploads
+    async uploadFile(file: { uri: string; name: string; mimeType?: string }): Promise<{ url: string; contentType?: string; size?: number }> {
+        const formData = new FormData();
+        formData.append('file', {
+            uri: file.uri,
+            type: file.mimeType || 'application/octet-stream',
+            name: file.name,
+        } as unknown as Blob);
+
+        const token = await getAuthToken();
+        const response = await fetch(`${API_BASE}/api/upload`, {
+            method: 'POST',
+            headers: {
+                ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+            },
+            body: formData,
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text().catch(() => 'Upload failed');
+            throw new ApiError(response.status, errorText);
+        }
+
+        return response.json();
+    },
+
     // Transcription
-    async transcribe(audioUri: string, model: string): Promise<{ text: string }> {
+    async transcribe(audioUri: string, openAIAccountAuth?: unknown): Promise<{ text: string }> {
+        if (!openAIAccountAuth) {
+            throw new ApiError(401, 'Voice transcription now requires a connected OpenAI account.');
+        }
+
         const formData = new FormData();
         formData.append('audio', {
             uri: audioUri,
             type: 'audio/webm',
             name: 'recording.webm',
         } as unknown as Blob);
-        formData.append('model', model);
+        formData.append('openAIAccountAuth', JSON.stringify(openAIAccountAuth));
 
         const token = await getAuthToken();
         const response = await fetch(`${API_BASE}/api/transcribe`, {
@@ -273,10 +313,10 @@ export const api = {
     },
 
     // Auto-reasoning
-    async getReasoningEffort(message: string): Promise<{ effort: 'low' | 'medium' | 'high' }> {
+    async getReasoningEffort(message: string): Promise<{ effort: 'low' | 'medium' | 'high' | 'xhigh' }> {
         return apiFetch('/api/auto-reasoning', {
             method: 'POST',
-            body: JSON.stringify({ message }),
+            body: JSON.stringify({ prompt: message }),
         });
     },
 

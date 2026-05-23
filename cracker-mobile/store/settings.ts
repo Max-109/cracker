@@ -29,14 +29,33 @@ function getStorage(): MMKV {
 }
 
 // Pre-load cached values - called once at module load for instant startup
+const MODEL_NAMES: Record<string, string> = {
+    'gpt-5.5': 'Expert',
+    'gpt-5.4-mini': 'Balanced',
+    'gpt-5.3-codex-spark': 'Ultra Fast',
+    'gemini-3-pro-preview': 'Expert',
+    'gemini-3-flash-preview': 'Balanced',
+    'gemini-2.5-flash-lite-preview-09-2025': 'Ultra Fast',
+};
+
+function normalizeModelName(modelId: string, modelName?: string | null) {
+    if (!modelName || /gemini/i.test(modelName)) {
+        return MODEL_NAMES[modelId] || modelName || 'Balanced';
+    }
+    return modelName;
+}
+
 function getCachedValues() {
     const s = getStorage();
+    const modelId = s.getString('currentModelId') || 'gpt-5.4-mini';
+    const modelName = normalizeModelName(modelId, s.getString('currentModelName'));
+
     return {
         accentColor: s.getString('accentColor') || '#af8787',
         codeWrap: s.getBoolean('codeWrap') ?? false,
         autoScroll: s.getBoolean('autoScroll') ?? true,
-        modelId: s.getString('currentModelId') || 'gpt-5.4-mini',
-        modelName: s.getString('currentModelName') || 'Gemini 2.5 Flash',
+        modelId,
+        modelName,
         reasoningEffort: (s.getString('reasoningEffort') as ReasoningEffort) || 'medium',
         responseLength: s.getNumber('responseLength') ?? 50,
         chatMode: (s.getString('chatMode') as ChatMode) || 'chat',
@@ -107,7 +126,7 @@ interface SettingsState {
     setUserGender: (gender: string) => void;
     setEnabledMcpServers: (servers: string[]) => Promise<void>;
     setReasoningEffort: (effort: ReasoningEffort) => Promise<void>;
-    setCurrentModelId: (modelId: string) => Promise<void>;
+    setCurrentModelId: (modelId: string, modelName?: string) => Promise<void>;
     toggleMcpServer: (serverSlug: string, enabled: boolean) => void;
     saveToServer: () => Promise<void>;
 }
@@ -159,7 +178,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
             // Cache critical settings locally for instant startup
             const mmkv = getStorage();
             const modelId = String(settings.currentModelId || cached.modelId);
-            const modelName = String(settings.currentModelName || cached.modelName);
+            const modelName = normalizeModelName(modelId, String(settings.currentModelName || cached.modelName));
             const effort = (settings.reasoningEffort as ReasoningEffort) || cached.reasoningEffort;
             const length = Number(settings.responseLength) || cached.responseLength;
             const mode = (settings.chatMode as ChatMode) || cached.chatMode;
@@ -276,10 +295,16 @@ export const useSettingsStore = create<SettingsState>((set) => ({
         } catch { }
     },
 
-    setCurrentModelId: async (modelId) => {
-        set({ currentModelId: modelId });
+    setCurrentModelId: async (modelId, modelName) => {
+        const nextModelName = normalizeModelName(modelId, modelName || MODEL_NAMES[modelId]);
+        set({ currentModelId: modelId, currentModelName: nextModelName });
         try {
-            await api.updateSettings({ currentModelId: modelId });
+            const mmkv = getStorage();
+            mmkv.set('currentModelId', modelId);
+            mmkv.set('currentModelName', nextModelName);
+        } catch { }
+        try {
+            await api.updateSettings({ currentModelId: modelId, currentModelName: nextModelName });
         } catch { }
     },
 
@@ -301,8 +326,6 @@ export const useSettingsStore = create<SettingsState>((set) => ({
                 userName: state.userName,
                 userGender: state.userGender,
                 enabledMcpServers: state.enabledMcpServers,
-                codeWrap: state.codeWrap,
-                autoScroll: state.autoScroll,
             });
         } catch {
             // Silent fail - will retry on next sync
