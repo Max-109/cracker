@@ -273,7 +273,7 @@ export default function ChatScreen() {
                         setThinkingLabel('THINKING');
                         break;
                     case 'reasoning-delta':
-                        const reasoningDelta = (e as any).delta || '';
+                        const reasoningDelta = (e as any).delta || (e as any).textDelta || '';
                         streamingReasoningRef.current += reasoningDelta;
                         setStreamingReasoning(streamingReasoningRef.current);
                         break;
@@ -325,7 +325,7 @@ export default function ChatScreen() {
                         setThinkingLabel((e as any).status?.toUpperCase() || 'PROCESSING');
                         break;
                     case 'reasoning':
-                        const legacyReasoningDelta = (e as any).textDelta || '';
+                        const legacyReasoningDelta = (e as any).textDelta || (e as any).delta || '';
                         streamingReasoningRef.current += legacyReasoningDelta;
                         setStreamingReasoning(streamingReasoningRef.current);
                         break;
@@ -455,8 +455,8 @@ export default function ChatScreen() {
             }
         }
 
-        // Show loading grid ONLY during initial connection (before first token arrives)
-        const showThinking = isStreamingMessage && isConnecting && !contentText && !reasoningText;
+        // Match web: show loader before tokens; show animated thinking label while reasoning streams until final text arrives.
+        const showThinking = isStreamingMessage && !contentText.trim();
 
         return (
             <MessageItem

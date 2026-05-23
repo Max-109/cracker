@@ -1,8 +1,8 @@
 /**
  * MessageItem - Full Markdown Rendering with Animated Text
- * 
+ *
  * SOURCE-LEVEL PARITY with web: app/components/MessageItem.tsx
- * 
+ *
  * Rendering Pipeline:
  * 1. Parse content (string or MessagePart[])
  * 2. preprocessLaTeX() - convert \[...\] to $$...$$
@@ -17,6 +17,8 @@ import Animated, {
     FadeInRight,
     FadeInLeft,
     useSharedValue,
+    interpolateColor,
+    withDelay,
     withRepeat,
     withSequence,
     withTiming,
@@ -56,14 +58,14 @@ const THINKING_LABELS = [
 
 /**
  * LoadingGrid - EXACT match to web LoadingIndicator with thinking-flicker animation
- * 
+ *
  * Web CSS animation (thinking-flicker):
  * - 0-25%: opacity 0.1 (dim idle)
  * - 30%: opacity 0.4 (small blip)
  * - 35-70%: opacity 0.1 (long wait)
  * - 75%: opacity 1.0 (flash!)
  * - 85-100%: opacity 0.1 (fade out)
- * 
+ *
  * Each dot has random duration 1.5-3s (optimized for mobile) and starts at a random point
  */
 function LoadingGrid() {
@@ -150,6 +152,101 @@ function FlickeringDot({ dot, color }: { dot: { duration: number; delay: number 
     );
 }
 
+function ThinkingIcon() {
+    return (
+        <View style={styles.thinkingIcon}>
+            {[0, 1, 2].map((index) => (
+                <BouncingSquare key={index} delay={index * 200} />
+            ))}
+        </View>
+    );
+}
+
+function BouncingSquare({ delay }: { delay: number }) {
+    const theme = useTheme();
+    const translateY = useSharedValue(0);
+
+    React.useEffect(() => {
+        translateY.value = withDelay(
+            delay,
+            withRepeat(
+                withSequence(
+                    withTiming(-3, { duration: 350 }),
+                    withTiming(0, { duration: 650 }),
+                ),
+                -1,
+                false,
+            ),
+        );
+    }, [delay, translateY]);
+
+    const animatedStyle = useAnimatedStyle(() => ({
+        transform: [{ translateY: translateY.value }],
+    }));
+
+    return <Animated.View style={[styles.thinkingSquare, { backgroundColor: theme.accent }, animatedStyle]} />;
+}
+
+function GlowLabel({ children, active }: { children: string; active: boolean }) {
+    const theme = useTheme();
+    const progress = useSharedValue(0);
+
+    React.useEffect(() => {
+        if (!active) {
+            progress.value = 0;
+            return;
+        }
+        progress.value = withRepeat(
+            withSequence(
+                withTiming(1, { duration: 1000 }),
+                withTiming(0, { duration: 1000 }),
+            ),
+            -1,
+            false,
+        );
+    }, [active, progress]);
+
+    const animatedStyle = useAnimatedStyle(() => ({
+        color: active
+            ? interpolateColor(progress.value, [0, 1], [COLORS.textSecondary, theme.accent])
+            : COLORS.textSecondary,
+    }));
+
+    return <Animated.Text style={[styles.reasoningLabel, animatedStyle]}>{children}</Animated.Text>;
+}
+
+function extractThinkingMarkers(content: string, existingReasoning?: string) {
+    let finalContent = content || '';
+    let thinkContent = existingReasoning || '';
+
+    const extractTag = (startToken: string, endTokens: string[]) => {
+        const start = finalContent.indexOf(startToken);
+        if (start === -1) return;
+
+        const innerStart = start + startToken.length;
+        const endings = endTokens
+            .map((token) => ({ token, index: finalContent.indexOf(token, innerStart) }))
+            .filter((item) => item.index !== -1)
+            .sort((a, b) => a.index - b.index);
+        const closing = endings[0];
+
+        if (closing) {
+            const inner = finalContent.slice(innerStart, closing.index).trim();
+            if (inner) thinkContent = [thinkContent, inner].filter(Boolean).join('\n\n');
+            finalContent = `${finalContent.slice(0, start)}${finalContent.slice(closing.index + closing.token.length)}`.trim();
+        } else {
+            const inner = finalContent.slice(innerStart).trim();
+            if (inner) thinkContent = [thinkContent, inner].filter(Boolean).join('\n\n');
+            finalContent = finalContent.slice(0, start).trim();
+        }
+    };
+
+    extractTag('<think>', ['</think>', '/think']);
+    extractTag('/think', ['/think']);
+
+    return { finalContent, thinkContent };
+}
+
 // AI Indicator - Corner brackets + pulsing dot
 function AIIndicator() {
     const theme = useTheme();
@@ -193,11 +290,21 @@ export default function MessageItem({
     // Create themed markdown styles
     const markdownStyles = useMemo(() => createMarkdownStyles(theme.accent), [theme.accent]);
 
+    const parsedThinking = useMemo(() => extractThinkingMarkers(content, reasoning), [content, reasoning]);
+    const visibleReasoning = useMemo(() => {
+        const value = parsedThinking.thinkContent.trim();
+        if (!value || value === '[REDACTED]') return '';
+        return preprocessLaTeX(value);
+    }, [parsedThinking.thinkContent]);
+
     // Preprocess content for LaTeX (matches web preprocessLaTeX)
     const processedContent = useMemo(() => {
-        if (!content) return '';
-        return preprocessLaTeX(content);
-    }, [content]);
+        if (!parsedThinking.finalContent) return '';
+        return preprocessLaTeX(parsedThinking.finalContent);
+    }, [parsedThinking.finalContent]);
+
+    const actuallyThinking = isThinking && !processedContent.trim();
+    const thinkingLabel = actuallyThinking ? randomLabel : 'CRACKED';
 
     // Animated text during streaming (matches web useAnimatedText)
     // Word-by-word, 4s duration, circOut easing
@@ -228,11 +335,11 @@ export default function MessageItem({
 
     const handleCopy = useCallback(async () => {
         try {
-            Clipboard.setString(content || '');
+            Clipboard.setString(parsedThinking.finalContent || content || '');
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
         } catch { }
-    }, [content]);
+    }, [content, parsedThinking.finalContent]);
 
     const getModelDisplay = () => {
         if (!model) return '';
@@ -288,7 +395,7 @@ export default function MessageItem({
         >
             <View style={styles.assistantInner}>
                 {/* Thinking state - JUST the grid, no box, no label (matches web exactly) */}
-                {isThinking && !displayContent ? (
+                {isThinking && !displayContent && !visibleReasoning ? (
                     <Animated.View
                         entering={FadeIn.duration(200)}
                         style={styles.loadingContainer}
@@ -305,31 +412,33 @@ export default function MessageItem({
                 )}
 
                 {/* Reasoning section (collapsible) - matches web thinking accordion */}
-                {reasoning && (
+                {visibleReasoning ? (
                     <TouchableOpacity
                         onPress={() => setShowReasoning(!showReasoning)}
+                        activeOpacity={0.75}
                         style={[styles.reasoningBox, { borderColor: COLORS.border }]}
                     >
                         <View style={styles.reasoningHeader}>
-                            <Ionicons
-                                name={showReasoning ? "chevron-down" : "chevron-forward"}
-                                size={12}
-                                color={COLORS.textSecondary}
-                            />
-                            {/* Dynamic label: random during streaming, "CRACKED" when done */}
-                            <Text style={[styles.reasoningLabel, { color: COLORS.textSecondary }]}>
-                                {isStreaming ? randomLabel : 'CRACKED'}
-                            </Text>
+                            {actuallyThinking ? (
+                                <ThinkingIcon />
+                            ) : (
+                                <Ionicons
+                                    name={showReasoning ? "remove" : "add"}
+                                    size={12}
+                                    color={COLORS.textSecondary}
+                                />
+                            )}
+                            <GlowLabel active={actuallyThinking}>{thinkingLabel}</GlowLabel>
                         </View>
-                        {showReasoning && (
+                        {showReasoning ? (
                             <View style={styles.reasoningContent}>
                                 <Markdown style={markdownStyles} rules={markdownRules}>
-                                    {reasoning}
+                                    {visibleReasoning}
                                 </Markdown>
                             </View>
-                        )}
+                        ) : null}
                     </TouchableOpacity>
-                )}
+                ) : null}
 
                 {/* Message content with Markdown rendering */}
                 {displayContent ? (
@@ -535,6 +644,17 @@ const styles = StyleSheet.create({
         letterSpacing: 2,
         textTransform: 'uppercase',
         fontFamily: FONTS.mono,
+    },
+    thinkingIcon: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 3,
+        width: 15,
+        height: 12,
+    },
+    thinkingSquare: {
+        width: 3,
+        height: 3,
     },
 
     // ═══════════════════════════════════════════════════════════════════════
