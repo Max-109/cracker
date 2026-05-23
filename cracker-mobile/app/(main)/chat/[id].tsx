@@ -15,6 +15,7 @@ import ThinkingIndicator from '../../../components/ui/ThinkingIndicator';
 import { DotGridIndicator } from '../../../components/ui/ConnectionIndicator';
 import { ModelSelector, AccentColorPicker } from '../../../components/ui/ModelSelector';
 import PanelLeftIcon from '../../../components/ui/PanelLeftIcon';
+import OpenAIUsageIndicator from '../../../components/ui/OpenAIUsageIndicator';
 import { MessageSkeleton } from '../../../components/ui/Skeleton';
 import Drawer from '../../../components/navigation/Drawer';
 import ErrorBoundary from '../../../components/ErrorBoundary';
@@ -588,6 +589,23 @@ export default function ChatScreen() {
                         <PanelLeftIcon size={18} color={COLORS.textSecondary} />
                     </TouchableOpacity>
 
+                    {/* New Chat - collapsed sidebar parity */}
+                    <TouchableOpacity
+                        onPress={handleNewChat}
+                        activeOpacity={0.7}
+                        style={{
+                            width: 40,
+                            height: 40,
+                            backgroundColor: COLORS.bgMain,
+                            borderWidth: 1,
+                            borderColor: COLORS.border,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                        }}
+                    >
+                        <Ionicons name="add" size={20} color={theme.accent} />
+                    </TouchableOpacity>
+
                     {/* Settings Button */}
                     <TouchableOpacity
                         onPress={() => router.push('/(main)/settings')}
@@ -610,6 +628,7 @@ export default function ChatScreen() {
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
                     <ModelSelector />
                     <AccentColorPicker />
+                    <OpenAIUsageIndicator />
                 </View>
             </View>
 
@@ -619,7 +638,7 @@ export default function ChatScreen() {
                 data={messages}
                 keyExtractor={(item, index) => item.id || `msg-${index}`}
                 renderItem={renderMessage}
-                contentContainerStyle={{ paddingBottom: 20 }}
+                contentContainerStyle={{ paddingTop: 18, paddingBottom: 20 }}
                 onContentSizeChange={() => {
                     if (messages.length > 0) {
                         flatListRef.current?.scrollToEnd({ animated: true });

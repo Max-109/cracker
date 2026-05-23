@@ -23,6 +23,7 @@ import SuggestionCard, { SUGGESTIONS } from '../../components/ui/SuggestionCard'
 import ChatBackground from '../../components/ui/ChatBackground';
 import { ModelSelector, AccentColorPicker } from '../../components/ui/ModelSelector';
 import PanelLeftIcon from '../../components/ui/PanelLeftIcon';
+import OpenAIUsageIndicator from '../../components/ui/OpenAIUsageIndicator';
 import Drawer from '../../components/navigation/Drawer';
 import { useAttachments } from '../../hooks/useAttachments';
 import { COLORS, FONTS } from '../../lib/design';
@@ -184,6 +185,23 @@ export default function HomeScreen() {
                             <PanelLeftIcon size={18} color={COLORS.textSecondary} />
                         </TouchableOpacity>
 
+                        {/* New Chat - collapsed sidebar parity */}
+                        <TouchableOpacity
+                            onPress={handleNewChat}
+                            activeOpacity={0.7}
+                            style={{
+                                width: 40,
+                                height: 40,
+                                backgroundColor: COLORS.bgMain,
+                                borderWidth: 1,
+                                borderColor: COLORS.border,
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                            }}
+                        >
+                            <Ionicons name="add" size={20} color={theme.accent} />
+                        </TouchableOpacity>
+
                         {/* Settings Button - web: w-10 h-10 */}
                         <TouchableOpacity
                             onPress={() => router.push('/(main)/settings')}
@@ -210,6 +228,7 @@ export default function HomeScreen() {
 
                         {/* Interactive Accent Color Picker - matches web */}
                         <AccentColorPicker />
+                        <OpenAIUsageIndicator />
                     </View>
                 </View>
 

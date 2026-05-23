@@ -61,6 +61,8 @@ export default function SettingsScreen() {
         isConnecting: isOpenAIConnecting,
         isLoading: isOpenAILoading,
         lastError: openAIError,
+        deviceCode,
+        deviceCodeCopiedAt,
         connect: connectOpenAI,
         refreshUsage: refreshOpenAIUsage,
         setEnabled: setOpenAIEnabled,
@@ -396,6 +398,16 @@ export default function SettingsScreen() {
                             </View>
                         )}
 
+                        {deviceCode && (
+                            <View style={styles.codeNotice}>
+                                <Ionicons name="copy-outline" size={14} color={theme.accent} />
+                                <View style={{ flex: 1 }}>
+                                    <Text style={[styles.descText, { color: theme.accent }]}>Device code copied to clipboard</Text>
+                                    <Text style={{ color: COLORS.textPrimary, fontSize: 16, fontFamily: FONTS.monoSemiBold, letterSpacing: 2, marginTop: 2 }}>{deviceCode}</Text>
+                                </View>
+                            </View>
+                        )}
+
                         {openAIError && <Text style={[styles.descText, { color: '#ef4444', marginTop: 10 }]}>{openAIError}</Text>}
 
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 14 }}>
@@ -691,6 +703,16 @@ const styles = {
     },
     usageFill: {
         height: 4,
+    },
+    codeNotice: {
+        marginTop: 12,
+        padding: 10,
+        borderWidth: 1,
+        borderColor: COLORS.borderColor,
+        backgroundColor: '#1a1a1a',
+        flexDirection: 'row' as const,
+        alignItems: 'center' as const,
+        gap: 8,
     },
     primaryButton: {
         borderWidth: 1,

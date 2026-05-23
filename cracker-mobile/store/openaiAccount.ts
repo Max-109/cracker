@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import * as SecureStore from 'expo-secure-store';
 import * as Linking from 'expo-linking';
+import * as Clipboard from 'expo-clipboard';
 import { apiFetch } from '../lib/api';
 
 type OpenAIAccountAuth = {
@@ -41,6 +42,8 @@ type OpenAIState = {
     isConnecting: boolean;
     lastError: string | null;
     lastUpdatedAt: number | null;
+    deviceCode: string | null;
+    deviceCodeCopiedAt: number | null;
     initialize: () => Promise<void>;
     connect: () => Promise<void>;
     refreshUsage: () => Promise<void>;
@@ -88,6 +91,8 @@ export const useOpenAIAccountStore = create<OpenAIState>((set, get) => ({
     isConnecting: false,
     lastError: null,
     lastUpdatedAt: null,
+    deviceCode: null,
+    deviceCodeCopiedAt: null,
 
     initialize: async () => {
         set({ isLoading: true });
@@ -111,11 +116,13 @@ export const useOpenAIAccountStore = create<OpenAIState>((set, get) => ({
         set({ isConnecting: true, lastError: null });
         try {
             const start = await apiFetch<DeviceStartResponse>('/api/openai-account/device/start', { method: 'POST' });
+            await Clipboard.setStringAsync(start.device.user_code);
+            set({ deviceCode: start.device.user_code, deviceCodeCopiedAt: Date.now() });
             await Linking.openURL(start.verificationUrl);
             const auth = await pollForAuth(start.device);
             await SecureStore.setItemAsync(AUTH_KEY, JSON.stringify(auth));
             await SecureStore.setItemAsync(ENABLED_KEY, 'true');
-            set({ auth, enabled: true, lastError: null });
+            set({ auth, enabled: true, lastError: null, deviceCode: null });
             await get().refreshUsage();
         } catch (error) {
             set({ lastError: error instanceof Error ? error.message : 'OpenAI account login failed' });
@@ -151,7 +158,7 @@ export const useOpenAIAccountStore = create<OpenAIState>((set, get) => ({
     disconnect: async () => {
         await SecureStore.deleteItemAsync(AUTH_KEY);
         await SecureStore.deleteItemAsync(ENABLED_KEY);
-        set({ auth: null, usage: null, enabled: false, lastError: null, lastUpdatedAt: null });
+        set({ auth: null, usage: null, enabled: false, lastError: null, lastUpdatedAt: null, deviceCode: null, deviceCodeCopiedAt: null });
     },
 }));
 
