@@ -223,9 +223,11 @@ function flattenAssistantHistory<T extends Array<{ role: string; content?: unkno
 
     const text = msg.content
       .map((part) => {
-        const p = part as { type?: string; text?: string; reasoning?: string };
-        if (typeof p.text === 'string') return p.text;
-        if (typeof p.reasoning === 'string') return p.reasoning;
+        const p = part as { type?: string; text?: string };
+        // Never send hidden reasoning back as assistant history. It can be very
+        // large and some providers reject or stall on reasoning parts in prior
+        // assistant messages. Keep only user-visible assistant text.
+        if (p.type === 'text' && typeof p.text === 'string') return p.text;
         return '';
       })
       .filter(Boolean)

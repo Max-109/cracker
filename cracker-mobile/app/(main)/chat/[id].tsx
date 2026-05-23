@@ -28,6 +28,31 @@ interface ChatItem {
     createdAt: string;
 }
 
+function contentForRequest(message: ChatMessage) {
+    if (typeof message.content === 'string') return message.content;
+    if (!Array.isArray(message.content)) return '';
+
+    // For assistant history, send only visible text back to the model. Sending
+    // stored reasoning parts on the next turn can make providers stall/reject.
+    if (message.role === 'assistant') {
+        return message.content
+            .map((part) => part.type === 'text' ? (part.text || '') : '')
+            .filter(Boolean)
+            .join('\n');
+    }
+
+    return message.content;
+}
+
+function messagesForRequest(messages: ChatMessage[], nextUserMessage: ChatMessage) {
+    return [...messages, nextUserMessage]
+        .filter((message) => message.role !== 'assistant' || String(contentForRequest(message)).trim().length > 0)
+        .map((message) => ({
+            role: message.role,
+            content: contentForRequest(message),
+        }));
+}
+
 export default function ChatScreen() {
     const { id, initialMessage, initialAttachments } = useLocalSearchParams<{ id: string; initialMessage?: string; initialAttachments?: string }>();
     const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -250,10 +275,7 @@ export default function ChatScreen() {
             '/api/chat',
             {
                 chatId: id,
-                messages: [...messages, userMessage].map(m => ({
-                    role: m.role,
-                    content: m.content,
-                })),
+                messages: messagesForRequest(messages, userMessage),
                 model: currentModelId || 'gpt-5.4-mini',
                 reasoningEffort: effort,
                 enabledMcpServers,
