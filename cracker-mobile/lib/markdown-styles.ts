@@ -124,10 +124,8 @@ export const createMarkdownStyles = (accent: string = ACCENT_COLOR) => StyleShee
         fontFamily: FONTS.mono,
     },
 
-    // Blockquote - web: "border-l-2 border-[var(--text-accent)]/70 pl-4 py-2 bg-[#141414]"
+    // Blockquote - aligned with web formatting (no accent bar)
     blockquote: {
-        borderLeftWidth: 2,
-        borderLeftColor: `${accent}B3`, // 70% opacity
         paddingLeft: 16,
         paddingVertical: 8,
         backgroundColor: '#141414',
