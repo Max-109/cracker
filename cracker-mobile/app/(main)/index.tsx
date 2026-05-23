@@ -22,6 +22,7 @@ import ChatInput from '../../components/ui/ChatInput';
 import SuggestionCard, { SUGGESTIONS } from '../../components/ui/SuggestionCard';
 import ChatBackground from '../../components/ui/ChatBackground';
 import { ModelSelector, AccentColorPicker } from '../../components/ui/ModelSelector';
+import PanelLeftIcon from '../../components/ui/PanelLeftIcon';
 import Drawer from '../../components/navigation/Drawer';
 import { useAttachments } from '../../hooks/useAttachments';
 import { COLORS, FONTS } from '../../lib/design';
@@ -180,7 +181,7 @@ export default function HomeScreen() {
                                 justifyContent: 'center',
                             }}
                         >
-                            <Ionicons name="menu-outline" size={18} color={COLORS.textSecondary} />
+                            <PanelLeftIcon size={18} color={COLORS.textSecondary} />
                         </TouchableOpacity>
 
                         {/* Settings Button - web: w-10 h-10 */}

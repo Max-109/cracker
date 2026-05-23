@@ -5,6 +5,7 @@ import { HexColorPicker } from "react-colorful";
 import { Settings2, User, Pencil, Palette, Sparkles, GaugeCircle, MessageSquareText, Search, Globe, Youtube, Sliders, Brain, X, Trash2, KeyRound, Link2, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Dialog } from '@/components/ui';
+import { formatOpenAIUsageReset, type OpenAIUsagePayload } from '@/lib/openai-account-shared';
 
 // Response length levels with descriptions
 const RESPONSE_LEVELS = [
@@ -33,15 +34,6 @@ const PRESET_COLORS = [
   '#af87af', // Mauve
   '#ff6b6b', // Coral
 ];
-
-type OpenAIUsagePayload = {
-  plan_type?: string;
-  rate_limit?: {
-    primary_window?: { used_percent?: number; reset_at?: number };
-    secondary_window?: { used_percent?: number; reset_at?: number };
-    limit_reached?: boolean;
-  };
-};
 
 interface SettingsDialogProps {
   open: boolean;
@@ -688,8 +680,13 @@ interface ConnectionsSectionProps {
 }
 
 function ConnectionsSection({ connected, enabled, identity, usage, error, onConnect, onUnlink, onEnabledChange, onSync }: ConnectionsSectionProps) {
-  const used = usage?.rate_limit?.primary_window?.used_percent;
+  const primaryWindow = usage?.rate_limit?.primary_window;
+  const weeklyWindow = usage?.rate_limit?.secondary_window;
+  const used = primaryWindow?.used_percent;
   const remaining = typeof used === 'number' ? Math.max(0, 100 - Math.round(used)) : null;
+  const weeklyRemaining = typeof weeklyWindow?.used_percent === 'number' ? Math.max(0, 100 - Math.round(weeklyWindow.used_percent)) : null;
+  const primaryReset = formatOpenAIUsageReset(primaryWindow?.reset_at, 'time');
+  const weeklyReset = formatOpenAIUsageReset(weeklyWindow?.reset_at, 'day-time');
   const status = !connected ? 'NOT LINKED' : error ? 'ACTION NEEDED' : enabled ? 'LINKED' : 'PAUSED';
   const description = !connected
     ? 'Use your OpenAI account allowed usage.'
@@ -737,10 +734,12 @@ function ConnectionsSection({ connected, enabled, identity, usage, error, onConn
             </div>
             <div>
               <div className="text-[8px] uppercase tracking-[0.14em] text-[var(--text-secondary)]">Usage</div>
-              <div className="mt-1 text-[10px] text-[var(--text-primary)]">
+              <div className="mt-1 text-[10px] text-[var(--text-primary)] leading-relaxed">
                 5H <span className="text-[var(--text-accent)]">{remaining === null ? '--' : `${remaining}%`}</span>
+                {primaryReset ? <span className="text-[var(--text-secondary)]"> resets {primaryReset}</span> : null}
                 <span className="text-[var(--text-secondary)]"> · </span>
-                Week <span className="text-[var(--text-accent)]">{typeof usage?.rate_limit?.secondary_window?.used_percent === 'number' ? `${Math.max(0, 100 - Math.round(usage.rate_limit.secondary_window.used_percent))}%` : '--'}</span>
+                Week <span className="text-[var(--text-accent)]">{weeklyRemaining === null ? '--' : `${weeklyRemaining}%`}</span>
+                {weeklyReset ? <span className="text-[var(--text-secondary)]"> resets {weeklyReset}</span> : null}
                 {usage?.plan_type ? <span className="text-[var(--text-secondary)]"> · {usage.plan_type}</span> : null}
               </div>
             </div>

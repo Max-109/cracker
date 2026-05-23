@@ -52,3 +52,28 @@ export function isOpenAIAccountLimited(account: Pick<OpenAIStoredAccount, 'usage
   if (account.exhaustedUntil && account.exhaustedUntil > Date.now()) return true;
   return account.usage?.rate_limit?.limit_reached === true;
 }
+
+export function formatOpenAIUsageReset(resetAt?: number | null, detail: 'time' | 'day-time' = 'time') {
+  if (typeof resetAt !== 'number' || !Number.isFinite(resetAt) || resetAt <= 0) return null;
+
+  const millis = resetAt < 1_000_000_000_000 ? resetAt * 1000 : resetAt;
+  const date = new Date(millis);
+  if (Number.isNaN(date.getTime())) return null;
+
+  if (detail === 'day-time') {
+    return new Intl.DateTimeFormat(undefined, {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    }).format(date);
+  }
+
+  return new Intl.DateTimeFormat(undefined, {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(date);
+}

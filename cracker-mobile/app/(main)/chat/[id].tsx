@@ -13,6 +13,7 @@ import ChatBackground from '../../../components/ui/ChatBackground';
 import ThinkingIndicator from '../../../components/ui/ThinkingIndicator';
 import { DotGridIndicator } from '../../../components/ui/ConnectionIndicator';
 import { ModelSelector, AccentColorPicker } from '../../../components/ui/ModelSelector';
+import PanelLeftIcon from '../../../components/ui/PanelLeftIcon';
 import { MessageSkeleton } from '../../../components/ui/Skeleton';
 import Drawer from '../../../components/navigation/Drawer';
 import ErrorBoundary from '../../../components/ErrorBoundary';
@@ -508,11 +509,11 @@ export default function ChatScreen() {
 
             {/* Header - MATCHING HOME SCREEN EXACTLY */}
             <View style={[styles.header, { paddingTop: statusBarHeight + 12 }]}>
-                {/* Left: Back + Settings */}
+                {/* Left: Sidebar + Settings */}
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                    {/* Back Button */}
+                    {/* Sidebar Toggle */}
                     <TouchableOpacity
-                        onPress={() => router.back()}
+                        onPress={() => setIsDrawerOpen(true)}
                         activeOpacity={0.7}
                         style={{
                             width: 40,
@@ -524,7 +525,7 @@ export default function ChatScreen() {
                             justifyContent: 'center',
                         }}
                     >
-                        <Ionicons name="arrow-back" size={18} color={COLORS.textSecondary} />
+                        <PanelLeftIcon size={18} color={COLORS.textSecondary} />
                     </TouchableOpacity>
 
                     {/* Settings Button */}
@@ -611,6 +612,6 @@ const styles = {
         justifyContent: 'space-between' as const,
         borderBottomWidth: 1,
         borderBottomColor: COLORS.border,
-        backgroundColor: COLORS.bgMain,
+        backgroundColor: COLORS.bgSidebar,
     },
 };

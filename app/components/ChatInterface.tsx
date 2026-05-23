@@ -10,6 +10,7 @@ import { updateFavicon, getAccentColorFromStorage } from './SettingsContext';
 import { useAttachments } from '@/app/hooks/useAttachments';
 import { usePersistedSetting, useAccentColor, useResponseLength, useUserProfile, useLearningMode, useChatMode, useLearningSubMode, useCustomInstructions, useEnabledMcpServers, useCodeWrap, useAutoScroll, ReasoningEffortLevel, ChatMode, LearningSubMode } from '@/app/hooks/usePersistedSettings';
 import { useOpenAIAccount } from '@/app/hooks/useOpenAIAccount';
+import { formatOpenAIUsageReset, type OpenAIUsagePayload } from '@/lib/openai-account-shared';
 import { ModelSelector } from './ModelSelector';
 import { EnhancedChatInput } from './EnhancedChatInput';
 import { MessageList } from './MessageList';
@@ -25,15 +26,6 @@ interface ChatInterfaceProps {
   initialChatId?: string;
 }
 
-type OpenAIUsagePayload = {
-  plan_type?: string;
-  rate_limit?: {
-    primary_window?: { used_percent?: number; reset_at?: number };
-    secondary_window?: { used_percent?: number; reset_at?: number };
-    limit_reached?: boolean;
-  };
-};
-
 function OpenAIUsageIndicator({
   connected,
   enabled,
@@ -47,16 +39,20 @@ function OpenAIUsageIndicator({
 }) {
   if (!connected || !enabled) return null;
 
-  const primaryUsed = usage?.rate_limit?.primary_window?.used_percent;
-  const weeklyUsed = usage?.rate_limit?.secondary_window?.used_percent;
+  const primaryWindow = usage?.rate_limit?.primary_window;
+  const weeklyWindow = usage?.rate_limit?.secondary_window;
+  const primaryUsed = primaryWindow?.used_percent;
+  const weeklyUsed = weeklyWindow?.used_percent;
   const primaryLeft = typeof primaryUsed === 'number' ? Math.max(0, 100 - Math.round(primaryUsed)) : null;
   const weeklyLeft = typeof weeklyUsed === 'number' ? Math.max(0, 100 - Math.round(weeklyUsed)) : null;
+  const primaryReset = formatOpenAIUsageReset(primaryWindow?.reset_at, 'time');
+  const weeklyReset = formatOpenAIUsageReset(weeklyWindow?.reset_at, 'day-time');
 
   return (
     <button
       onClick={() => void onClick()}
       className="hidden md:flex h-9 items-center border border-[var(--border-color)] border-l-[var(--text-accent)] bg-[#141414] text-[9px] uppercase tracking-[0.12em] text-[var(--text-secondary)] hover:border-[var(--text-accent)]/60 transition-all duration-150 active:scale-95 overflow-hidden"
-      title="OpenAI account usage"
+      title={`OpenAI account usage${primaryReset ? ` · 5H resets ${primaryReset}` : ''}${weeklyReset ? ` · Week resets ${weeklyReset}` : ''}`}
     >
       <div className="h-full w-8 flex items-center justify-center border-r border-[var(--border-color)] bg-[var(--text-accent)]/10">
         <GaugeCircle size={13} className={enabled ? 'text-[var(--text-accent)]' : 'text-[var(--text-secondary)]'} />
@@ -64,9 +60,11 @@ function OpenAIUsageIndicator({
       <div className="flex h-full items-center divide-x divide-[var(--border-color)]">
         <span className="px-2.5 leading-none">
           5H <span className="text-[var(--text-accent)] font-semibold">{primaryLeft === null ? '--' : primaryLeft}%</span>
+          {primaryReset ? <span className="ml-1 text-[var(--text-primary)]">{primaryReset}</span> : null}
         </span>
         <span className="px-2.5 leading-none">
           Week <span className="text-[var(--text-accent)] font-semibold">{weeklyLeft === null ? '--' : weeklyLeft}%</span>
+          {weeklyReset ? <span className="ml-1 text-[var(--text-primary)]">{weeklyReset}</span> : null}
         </span>
       </div>
     </button>

@@ -15,7 +15,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '../../store/auth';
 import { useTheme } from '../../store/theme';
 import AuthBackground from '../../components/auth/AuthBackground';
-import Logo from '../../components/auth/Logo';
 
 export default function LoginScreen() {
     const router = useRouter();
@@ -83,8 +82,6 @@ export default function LoginScreen() {
                     }}
                     keyboardShouldPersistTaps="handled"
                 >
-                    <Logo />
-
                     {/* Login Card */}
                     <Animated.View
                         entering={FadeInDown.delay(200).duration(500)}
