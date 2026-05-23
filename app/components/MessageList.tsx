@@ -658,12 +658,15 @@ export function MessageList({
             {messages.map((m: ChatMessage, index: number) => {
               const isLastAssistant = index === messages.length - 1 && m.role === 'assistant';
               const messageModel = (m as { model?: string }).model;
-              const messageTps = (m as { tokensPerSecond?: string }).tokensPerSecond;
+              const messageTps = (m as { tokensPerSecond?: string | number }).tokensPerSecond;
+              const parsedMessageTps = typeof messageTps === 'number' ? messageTps : Number.parseFloat(String(messageTps ?? ''));
+              const safeMessageTps = Number.isFinite(parsedMessageTps) && parsedMessageTps > 0 && parsedMessageTps <= 500 ? parsedMessageTps : undefined;
+              const safeStreamingTps = streamingStats.tokensPerSecond > 0 && streamingStats.tokensPerSecond <= 500 ? streamingStats.tokensPerSecond : undefined;
               const displayModelId = m.role === 'assistant'
                 ? (messageModel || (isLastAssistant ? streamingStats.modelId : null) || null)
                 : null;
               const displayTps = m.role === 'assistant'
-                ? (messageTps ? parseFloat(messageTps) : (isLastAssistant ? streamingStats.tokensPerSecond : undefined))
+                ? (safeMessageTps ?? (isLastAssistant ? safeStreamingTps : undefined))
                 : undefined;
               const modelShortName = displayModelId ? (displayModelId.split('/').pop()?.split(':')[0] || displayModelId) : undefined;
 

@@ -85,6 +85,9 @@ export function streamChatCompletion(params: {
   });
 }
 
+const MIN_MEASURED_GENERATION_MS = 500;
+const MAX_REASONABLE_TOKENS_PER_SECOND = 500;
+
 function collectFinishStats(args: {
   modelId: string;
   requestStartTime: number;
@@ -96,7 +99,7 @@ function collectFinishStats(args: {
   usage?: any;
   steps?: any[];
 }) {
-  let tps = 0;
+  let tps: number | null = null;
   const { modelId, requestStartTime, firstChunkTime, firstReasoningTime, endTime, text, reasoning, usage, steps } = args;
 
   console.log(`\n========== TPS DEBUG [${modelId}] ==========`);
@@ -136,10 +139,10 @@ function collectFinishStats(args: {
   console.log(`Total tool results collected: ${toolResults.length}`);
   if (toolResults.length > 0 && toolResults[0]) console.log('First result sample:', JSON.stringify(toolResults[0]).slice(0, 200));
 
-  const outputTokens = usage?.outputTokens || 0;
-  const inputTokens = usage?.inputTokens || 0;
-  const totalTokens = usage?.totalTokens || 0;
-  const reasoningTokens = usage?.reasoningTokens || 0;
+  const outputTokens = Number.isFinite(usage?.outputTokens) ? usage.outputTokens : 0;
+  const inputTokens = Number.isFinite(usage?.inputTokens) ? usage.inputTokens : 0;
+  const totalTokens = Number.isFinite(usage?.totalTokens) ? usage.totalTokens : 0;
+  const reasoningTokens = Number.isFinite(usage?.reasoningTokens) ? usage.reasoningTokens : 0;
 
   console.log(`inputTokens: ${inputTokens}`);
   console.log(`outputTokens: ${outputTokens}`);
@@ -149,18 +152,26 @@ function collectFinishStats(args: {
   const generationStartTime = firstReasoningTime || firstChunkTime;
   if (generationStartTime) {
     const ttft = (generationStartTime - requestStartTime) / 1000;
-    const generationSeconds = (endTime - generationStartTime) / 1000;
-    const totalSeconds = (endTime - requestStartTime) / 1000;
+    const measuredGenerationMs = endTime - generationStartTime;
+    const totalMs = endTime - requestStartTime;
+    const generationMs = measuredGenerationMs >= MIN_MEASURED_GENERATION_MS ? measuredGenerationMs : totalMs;
+    const generationSeconds = generationMs / 1000;
+    const totalSeconds = totalMs / 1000;
     console.log(`TTFT (to first token): ${ttft.toFixed(3)}s`);
-    console.log(`Generation time (first token -> end): ${generationSeconds.toFixed(3)}s`);
+    console.log(`Generation time (first token -> end): ${(measuredGenerationMs / 1000).toFixed(3)}s`);
     console.log(`Total time (request -> end): ${totalSeconds.toFixed(3)}s`);
+    if (measuredGenerationMs > 0 && measuredGenerationMs < MIN_MEASURED_GENERATION_MS) {
+      console.log(`Generation window was ${measuredGenerationMs}ms; using total request time for stable TPS.`);
+    }
 
-    const tokensGenerated = reasoningTokens > 0 ? outputTokens + reasoningTokens : (totalTokens > 0 ? totalTokens - inputTokens : outputTokens);
-    if (tokensGenerated > 0 && generationSeconds > 0) {
-      tps = tokensGenerated / generationSeconds;
+    const fallbackGeneratedTokens = totalTokens > inputTokens ? totalTokens - inputTokens : outputTokens;
+    const tokensGenerated = outputTokens > 0 ? outputTokens + reasoningTokens : fallbackGeneratedTokens;
+    const rawTps = tokensGenerated > 0 && generationSeconds > 0 ? tokensGenerated / generationSeconds : null;
+    if (rawTps && rawTps > 0 && rawTps <= MAX_REASONABLE_TOKENS_PER_SECOND) {
+      tps = rawTps;
       console.log(`TPS = ${tokensGenerated} tokens / ${generationSeconds.toFixed(3)}s = ${tps.toFixed(1)} t/s`);
     } else {
-      console.log(`TPS calculation skipped: tokensGenerated=${tokensGenerated}, generationSeconds=${generationSeconds}`);
+      console.log(`TPS calculation skipped: tokensGenerated=${tokensGenerated}, generationSeconds=${generationSeconds}, rawTps=${rawTps}`);
     }
   } else {
     console.log('ERROR: No chunk timestamps recorded - callbacks never fired?');

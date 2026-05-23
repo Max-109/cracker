@@ -4,6 +4,18 @@ import { splitThinkingBlocks } from '@/lib/thinking-text';
 import { and, desc, eq } from 'drizzle-orm';
 import type { LearningSubMode } from './types';
 
+const MAX_REASONABLE_TOKENS_PER_SECOND = 500;
+
+function normalizeTokensPerSecond(value: unknown): number | null {
+  const parsed = typeof value === 'number' ? value : Number.parseFloat(String(value ?? ''));
+  return Number.isFinite(parsed) && parsed > 0 && parsed <= MAX_REASONABLE_TOKENS_PER_SECOND ? parsed : null;
+}
+
+function formatTokensPerSecond(value: unknown): string | null {
+  const normalized = normalizeTokensPerSecond(value);
+  return normalized == null ? null : String(Math.round(normalized * 10) / 10);
+}
+
 export async function getLatestAssistantStats(db: any, chatId: string) {
   const [lastMessage] = await db
     .select({
@@ -12,11 +24,14 @@ export async function getLatestAssistantStats(db: any, chatId: string) {
     })
     .from(messagesTable)
     .where(and(eq(messagesTable.chatId, chatId), eq(messagesTable.role, 'assistant')))
-    .orderBy(desc(messagesTable.createdAt))
+    .orderBy(desc(messagesTable.createdAt), desc(messagesTable.id))
     .limit(1);
 
+  const tokensPerSecond = normalizeTokensPerSecond(lastMessage?.tokensPerSecond);
+
   return {
-    tokensPerSecond: lastMessage?.tokensPerSecond ? parseFloat(lastMessage.tokensPerSecond) : null,
+    tokensPerSecond,
+    tokenSpeed: tokensPerSecond,
     modelId: lastMessage?.model || null,
   };
 }
@@ -30,7 +45,7 @@ export async function saveAssistantMessage(db: any, params: {
   files?: Array<{ mediaType: string; base64: string }>;
   toolCalls: Array<{ toolCallId: string; toolName: string; args?: unknown }>;
   toolResults: unknown[];
-  tokensPerSecond: number;
+  tokensPerSecond: number | null;
 }) {
   const { chatId, modelId, subMode, text, reasoning, files, toolCalls, toolResults, tokensPerSecond } = params;
   if (!chatId) return;
@@ -97,7 +112,7 @@ export async function saveAssistantMessage(db: any, params: {
       content: encryptedContent,
       model: modelId,
       learningSubMode: subMode,
-      tokensPerSecond: tokensPerSecond > 0 ? String(Math.round(tokensPerSecond * 10) / 10) : null,
+      tokensPerSecond: formatTokensPerSecond(tokensPerSecond),
     });
   } catch (error) {
     console.error('Failed to save message to DB:', error);

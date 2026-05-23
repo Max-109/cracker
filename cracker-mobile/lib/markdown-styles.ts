@@ -26,10 +26,20 @@ export const createMarkdownStyles = (accent: string = ACCENT_COLOR) => StyleShee
     },
 
     // Paragraphs - web: "mb-3 last:mb-0 leading-relaxed text-[#E5E5E5]"
+    // Text color comes from body so blockquotes can correctly inherit their
+    // own web color instead of being overridden by paragraph styling.
     paragraph: {
         marginBottom: 12,
-        color: '#E5E5E5',
         lineHeight: 24,
+    },
+    blockquoteParagraph: {
+        marginBottom: 0,
+        lineHeight: 24,
+        flexWrap: 'wrap',
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        justifyContent: 'flex-start',
+        width: '100%',
     },
 
     // Headers - web uses font-bold, tracking-tight
@@ -124,14 +134,14 @@ export const createMarkdownStyles = (accent: string = ACCENT_COLOR) => StyleShee
         fontFamily: FONTS.mono,
     },
 
-    // Blockquote - aligned with web formatting
+    // Blockquote - web visual parity: gray left border, dark background, secondary text
     blockquote: {
         paddingLeft: 16,
         paddingVertical: 8,
         backgroundColor: '#141414',
         marginVertical: 16,
         borderLeftWidth: 2,
-        borderLeftColor: withOpacity(accent, 0.7),
+        borderLeftColor: COLORS.border,
         color: COLORS.textSecondary,
     },
 

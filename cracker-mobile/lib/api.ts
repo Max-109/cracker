@@ -226,7 +226,8 @@ export async function apiStreamFetch(
                                 throw new Error(message);
                             }
                             onEvent(event);
-                        } catch {
+                        } catch (error) {
+                            if (error instanceof Error && error.name !== 'SyntaxError') throw error;
                             // Skip invalid JSON
                         }
                     }
@@ -254,8 +255,18 @@ function processSSEBuffer(buffer: string, onEvent: (event: unknown) => void) {
             if (data && data !== '[DONE]') {
                 try {
                     const event = JSON.parse(data);
+                    const eventObj = event as { type?: string; error?: unknown; message?: unknown };
+                    if (eventObj.type === 'error' || eventObj.error) {
+                        const message = typeof eventObj.error === 'string'
+                            ? eventObj.error
+                            : typeof eventObj.message === 'string'
+                                ? eventObj.message
+                                : 'The model request failed.';
+                        throw new Error(message);
+                    }
                     onEvent(event);
-                } catch {
+                } catch (error) {
+                    if (error instanceof Error && error.name !== 'SyntaxError') throw error;
                     // Skip invalid JSON
                 }
             }

@@ -6,7 +6,7 @@ import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { useTheme } from '../../../store/theme';
 import { useSettingsStore } from '../../../store/settings';
 import { useOpenAIAccountStore } from '../../../store/openaiAccount';
-import { api, apiStreamFetch, getProviderConfig } from '../../../lib/api';
+import { api, apiFetch, apiStreamFetch, getProviderConfig } from '../../../lib/api';
 import { ChatMessage, MessagePart, StreamEvent } from '../../../lib/types';
 import MessageItem from '../../../components/chat/MessageItem';
 import ChatInput from '../../../components/ui/ChatInput';
@@ -26,6 +26,29 @@ interface ChatItem {
     title: string;
     mode: string;
     createdAt: string;
+}
+
+const MAX_REASONABLE_TOKENS_PER_SECOND = 500;
+
+function normalizeTokensPerSecond(value: unknown): number | undefined {
+    const parsed = typeof value === 'number' ? value : Number.parseFloat(String(value ?? ''));
+    return Number.isFinite(parsed) && parsed > 0 && parsed <= MAX_REASONABLE_TOKENS_PER_SECOND ? parsed : undefined;
+}
+
+async function fetchLatestAssistantStats(chatId: string) {
+    for (let attempt = 0; attempt < 6; attempt++) {
+        if (attempt > 0) {
+            await new Promise(resolve => setTimeout(resolve, 150 * attempt));
+        }
+
+        const stats = await apiFetch<{ tokenSpeed?: number | null; tokensPerSecond?: number | string | null; modelId?: string | null }>(`/api/chat?chatId=${chatId}`);
+        const tokensPerSecond = normalizeTokensPerSecond(stats.tokenSpeed ?? stats.tokensPerSecond);
+        if (tokensPerSecond != null || stats.modelId) {
+            return { tokensPerSecond, modelId: stats.modelId || undefined };
+        }
+    }
+
+    return null;
 }
 
 function stripThinkingBlocks(input: string) {
@@ -168,13 +191,7 @@ export default function ChatScreen() {
                     }
 
                     // Safely parse tokensPerSecond (stored as TEXT in DB)
-                    let tps: number | undefined;
-                    if (msg.tokensPerSecond != null) {
-                        const parsed = parseFloat(String(msg.tokensPerSecond));
-                        if (!isNaN(parsed) && isFinite(parsed)) {
-                            tps = parsed;
-                        }
-                    }
+                    const tps = normalizeTokensPerSecond(msg.tokenSpeed ?? msg.tokensPerSecond);
 
                     return {
                         id: msg.id || `msg-${Date.now()}-${Math.random()}`,
@@ -286,8 +303,7 @@ export default function ChatScreen() {
             effort = autoReasoning.effort;
         } catch { }
 
-        let startTime = Date.now();
-        let tokenCount = 0;
+        let firstTextTime: number | null = null;
 
         // Create abort controller
         abortControllerRef.current = new AbortController();
@@ -344,15 +360,14 @@ export default function ChatScreen() {
                         // Handle both old format (textDelta) and new format (delta)
                         const textDelta = (e as any).textDelta || (e as any).delta || '';
                         accumulatedTextRef.current += textDelta;
-                        tokenCount++;
+                        firstTextTime = firstTextTime ?? Date.now();
 
-                        // Calculate TPS
-                        const elapsed = (Date.now() - startTime) / 1000;
-                        if (elapsed > 0) {
-                            const nextTps = tokenCount / elapsed;
-                            currentTpsRef.current = nextTps;
-                            setCurrentTps(nextTps);
-                        }
+                        // Live preview only: estimate tokens from streamed text until server final stats arrive.
+                        const elapsed = (Date.now() - firstTextTime) / 1000;
+                        const estimatedTokens = Math.max(1, Math.round(accumulatedTextRef.current.length / 4));
+                        const nextTps = elapsed > 0.5 ? normalizeTokensPerSecond(estimatedTokens / elapsed) : undefined;
+                        currentTpsRef.current = nextTps;
+                        setCurrentTps(nextTps);
 
                         setStreamingContent(accumulatedTextRef.current);
                         break;
@@ -407,11 +422,31 @@ export default function ChatScreen() {
                                 updated[lastIndex] = {
                                     ...updated[lastIndex],
                                     content: contentParts.length > 0 ? contentParts : finalText,
+                                    model: currentModelId || 'gpt-5.4-mini',
                                     tokensPerSecond: currentTpsRef.current,
                                 };
                             }
                             return updated;
                         });
+
+                        fetchLatestAssistantStats(id)
+                            .then(stats => {
+                                if (!stats) return;
+                                setMessages(prev => {
+                                    const updated = [...prev];
+                                    const lastIndex = updated.findLastIndex(message => message.role === 'assistant');
+                                    if (lastIndex >= 0) {
+                                        updated[lastIndex] = {
+                                            ...updated[lastIndex],
+                                            model: stats.modelId || updated[lastIndex].model || currentModelId || 'gpt-5.4-mini',
+                                            tokensPerSecond: stats.tokensPerSecond ?? updated[lastIndex].tokensPerSecond,
+                                        };
+                                    }
+                                    return updated;
+                                });
+                            })
+                            .catch(() => { });
+
                         setIsStreaming(false);
                         setIsThinking(false);
                         setIsConnecting(false);
@@ -549,7 +584,7 @@ export default function ChatScreen() {
                 content={contentText}
                 reasoning={reasoningText || undefined}
                 model={item.model}
-                tokensPerSecond={isStreamingMessage ? currentTps : item.tokensPerSecond}
+                tokensPerSecond={isStreamingMessage ? currentTps : normalizeTokensPerSecond(item.tokensPerSecond)}
                 isStreaming={isStreamingMessage}
                 isThinking={showThinking}
                 createdAt={item.createdAt instanceof Date && !isNaN(item.createdAt.getTime()) ? item.createdAt.toISOString() : undefined}

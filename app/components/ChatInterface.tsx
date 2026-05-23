@@ -296,6 +296,31 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
     },
   }), []);
 
+  const fetchCompletionStats = useCallback(async (chatId: string) => {
+    for (let attempt = 0; attempt < 6; attempt++) {
+      if (attempt > 0) {
+        await new Promise(resolve => setTimeout(resolve, 150 * attempt));
+      }
+
+      const statsRes = await fetch(`/api/chat?chatId=${chatId}`);
+      if (!statsRes.ok) continue;
+
+      const serverStats = await statsRes.json();
+      const rawTps = serverStats.tokenSpeed ?? serverStats.tokensPerSecond;
+      const parsedTps = typeof rawTps === 'number' ? rawTps : Number.parseFloat(String(rawTps ?? ''));
+      const tokensPerSecond = Number.isFinite(parsedTps) && parsedTps > 0 ? parsedTps : null;
+
+      if (tokensPerSecond != null || serverStats.modelId) {
+        return {
+          modelId: serverStats.modelId || currentModelIdRef.current,
+          tokensPerSecond,
+        };
+      }
+    }
+
+    return null;
+  }, []);
+
   // useChat hook
   const chatHelpers = useChat({
     transport,
@@ -314,17 +339,24 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
         }
 
         try {
-          // Small delay to ensure backend has saved the message with TPS
-          await new Promise(resolve => setTimeout(resolve, 50));
-          const statsRes = await fetch(`/api/chat?chatId=${activeId}`);
-          if (statsRes.ok) {
-            const serverStats = await statsRes.json();
-            if (serverStats.tokensPerSecond) {
-              setStreamingStats({
-                modelId: serverStats.modelId || currentModelIdRef.current,
-                tokensPerSecond: serverStats.tokensPerSecond
-              });
-            }
+          const serverStats = await fetchCompletionStats(activeId);
+          if (serverStats) {
+            setStreamingStats({
+              modelId: serverStats.modelId,
+              tokensPerSecond: serverStats.tokensPerSecond ?? 0,
+            });
+            setMessages(prev => {
+              const updated = [...prev];
+              const lastAssistantIndex = updated.findLastIndex(message => message.role === 'assistant');
+              if (lastAssistantIndex >= 0) {
+                updated[lastAssistantIndex] = {
+                  ...updated[lastAssistantIndex],
+                  model: serverStats.modelId,
+                  tokensPerSecond: serverStats.tokensPerSecond != null ? String(serverStats.tokensPerSecond) : undefined,
+                } as typeof updated[number];
+              }
+              return updated;
+            });
           }
         } catch (e) {
           console.error('Failed to fetch completion stats:', e);

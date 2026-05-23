@@ -3,10 +3,19 @@ import { messages } from '@/db/schema';
 import { NextResponse } from 'next/server';
 import { getOrCreateChatDek, encryptContent } from '@/lib/encryption';
 
+const MAX_REASONABLE_TOKENS_PER_SECOND = 500;
+
+function formatTokensPerSecond(value: unknown): string | null {
+  const parsed = typeof value === 'number' ? value : Number.parseFloat(String(value ?? ''));
+  return Number.isFinite(parsed) && parsed > 0 && parsed <= MAX_REASONABLE_TOKENS_PER_SECOND
+    ? String(Math.round(parsed * 10) / 10)
+    : null;
+}
+
 export async function POST(req: Request) {
   try {
     const db = getDb();
-    const { chatId, role, content, model, tokensPerSecond, learningSubMode } = await req.json();
+    const { chatId, role, content, model, tokenSpeed, tokensPerSecond, learningSubMode } = await req.json();
     if (!chatId || !role || !content) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
     }
@@ -20,7 +29,7 @@ export async function POST(req: Request) {
       role,
       content: encryptedContent,
       model: model || null,
-      tokensPerSecond: tokensPerSecond ? String(tokensPerSecond) : null,
+      tokensPerSecond: formatTokensPerSecond(tokenSpeed ?? tokensPerSecond),
       learningSubMode: learningSubMode || null,
     }).returning();
 

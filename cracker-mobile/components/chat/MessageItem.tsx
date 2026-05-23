@@ -317,7 +317,7 @@ export default function MessageItem({
     // Display content: animated during streaming, full when complete
     const displayContent = isStreaming ? animatedContent : processedContent;
 
-    // Custom markdown rules for code blocks
+    // Custom markdown rules for code blocks and web-parity blockquotes
     const markdownRules = useMemo(() => ({
         fence: (node: any) => {
             const language = node.sourceInfo || 'text';
@@ -329,6 +329,17 @@ export default function MessageItem({
                 <Text key={node.key} style={markdownStyles.code_inline}>
                     {node.content}
                 </Text>
+            );
+        },
+        paragraph: (node: any, children: any, parent: any) => {
+            const insideBlockquote = parent?.some((item: any) => item?.type === 'blockquote');
+            return (
+                <View
+                    key={node.key}
+                    style={insideBlockquote ? markdownStyles.blockquoteParagraph : markdownStyles.paragraph}
+                >
+                    {children}
+                </View>
             );
         },
     }), [markdownStyles]);
