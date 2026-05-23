@@ -19,20 +19,18 @@ You can also connect OpenAI accounts in the browser and use their Codex/ChatGPT-
 
 ## Features
 
-- OpenAI-compatible `/v1/chat/completions` backend support.
-- Connect OpenAI accounts from the browser to use Codex/ChatGPT-plan usage where supported.
-- Multiple OpenAI accounts. Cracker sorts them by remaining usage and rotates when one is rate-limited.
-- GPT model presets: `gpt-5.5`, `gpt-5.4-mini`, and `gpt-5.3-codex-spark`.
-- Model capability checks, so text-only models do not accept image uploads.
-- Optional priority service mode for models that support it.
-- PostgreSQL + Drizzle ORM for chats, settings, users, memory, and encrypted messages.
-- Built-in email/password auth stored in PostgreSQL.
-- Admin dashboard for managing invitation codes and access.
-- Invitation-code signup flow, so the app can stay private.
+- Browser-connected OpenAI accounts with usage-aware rotation for Codex/ChatGPT-plan usage.
+- Model presets: Expert (GPT 5.5), Balanced (GPT 5.4 Mini), and Ultra Fast (GPT 5.3 Codex Spark).
+- Fast mode support.
+- PostgreSQL + Drizzle ORM for chats, settings, users, memory, encrypted messages, and email/password auth.
+- Admin dashboard with invitation-code signup for private access.
 - Guest mode.
-- File and image attachments for supported models.
-- Brave Search and YouTube tools.
-- Learning mode for summaries, flashcards, and teaching-style answers.
+- File and image attachments.
+- Streaming chat with reasoning, tool events, and tokens/sec stats.
+- Accent-color theming across the UI, favicon, app icon, and code highlighting.
+- Voice input with backend transcription.
+- MCP tools for Brave Search and YouTube.
+- Learning mode for summaries, flashcards, and guided explanations.
 - Matching Expo mobile app in `cracker-mobile/`.
 
 ## Tech stack
