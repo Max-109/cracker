@@ -8,7 +8,14 @@
     <img alt="Tailwind CSS" src="https://img.shields.io/badge/Tailwind-v4-%23d4a86b?style=for-the-badge&labelColor=3f3f46" />
     <img alt="AI SDK" src="https://img.shields.io/badge/AI%20SDK-v5-%23d4a86b?style=for-the-badge&labelColor=3f3f46" />
   </p>
+  <h3>Web version</h3>
   <img src="./cracker.gif" alt="Cracker app preview" width="900" />
+
+  <h3>Mobile version (Android app) <span style="font-size: 14px; color: #cbd5e1">(Early build)</span></h3>
+  <p>
+    <img src="./docs/release/mobile-login.jpg" alt="Cracker mobile login" width="300" />
+    <img src="./docs/release/mobile-chat.jpg" alt="Cracker mobile chat" width="300" />
+  </p>
 </div>
 
 ## What is Cracker?
