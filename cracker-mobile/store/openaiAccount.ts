@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import * as SecureStore from 'expo-secure-store';
 import * as Linking from 'expo-linking';
-import * as Clipboard from 'expo-clipboard';
 import { apiFetch } from '../lib/api';
 
 type OpenAIAccountAuth = {
@@ -116,6 +115,7 @@ export const useOpenAIAccountStore = create<OpenAIState>((set, get) => ({
         set({ isConnecting: true, lastError: null });
         try {
             const start = await apiFetch<DeviceStartResponse>('/api/openai-account/device/start', { method: 'POST' });
+            const Clipboard = await import('expo-clipboard');
             await Clipboard.setStringAsync(start.device.user_code);
             set({ deviceCode: start.device.user_code, deviceCodeCopiedAt: Date.now() });
             await Linking.openURL(start.verificationUrl);
