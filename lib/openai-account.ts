@@ -316,18 +316,50 @@ function normalizeResponsesInput(input: any) {
 
   if (!Array.isArray(input)) return [];
 
+  const messages = input
+    .filter((item: any) => item && item.type !== 'reasoning' && (item.type === 'message' || item.role))
+    .map((item: any) => ({
+      role: item.role || 'user',
+      text: responsesContentText(item.content),
+    }))
+    .filter((item: any) => item.text.trim());
+
+  // The ChatGPT/Codex backend used by account auth is fragile with assistant-role
+  // history in stateless requests. First turns work, follow-ups can stall. Send a
+  // single user message containing transcript context instead.
+  if (messages.length > 1) {
+    return [{ type: 'message', role: 'user', content: [{ type: 'input_text', text: transcriptPrompt(messages) }] }];
+  }
+
   return input
     .filter((item: any) => item && item.type !== 'reasoning')
     .map((item: any) => {
       if (item.type === 'message' || item.role) {
         return {
           type: 'message',
-          role: item.role || 'user',
+          role: item.role === 'assistant' ? 'user' : item.role || 'user',
           content: normalizeResponsesContent(item.content),
         };
       }
       return item;
     });
+}
+
+function responsesContentText(content: any) {
+  if (typeof content === 'string') return content;
+  if (!Array.isArray(content)) return '';
+  return content.map((part: any) => {
+    if (typeof part === 'string') return part;
+    return part?.text || part?.content || '';
+  }).filter(Boolean).join('\n');
+}
+
+function transcriptPrompt(messages: Array<{ role: string; text: string }>) {
+  return `Continue this conversation. Use the transcript as context and answer only the latest user message.\n\n${messages.map((message, index) => {
+    const isLast = index === messages.length - 1;
+    const role = message.role === 'assistant' ? 'Assistant' : message.role === 'system' ? 'System' : 'User';
+    return `${isLast ? 'Latest ' : ''}${role}: ${message.text}`;
+  }).join('\n\n')}`;
 }
 
 function normalizeResponsesContent(content: any) {
@@ -354,7 +386,7 @@ function openAIChatBodyToCodex(body: any, conversationId: string) {
   return {
     model: body.model === 'gpt-5.5-fast' ? 'gpt-5.5' : body.model,
     instructions,
-    input: messages.filter((message: any) => message.role !== 'system').map(chatMessageToCodexInput),
+    input: codexChatInput(messages),
     reasoning: {
       effort: body.reasoning_effort || body.reasoning?.effort || 'medium',
       summary: body.reasoning?.summary || 'auto',
@@ -364,6 +396,17 @@ function openAIChatBodyToCodex(body: any, conversationId: string) {
     service_tier: body.service_tier,
     prompt_cache_key: conversationId,
   };
+}
+
+function codexChatInput(messages: any[]) {
+  const nonSystem = messages.filter((message: any) => message.role !== 'system');
+  if (nonSystem.length > 1) {
+    const transcript = nonSystem
+      .map((message: any) => ({ role: message.role, text: messageText(message) }))
+      .filter((message: any) => message.text.trim());
+    return [{ type: 'message', role: 'user', content: [{ type: 'input_text', text: transcriptPrompt(transcript) }] }];
+  }
+  return nonSystem.map(chatMessageToCodexInput);
 }
 
 function messageText(message: any) {
@@ -376,7 +419,7 @@ function chatMessageToCodexInput(message: any) {
   const content = typeof message.content === 'string'
     ? [{ type: 'input_text', text: message.content }]
     : (Array.isArray(message.content) ? message.content.map(codexContentPart).filter(Boolean) : []);
-  return { type: 'message', role: message.role, content };
+  return { type: 'message', role: message.role === 'assistant' ? 'user' : message.role, content };
 }
 
 function codexContentPart(part: any) {
