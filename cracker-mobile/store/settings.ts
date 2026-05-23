@@ -52,7 +52,7 @@ function getCachedValues() {
 
     return {
         accentColor: s.getString('accentColor') || '#af8787',
-        codeWrap: s.getBoolean('codeWrap') ?? false,
+        codeWrap: s.getBoolean('codeWrap') ?? true,
         autoScroll: s.getBoolean('autoScroll') ?? true,
         modelId,
         modelName,
@@ -199,6 +199,8 @@ export const useSettingsStore = create<SettingsState>((set) => ({
             const userName = String(settings.userName || '');
             const userGender = String(settings.userGender || cached.userGender);
             const enabledMcpServers = (settings.enabledMcpServers as string[]) || defaultUserSettings.enabledMcpServers;
+            const codeWrap = typeof settings.codeWrap === 'boolean' ? settings.codeWrap : cached.codeWrap;
+            const autoScroll = typeof settings.autoScroll === 'boolean' ? settings.autoScroll : cached.autoScroll;
 
             // Persist to MMKV for instant next startup
             try {
@@ -212,6 +214,8 @@ export const useSettingsStore = create<SettingsState>((set) => ({
                 mmkv.set('userName', userName);
                 mmkv.set('userGender', userGender);
                 mmkv.set('enabledMcpServers', JSON.stringify(enabledMcpServers));
+                mmkv.set('codeWrap', codeWrap);
+                mmkv.set('autoScroll', autoScroll);
             } catch { }
 
             set({
@@ -224,6 +228,8 @@ export const useSettingsStore = create<SettingsState>((set) => ({
                 customInstructions,
                 userName,
                 userGender,
+                codeWrap,
+                autoScroll,
                 enabledMcpServers,
                 isSynced: true,
             });
@@ -255,14 +261,18 @@ export const useSettingsStore = create<SettingsState>((set) => ({
             getStorage().set('codeWrap', wrap);
         } catch { }
         set({ codeWrap: wrap });
+        api.updateSettings({ codeWrap: wrap }).catch(() => { });
     },
+
 
     setAutoScroll: (scroll) => {
         try {
             getStorage().set('autoScroll', scroll);
         } catch { }
         set({ autoScroll: scroll });
+        api.updateSettings({ autoScroll: scroll }).catch(() => { });
     },
+
 
     // Remote setters
     setResponseLength: async (length) => {
@@ -353,6 +363,8 @@ export const useSettingsStore = create<SettingsState>((set) => ({
                 userGender: state.userGender,
                 customInstructions: state.customInstructions,
                 enabledMcpServers: state.enabledMcpServers,
+                codeWrap: state.codeWrap,
+                autoScroll: state.autoScroll,
             });
         } catch {
             // Silent fail - will retry on next sync

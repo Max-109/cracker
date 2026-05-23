@@ -71,6 +71,9 @@ export const userSettings = pgTable('user_settings', {
   userGender: text('user_gender').default('not-specified'),
   // Appearance
   accentColor: text('accent_color').default('#af8787'),
+  // UI behavior
+  codeWrap: boolean('code_wrap').default(true),
+  autoScroll: boolean('auto_scroll').default(true),
   // Timestamps
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),

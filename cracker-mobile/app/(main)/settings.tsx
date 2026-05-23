@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import Constants from 'expo-constants';
 import { View, Text, ScrollView, TouchableOpacity, TextInput, Platform, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
@@ -598,7 +599,7 @@ export default function SettingsScreen() {
                             <Ionicons name="phone-portrait-outline" size={20} color={theme.accent} />
                             <Text style={{ fontSize: 15, color: COLORS.textPrimary, fontFamily: FONTS.mono }}>Cracker Mobile</Text>
                         </View>
-                        <Text style={{ fontSize: 14, color: COLORS.textMuted, fontFamily: FONTS.mono }}>v1.0.0</Text>
+                        <Text style={{ fontSize: 14, color: COLORS.textMuted, fontFamily: FONTS.mono }}>v{Constants.expoConfig?.version || '0.2.5'}</Text>
                     </View>
                 </View>
 

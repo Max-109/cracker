@@ -75,6 +75,8 @@ export async function PUT(request: NextRequest) {
       'userGender',
       'enabledMcpServers',
       'memoryEnabled',
+      'codeWrap',
+      'autoScroll',
       'accentColor', // Accent color for UI theming
     ];
 
