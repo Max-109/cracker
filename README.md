@@ -1,4 +1,5 @@
 <div align="center">
+  <img src="./app/icon-template.svg" width="84" alt="Cracker mark" />
   <h1>Cracker</h1>
   <p><strong>A private AI chat app with a sharp, dark interface and support for Codex-style account usage.</strong></p>
   <p>
