@@ -11,10 +11,10 @@
   <h3>Web version</h3>
   <img src="./cracker.gif" alt="Cracker app preview" width="900" />
 
-  <h3>Mobile version (Android app) <span style="font-size: 14px; color: #cbd5e1">(Early build)</span></h3>
+  <h3>Android app</h3>
   <p>
     <img src="./docs/release/mobile-login.jpg" alt="Cracker mobile login" width="300" />
-    <img src="./docs/release/mobile-chat.jpg" alt="Cracker mobile chat" width="300" />
+    <img src="./docs/release/syntax-highlighting-preview.png" alt="Cracker mobile syntax highlighting preview" width="300" />
   </p>
 </div>
 
