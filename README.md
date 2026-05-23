@@ -108,13 +108,16 @@ Use a native build or dev client. The app includes MMKV, Reanimated, dynamic app
 
 ```bash
 cd cracker-mobile
-export JAVA_HOME=/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home
+export JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-21.jdk/Contents/Home
 export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools
 
 bun install
 bunx tsc --noEmit
 cd android
 ./gradlew assembleRelease
+
+# APK will include only arm64-v8a native libs (smaller output):
+# ensure android/gradle.properties has reactNativeArchitectures=arm64-v8a
 cd ../..
 cp cracker-mobile/android/app/build/outputs/apk/release/app-release.apk cracker.apk
 ```
@@ -125,12 +128,12 @@ The latest local build output is `cracker.apk` in the repo root.
 
 ```bash
 cd cracker-mobile
-export JAVA_HOME=/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home
+export JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-21.jdk/Contents/Home
 export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools
 
 bunx expo prebuild --clean --platform android
 ./scripts/copy-foreground-icons.sh
-printf '\norg.gradle.java.home=/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home\nreactNativeArchitectures=arm64-v8a\n' >> android/gradle.properties
+printf '\nreactNativeArchitectures=arm64-v8a\n' >> android/gradle.properties
 echo 'sdk.dir=/opt/homebrew/share/android-commandlinetools' > android/local.properties
 cd android && ./gradlew assembleRelease
 ```

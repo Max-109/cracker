@@ -8,7 +8,7 @@
  */
 
 import { StyleSheet, Platform } from 'react-native';
-import { COLORS, FONTS } from './design';
+import { COLORS, FONTS, withOpacity } from './design';
 
 // Get accent color from theme (will be overridden at runtime)
 const ACCENT_COLOR = '#a855f7'; // Default purple, overridden by theme
@@ -124,12 +124,15 @@ export const createMarkdownStyles = (accent: string = ACCENT_COLOR) => StyleShee
         fontFamily: FONTS.mono,
     },
 
-    // Blockquote - aligned with web formatting (no accent bar)
+    // Blockquote - aligned with web formatting
     blockquote: {
         paddingLeft: 16,
         paddingVertical: 8,
         backgroundColor: '#141414',
         marginVertical: 16,
+        borderLeftWidth: 2,
+        borderLeftColor: withOpacity(accent, 0.7),
+        color: COLORS.textSecondary,
     },
 
     // Inline code - web: "bg-[var(--bg-code)] border px-1.5 py-[2px] text-sm font-mono text-[var(--text-accent)]"
