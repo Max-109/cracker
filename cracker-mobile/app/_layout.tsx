@@ -35,6 +35,7 @@ export default function RootLayout() {
     const { initialize: initOpenAIAccount } = useOpenAIAccountStore();
     const [error, setError] = useState<string | null>(null);
     const [fontsLoaded, setFontsLoaded] = useState(false);
+    const [settingsSynced, setSettingsSynced] = useState(false);
 
     // Load custom fonts
     useEffect(() => {
@@ -62,8 +63,10 @@ export default function RootLayout() {
                 await initAuth();
                 await initOpenAIAccount();
 
-                // Sync from server in background (non-blocking)
-                syncFromServer().catch(() => { });
+                // Pull DB-backed settings before showing the app so accent,
+                // instructions, tools, and model choice are ready immediately.
+                await syncFromServer();
+                setSettingsSynced(true);
             } catch (err) {
                 setError(String(err));
             }
@@ -71,6 +74,14 @@ export default function RootLayout() {
 
         init();
     }, []);
+
+    useEffect(() => {
+        if (!isInitialized || !settingsSynced) return;
+        const interval = setInterval(() => {
+            syncFromServer().catch(() => { });
+        }, 30_000);
+        return () => clearInterval(interval);
+    }, [isInitialized, settingsSynced, syncFromServer]);
 
     if (error) {
         return (
@@ -82,7 +93,7 @@ export default function RootLayout() {
         );
     }
 
-    if (!isInitialized || !fontsLoaded) {
+    if (!isInitialized || !fontsLoaded || !settingsSynced) {
         return (
             <View style={{ flex: 1, backgroundColor: '#0f0f0f', alignItems: 'center', justifyContent: 'center' }}>
                 <ActivityIndicator size="large" color={cachedAccentColor} />

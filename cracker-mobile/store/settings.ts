@@ -60,6 +60,18 @@ function getCachedValues() {
         responseLength: s.getNumber('responseLength') ?? 50,
         chatMode: (s.getString('chatMode') as ChatMode) || 'chat',
         learningSubMode: (s.getString('learningSubMode') as LearningSubMode) || 'summary',
+        customInstructions: s.getString('customInstructions') || '',
+        userName: s.getString('userName') || '',
+        userGender: s.getString('userGender') || 'he',
+        enabledMcpServers: (() => {
+            try {
+                const stored = s.getString('enabledMcpServers');
+                const parsed = stored ? JSON.parse(stored) : null;
+                return Array.isArray(parsed) ? parsed : ['brave-search'];
+            } catch {
+                return ['brave-search'];
+            }
+        })(),
     };
 }
 
@@ -80,10 +92,10 @@ const defaultUserSettings: Partial<UserSettings> = {
     learningMode: false,
     chatMode: cached.chatMode,
     learningSubMode: cached.learningSubMode,
-    customInstructions: '',
-    userName: '',
-    userGender: 'he',
-    enabledMcpServers: ['brave-search'],
+    customInstructions: cached.customInstructions,
+    userName: cached.userName,
+    userGender: cached.userGender,
+    enabledMcpServers: cached.enabledMcpServers,
 };
 
 interface SettingsState {
@@ -183,6 +195,10 @@ export const useSettingsStore = create<SettingsState>((set) => ({
             const length = Number(settings.responseLength) || cached.responseLength;
             const mode = (settings.chatMode as ChatMode) || cached.chatMode;
             const subMode = (settings.learningSubMode as LearningSubMode) || cached.learningSubMode;
+            const customInstructions = String(settings.customInstructions || '');
+            const userName = String(settings.userName || '');
+            const userGender = String(settings.userGender || cached.userGender);
+            const enabledMcpServers = (settings.enabledMcpServers as string[]) || defaultUserSettings.enabledMcpServers;
 
             // Persist to MMKV for instant next startup
             try {
@@ -192,6 +208,10 @@ export const useSettingsStore = create<SettingsState>((set) => ({
                 mmkv.set('responseLength', length);
                 mmkv.set('chatMode', mode as string);
                 mmkv.set('learningSubMode', subMode as string);
+                mmkv.set('customInstructions', customInstructions);
+                mmkv.set('userName', userName);
+                mmkv.set('userGender', userGender);
+                mmkv.set('enabledMcpServers', JSON.stringify(enabledMcpServers));
             } catch { }
 
             set({
@@ -201,10 +221,10 @@ export const useSettingsStore = create<SettingsState>((set) => ({
                 responseLength: length,
                 chatMode: mode,
                 learningSubMode: subMode,
-                customInstructions: String(settings.customInstructions || ''),
-                userName: String(settings.userName || ''),
-                userGender: String(settings.userGender || ''),
-                enabledMcpServers: (settings.enabledMcpServers as string[]) || defaultUserSettings.enabledMcpServers,
+                customInstructions,
+                userName,
+                userGender,
+                enabledMcpServers,
                 isSynced: true,
             });
         } catch {
@@ -246,6 +266,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
 
     // Remote setters
     setResponseLength: async (length) => {
+        try { getStorage().set('responseLength', length); } catch { }
         set({ responseLength: length });
         try {
             await api.updateSettings({ responseLength: length });
@@ -253,6 +274,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
     },
 
     setChatMode: async (mode) => {
+        try { getStorage().set('chatMode', mode as string); } catch { }
         set({ chatMode: mode });
         try {
             await api.updateSettings({ chatMode: mode });
@@ -260,6 +282,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
     },
 
     setLearningSubMode: async (mode) => {
+        try { getStorage().set('learningSubMode', mode as string); } catch { }
         set({ learningSubMode: mode });
         try {
             await api.updateSettings({ learningSubMode: mode });
@@ -267,6 +290,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
     },
 
     setCustomInstructions: async (instructions) => {
+        try { getStorage().set('customInstructions', instructions); } catch { }
         set({ customInstructions: instructions });
         try {
             await api.updateSettings({ customInstructions: instructions });
@@ -274,14 +298,17 @@ export const useSettingsStore = create<SettingsState>((set) => ({
     },
 
     setUserName: (name) => {
+        try { getStorage().set('userName', name); } catch { }
         set({ userName: name });
     },
 
     setUserGender: (gender) => {
+        try { getStorage().set('userGender', gender); } catch { }
         set({ userGender: gender });
     },
 
     setEnabledMcpServers: async (servers) => {
+        try { getStorage().set('enabledMcpServers', JSON.stringify(servers)); } catch { }
         set({ enabledMcpServers: servers });
         try {
             await api.updateSettings({ enabledMcpServers: servers });
@@ -289,6 +316,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
     },
 
     setReasoningEffort: async (effort) => {
+        try { getStorage().set('reasoningEffort', effort as string); } catch { }
         set({ reasoningEffort: effort });
         try {
             await api.updateSettings({ reasoningEffort: effort });
@@ -311,11 +339,9 @@ export const useSettingsStore = create<SettingsState>((set) => ({
     toggleMcpServer: (serverSlug, enabled) => {
         set((state) => {
             const servers = state.enabledMcpServers;
-            if (enabled) {
-                return { enabledMcpServers: [...servers, serverSlug] };
-            } else {
-                return { enabledMcpServers: servers.filter(s => s !== serverSlug) };
-            }
+            const nextServers = enabled ? [...servers, serverSlug] : servers.filter(s => s !== serverSlug);
+            try { getStorage().set('enabledMcpServers', JSON.stringify(nextServers)); } catch { }
+            return { enabledMcpServers: nextServers };
         });
     },
 
@@ -325,6 +351,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
             await api.updateSettings({
                 userName: state.userName,
                 userGender: state.userGender,
+                customInstructions: state.customInstructions,
                 enabledMcpServers: state.enabledMcpServers,
             });
         } catch {
