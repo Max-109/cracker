@@ -9,7 +9,9 @@ export async function GET() {
     const authUser = await getAuthUser();
 
     if (!authUser) {
-      return NextResponse.json({ user: null }, { status: 401 });
+      // No active session is a normal app state on first page load.
+      // Return 200 so browsers do not log a noisy failed resource for auth probing.
+      return NextResponse.json({ user: null });
     }
 
     const db = getDb();
@@ -26,7 +28,7 @@ export async function GET() {
       .where(eq(users.id, authUser.id));
 
     if (!profile) {
-      return NextResponse.json({ user: null }, { status: 401 });
+      return NextResponse.json({ user: null });
     }
 
     return NextResponse.json({

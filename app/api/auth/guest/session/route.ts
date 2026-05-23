@@ -8,7 +8,8 @@ export async function GET() {
   try {
     const authUser = await getAuthUser();
     if (!authUser?.isGuest) {
-      return NextResponse.json({ user: null }, { status: 401 });
+      // No guest session is a normal auth probe result, not a request failure.
+      return NextResponse.json({ user: null });
     }
 
     const db = getDb();
@@ -24,7 +25,7 @@ export async function GET() {
       .where(eq(users.id, authUser.id));
 
     if (!guestUser?.isGuest) {
-      return NextResponse.json({ user: null }, { status: 401 });
+      return NextResponse.json({ user: null });
     }
 
     return NextResponse.json({ user: guestUser });
