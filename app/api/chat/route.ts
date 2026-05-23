@@ -19,13 +19,15 @@ export async function GET(req: Request) {
   const db = getDb();
   const { searchParams } = new URL(req.url);
   const chatId = searchParams.get('chatId');
+  const afterParam = searchParams.get('after');
+  const after = afterParam ? new Date(Number(afterParam)) : undefined;
 
   if (!chatId) {
     return NextResponse.json({ error: 'chatId required' }, { status: 400 });
   }
 
   try {
-    return NextResponse.json(await getLatestAssistantStats(db, chatId));
+    return NextResponse.json(await getLatestAssistantStats(db, chatId, after && !Number.isNaN(after.getTime()) ? after : undefined));
   } catch (error) {
     console.error('Failed to fetch chat stats:', error);
     return NextResponse.json({ error: 'Failed to fetch stats' }, { status: 500 });

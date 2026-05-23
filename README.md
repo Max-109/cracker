@@ -108,19 +108,24 @@ Use a native build or dev client. The app includes MMKV, Reanimated, dynamic app
 
 ```bash
 cd cracker-mobile
-export JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-21.jdk/Contents/Home
+export JAVA_HOME=/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home
 export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools
+export PATH="$JAVA_HOME/bin:$PATH"
+
+# Required for local Gradle builds. Keep APK small: arm64-v8a only.
+echo 'sdk.dir=/opt/homebrew/share/android-commandlinetools' > android/local.properties
+grep -q '^reactNativeArchitectures=arm64-v8a' android/gradle.properties || \
+  printf '\nreactNativeArchitectures=arm64-v8a\n' >> android/gradle.properties
 
 bun install
 bunx tsc --noEmit
 cd android
 ./gradlew assembleRelease
-
-# APK will include only arm64-v8a native libs (smaller output):
-# ensure android/gradle.properties has reactNativeArchitectures=arm64-v8a
 cd ../..
 cp cracker-mobile/android/app/build/outputs/apk/release/app-release.apk cracker.apk
 ```
+
+Use Java 17 for Android builds. Java 21+ is misleading here and can fail with this React Native/Gradle setup.
 
 The latest local build output is `cracker.apk` in the repo root.
 
@@ -128,14 +133,18 @@ The latest local build output is `cracker.apk` in the repo root.
 
 ```bash
 cd cracker-mobile
-export JAVA_HOME=/Library/Java/JavaVirtualMachines/temurin-21.jdk/Contents/Home
+export JAVA_HOME=/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home
 export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools
+export PATH="$JAVA_HOME/bin:$PATH"
 
 bunx expo prebuild --clean --platform android
 ./scripts/copy-foreground-icons.sh
-printf '\nreactNativeArchitectures=arm64-v8a\n' >> android/gradle.properties
+printf '\norg.gradle.java.home=/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home\nreactNativeArchitectures=arm64-v8a\n' >> android/gradle.properties
 echo 'sdk.dir=/opt/homebrew/share/android-commandlinetools' > android/local.properties
+bunx tsc --noEmit
 cd android && ./gradlew assembleRelease
+cd ../..
+cp cracker-mobile/android/app/build/outputs/apk/release/app-release.apk cracker.apk
 ```
 
 ## Project layout

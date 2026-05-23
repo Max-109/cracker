@@ -232,6 +232,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
 
   // Streaming stats
   const streamingStartTimeRef = useRef<number | null>(null);
+  const statsRequestStartRef = useRef<number | null>(null);
   const [streamingStats, setStreamingStats] = useState<{ tokensPerSecond: number; modelId: string | null }>({ tokensPerSecond: 0, modelId: null });
 
 
@@ -296,13 +297,13 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
     },
   }), []);
 
-  const fetchCompletionStats = useCallback(async (chatId: string) => {
+  const fetchCompletionStats = useCallback(async (chatId: string, after?: number | null) => {
     for (let attempt = 0; attempt < 6; attempt++) {
       if (attempt > 0) {
         await new Promise(resolve => setTimeout(resolve, 150 * attempt));
       }
 
-      const statsRes = await fetch(`/api/chat?chatId=${chatId}`);
+      const statsRes = await fetch(`/api/chat?chatId=${chatId}${after ? `&after=${after}` : ''}`);
       if (!statsRes.ok) continue;
 
       const serverStats = await statsRes.json();
@@ -310,7 +311,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
       const parsedTps = typeof rawTps === 'number' ? rawTps : Number.parseFloat(String(rawTps ?? ''));
       const tokensPerSecond = Number.isFinite(parsedTps) && parsedTps > 0 ? parsedTps : null;
 
-      if (tokensPerSecond != null || serverStats.modelId) {
+      if (tokensPerSecond != null) {
         return {
           modelId: serverStats.modelId || currentModelIdRef.current,
           tokensPerSecond,
@@ -339,7 +340,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
         }
 
         try {
-          const serverStats = await fetchCompletionStats(activeId);
+          const serverStats = await fetchCompletionStats(activeId, statsRequestStartRef.current);
           if (serverStats) {
             setStreamingStats({
               modelId: serverStats.modelId,
@@ -667,6 +668,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
     } else if (status === 'ready') {
       streamingStartTimeRef.current = null;
     } else if (status === 'submitted') {
+      statsRequestStartRef.current = Date.now();
       console.log(`[CLIENT DEBUG] ${new Date().toISOString()} === REQUEST SUBMITTED (waiting for response) ===`);
     }
   }, [status, currentModelId]);

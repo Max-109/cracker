@@ -29,7 +29,7 @@ export async function POST(req: Request) {
       role,
       content: encryptedContent,
       model: model || null,
-      tokensPerSecond: formatTokensPerSecond(tokenSpeed ?? tokensPerSecond),
+      tokensPerSecond: role === 'assistant' ? null : formatTokensPerSecond(tokenSpeed ?? tokensPerSecond),
       learningSubMode: learningSubMode || null,
     }).returning();
 

@@ -1,7 +1,7 @@
 import { messages as messagesTable } from '@/db/schema';
 import { encryptContent, getOrCreateChatDek } from '@/lib/encryption';
 import { splitThinkingBlocks } from '@/lib/thinking-text';
-import { and, desc, eq } from 'drizzle-orm';
+import { and, desc, eq, gt } from 'drizzle-orm';
 import type { LearningSubMode } from './types';
 
 const MAX_REASONABLE_TOKENS_PER_SECOND = 500;
@@ -16,14 +16,20 @@ function formatTokensPerSecond(value: unknown): string | null {
   return normalized == null ? null : String(Math.round(normalized * 10) / 10);
 }
 
-export async function getLatestAssistantStats(db: any, chatId: string) {
+export async function getLatestAssistantStats(db: any, chatId: string, after?: Date) {
   const [lastMessage] = await db
     .select({
+      id: messagesTable.id,
+      createdAt: messagesTable.createdAt,
       tokensPerSecond: messagesTable.tokensPerSecond,
       model: messagesTable.model,
     })
     .from(messagesTable)
-    .where(and(eq(messagesTable.chatId, chatId), eq(messagesTable.role, 'assistant')))
+    .where(and(
+      eq(messagesTable.chatId, chatId),
+      eq(messagesTable.role, 'assistant'),
+      ...(after ? [gt(messagesTable.createdAt, after)] : []),
+    ))
     .orderBy(desc(messagesTable.createdAt), desc(messagesTable.id))
     .limit(1);
 
@@ -33,6 +39,8 @@ export async function getLatestAssistantStats(db: any, chatId: string) {
     tokensPerSecond,
     tokenSpeed: tokensPerSecond,
     modelId: lastMessage?.model || null,
+    messageId: lastMessage?.id || null,
+    createdAt: lastMessage?.createdAt || null,
   };
 }
 

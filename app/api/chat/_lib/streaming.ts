@@ -19,6 +19,7 @@ export function streamChatCompletion(params: {
 }) {
   const requestStartTime = Date.now();
   let firstChunkTime: number | null = null;
+  let firstGeneratedChunkTime: number | null = null;
   let firstReasoningTime: number | null = null;
 
   return streamText({
@@ -46,6 +47,7 @@ export function streamChatCompletion(params: {
         console.log(`[CHUNK] First chunk type: ${chunkType}`);
       }
       if (chunkType === 'text-delta') {
+        if (!firstGeneratedChunkTime) firstGeneratedChunkTime = now;
         const textChunk = chunk as { type: string; textDelta?: string };
         console.log(`[CHUNK] text-delta: "${textChunk.textDelta?.slice(0, 50)}..."`);
       } else {
@@ -53,6 +55,7 @@ export function streamChatCompletion(params: {
       }
       if ((chunkType === 'reasoning-delta' || chunkType === 'reasoning') && !firstReasoningTime) {
         firstReasoningTime = now;
+        if (!firstGeneratedChunkTime) firstGeneratedChunkTime = now;
         console.log(`[CHUNK] First reasoning chunk detected at ${now - requestStartTime}ms`);
       }
     },
@@ -62,6 +65,7 @@ export function streamChatCompletion(params: {
         modelId: params.modelId,
         requestStartTime,
         firstChunkTime,
+        firstGeneratedChunkTime,
         firstReasoningTime,
         endTime,
         text,
@@ -92,6 +96,7 @@ function collectFinishStats(args: {
   modelId: string;
   requestStartTime: number;
   firstChunkTime: number | null;
+  firstGeneratedChunkTime: number | null;
   firstReasoningTime: number | null;
   endTime: number;
   text?: string;
@@ -100,11 +105,12 @@ function collectFinishStats(args: {
   steps?: any[];
 }) {
   let tps: number | null = null;
-  const { modelId, requestStartTime, firstChunkTime, firstReasoningTime, endTime, text, reasoning, usage, steps } = args;
+  const { modelId, requestStartTime, firstChunkTime, firstGeneratedChunkTime, firstReasoningTime, endTime, text, reasoning, usage, steps } = args;
 
   console.log(`\n========== TPS DEBUG [${modelId}] ==========`);
   console.log(`requestStartTime: ${requestStartTime}`);
   console.log(`firstReasoningTime: ${firstReasoningTime}`);
+  console.log(`firstGeneratedChunkTime: ${firstGeneratedChunkTime}`);
   console.log(`firstChunkTime: ${firstChunkTime}`);
   console.log(`endTime: ${endTime}`);
   console.log('usage object:', JSON.stringify(usage, null, 2));
@@ -149,7 +155,7 @@ function collectFinishStats(args: {
   console.log(`totalTokens: ${totalTokens}`);
   console.log(`reasoningTokens: ${reasoningTokens}`);
 
-  const generationStartTime = firstReasoningTime || firstChunkTime;
+  const generationStartTime = firstGeneratedChunkTime || firstReasoningTime;
   if (generationStartTime) {
     const ttft = (generationStartTime - requestStartTime) / 1000;
     const measuredGenerationMs = endTime - generationStartTime;
@@ -165,7 +171,7 @@ function collectFinishStats(args: {
     }
 
     const fallbackGeneratedTokens = totalTokens > inputTokens ? totalTokens - inputTokens : outputTokens;
-    const tokensGenerated = outputTokens > 0 ? outputTokens + reasoningTokens : fallbackGeneratedTokens;
+    const tokensGenerated = outputTokens > 0 ? outputTokens : fallbackGeneratedTokens;
     const rawTps = tokensGenerated > 0 && generationSeconds > 0 ? tokensGenerated / generationSeconds : null;
     if (rawTps && rawTps > 0 && rawTps <= MAX_REASONABLE_TOKENS_PER_SECOND) {
       tps = rawTps;

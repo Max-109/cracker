@@ -35,15 +35,15 @@ function normalizeTokensPerSecond(value: unknown): number | undefined {
     return Number.isFinite(parsed) && parsed > 0 && parsed <= MAX_REASONABLE_TOKENS_PER_SECOND ? parsed : undefined;
 }
 
-async function fetchLatestAssistantStats(chatId: string) {
+async function fetchLatestAssistantStats(chatId: string, after?: number) {
     for (let attempt = 0; attempt < 6; attempt++) {
         if (attempt > 0) {
             await new Promise(resolve => setTimeout(resolve, 150 * attempt));
         }
 
-        const stats = await apiFetch<{ tokenSpeed?: number | null; tokensPerSecond?: number | string | null; modelId?: string | null }>(`/api/chat?chatId=${chatId}`);
+        const stats = await apiFetch<{ tokenSpeed?: number | null; tokensPerSecond?: number | string | null; modelId?: string | null }>(`/api/chat?chatId=${chatId}${after ? `&after=${after}` : ''}`);
         const tokensPerSecond = normalizeTokensPerSecond(stats.tokenSpeed ?? stats.tokensPerSecond);
-        if (tokensPerSecond != null || stats.modelId) {
+        if (tokensPerSecond != null) {
             return { tokensPerSecond, modelId: stats.modelId || undefined };
         }
     }
@@ -303,6 +303,7 @@ export default function ChatScreen() {
             effort = autoReasoning.effort;
         } catch { }
 
+        const requestStartedAt = Date.now();
         let firstTextTime: number | null = null;
 
         // Create abort controller
@@ -423,13 +424,13 @@ export default function ChatScreen() {
                                     ...updated[lastIndex],
                                     content: contentParts.length > 0 ? contentParts : finalText,
                                     model: currentModelId || 'gpt-5.4-mini',
-                                    tokensPerSecond: currentTpsRef.current,
+                                    tokensPerSecond: undefined,
                                 };
                             }
                             return updated;
                         });
 
-                        fetchLatestAssistantStats(id)
+                        fetchLatestAssistantStats(id, requestStartedAt)
                             .then(stats => {
                                 if (!stats) return;
                                 setMessages(prev => {
