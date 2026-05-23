@@ -1,7 +1,7 @@
 <div align="center">
   <img src="./app/icon-template.svg" width="84" alt="Cracker mark" />
   <h1>Cracker</h1>
-  <p><strong>A private AI chat app with a sharp, dark interface and support for Codex-style account usage.</strong></p>
+  <p><strong>AI chat web and mobile app focused on UI/UX.</strong></p>
   <p>
     <img alt="Next.js" src="https://img.shields.io/badge/Next.js-16-%23d4a86b?style=for-the-badge&labelColor=3f3f46" />
     <img alt="React" src="https://img.shields.io/badge/React-19-%23d4a86b?style=for-the-badge&labelColor=3f3f46" />
