@@ -216,8 +216,16 @@ export async function apiStreamFetch(
 
                         try {
                             const event = JSON.parse(data);
-                            const shouldContinue = onEvent(event);
-                            if (shouldContinue === false || (event as { type?: string }).type === 'finish') return;
+                            const eventObj = event as { type?: string; error?: unknown; message?: unknown };
+                            if (eventObj.type === 'error' || eventObj.error) {
+                                const message = typeof eventObj.error === 'string'
+                                    ? eventObj.error
+                                    : typeof eventObj.message === 'string'
+                                        ? eventObj.message
+                                        : 'The model request failed.';
+                                throw new Error(message);
+                            }
+                            onEvent(event);
                         } catch {
                             // Skip invalid JSON
                         }

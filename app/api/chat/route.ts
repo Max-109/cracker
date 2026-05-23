@@ -122,6 +122,7 @@ export async function POST(req: Request) {
       openaiProvider: useLocalOpenAIAccount
         ? createOpenAIAccountProvider(openAIAccountAuths)
         : createOpenAIProviderOverride(providerOverride) || undefined,
+      useResponsesApi: useLocalOpenAIAccount,
     });
 
     extractAndStoreFactsInBackground(

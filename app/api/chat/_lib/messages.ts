@@ -1,5 +1,6 @@
 import { convertToModelMessages, type UIMessage } from 'ai';
 import { getTempAttachmentIdFromUrl, readTempAttachment } from '@/lib/temp-attachments';
+import { stripThinkingBlocks } from '@/lib/thinking-text';
 import type { ChatInputMessage } from './types';
 
 export async function prepareModelMessages(messages: ChatInputMessage[]) {
@@ -120,7 +121,7 @@ async function hydrateImagePart<T extends { image?: string }>(part: T) {
 function normalizeUiMessages(messages: ChatInputMessage[]) {
   return messages.map((msg) => {
     if (typeof msg.content === 'string') {
-      const parts = [{ type: 'text', text: msg.content }];
+      const parts = [{ type: 'text', text: msg.role === 'assistant' ? stripThinkingBlocks(msg.content) : msg.content }];
       return { id: msg.id || `msg-${Date.now()}`, role: msg.role, content: parts, parts };
     }
 
@@ -177,6 +178,10 @@ function normalizeParts(parts: unknown[]) {
     const mediaType = p.mediaType || p.mimeType || '';
     const fileData = typeof p.data === 'string' ? p.data : typeof p.url === 'string' ? p.url : '';
 
+    if (p.type === 'text' && typeof (p as { text?: unknown }).text === 'string') {
+      return { ...p, text: stripThinkingBlocks(String((p as { text?: string }).text || '')) };
+    }
+
     if (p.type === 'file' && fileData && isTextLikeAttachment(mediaType)) {
       const text = decodeAttachmentText(fileData);
       if (text !== null) {
@@ -227,7 +232,7 @@ function flattenAssistantHistory<T extends Array<{ role: string; content?: unkno
         // Never send hidden reasoning back as assistant history. It can be very
         // large and some providers reject or stall on reasoning parts in prior
         // assistant messages. Keep only user-visible assistant text.
-        if (p.type === 'text' && typeof p.text === 'string') return p.text;
+        if (p.type === 'text' && typeof p.text === 'string') return stripThinkingBlocks(p.text);
         return '';
       })
       .filter(Boolean)

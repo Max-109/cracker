@@ -28,15 +28,36 @@ interface ChatItem {
     createdAt: string;
 }
 
+function stripThinkingBlocks(input: string) {
+    let text = input || '';
+    const extract = (startToken: string, endTokens: string[]) => {
+        let start = text.indexOf(startToken);
+        while (start !== -1) {
+            const innerStart = start + startToken.length;
+            const closing = endTokens
+                .map((token) => ({ token, index: text.indexOf(token, innerStart) }))
+                .filter((item) => item.index !== -1)
+                .sort((a, b) => a.index - b.index)[0];
+            text = closing
+                ? `${text.slice(0, start)}${text.slice(closing.index + closing.token.length)}`
+                : text.slice(0, start);
+            start = text.indexOf(startToken);
+        }
+    };
+    extract('<think>', ['</think>', '/think']);
+    extract('/think', ['/think']);
+    return text.trim();
+}
+
 function contentForRequest(message: ChatMessage) {
-    if (typeof message.content === 'string') return message.content;
+    if (typeof message.content === 'string') return message.role === 'assistant' ? stripThinkingBlocks(message.content) : message.content;
     if (!Array.isArray(message.content)) return '';
 
     // For assistant history, send only visible text back to the model. Sending
     // stored reasoning parts on the next turn can make providers stall/reject.
     if (message.role === 'assistant') {
         return message.content
-            .map((part) => part.type === 'text' ? (part.text || '') : '')
+            .map((part) => part.type === 'text' ? stripThinkingBlocks(part.text || '') : '')
             .filter(Boolean)
             .join('\n');
     }

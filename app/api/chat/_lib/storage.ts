@@ -1,5 +1,6 @@
 import { messages as messagesTable } from '@/db/schema';
 import { encryptContent, getOrCreateChatDek } from '@/lib/encryption';
+import { splitThinkingBlocks } from '@/lib/thinking-text';
 import { and, desc, eq } from 'drizzle-orm';
 import type { LearningSubMode } from './types';
 
@@ -60,14 +61,21 @@ export async function saveAssistantMessage(db: any, params: {
       });
     }
 
+    const splitText = splitThinkingBlocks(text || '');
+    const reasoningParts: string[] = [];
+
     if (reasoning && typeof reasoning === 'string') {
-      contentParts.push({ type: 'reasoning', text: reasoning, reasoning });
+      reasoningParts.push(reasoning);
     } else if (Array.isArray(reasoning) && reasoning.length > 0) {
       const reasoningText = reasoning.map((r) => r.text || '').join('');
-      if (reasoningText) contentParts.push({ type: 'reasoning', text: reasoningText, reasoning: reasoningText });
+      if (reasoningText) reasoningParts.push(reasoningText);
     }
+    if (splitText.thinking) reasoningParts.push(splitText.thinking);
 
-    if (text) contentParts.push({ type: 'text', text });
+    const reasoningText = reasoningParts.filter(Boolean).join('\n\n');
+    if (reasoningText) contentParts.push({ type: 'reasoning', text: reasoningText, reasoning: reasoningText });
+
+    if (splitText.text) contentParts.push({ type: 'text', text: splitText.text });
 
     if (files && files.length > 0) {
       console.log(`[API] Processing ${files.length} generated files`);
