@@ -47,6 +47,7 @@ export default function ChatInput({
 
     const hasText = value.trim().length > 0;
     const BUTTON_SIZE = 44;
+    const fastModeDisabled = isLoading || isStreaming || !supportsPriority;
 
     const handleSendPress = () => {
         if (hasText && !isLoading) {
@@ -68,7 +69,7 @@ export default function ChatInput({
     };
 
     const handleFastModePress = () => {
-        if (supportsPriority && !isLoading && onFastModeChange) {
+        if (!fastModeDisabled && onFastModeChange) {
             onFastModeChange(!fastMode);
         }
     };
@@ -177,18 +178,18 @@ export default function ChatInput({
                 {/* Fast mode - matches web priority toggle, placed left of send/stop */}
                 <TouchableOpacity
                     onPress={handleFastModePress}
-                    disabled={isLoading || !supportsPriority}
+                    disabled={fastModeDisabled}
                     activeOpacity={0.75}
                     accessibilityRole="button"
                     accessibilityLabel="Toggle priority service"
-                    accessibilityState={{ disabled: isLoading || !supportsPriority, selected: fastMode }}
+                    accessibilityState={{ disabled: fastModeDisabled, selected: fastMode }}
                     style={{
                         width: 40,
                         height: 40,
                         backgroundColor: fastMode ? theme.accent : COLORS.bgCard,
                         borderWidth: 1,
                         borderColor: fastMode ? theme.accent : COLORS.border,
-                        opacity: isLoading || !supportsPriority ? 0.5 : 1,
+                        opacity: fastModeDisabled ? 0.5 : 1,
                         borderRadius: BORDER_RADIUS,
                         alignItems: 'center',
                         justifyContent: 'center',

@@ -19,6 +19,7 @@ import { MessageThreadSkeleton } from '../../../components/ui/Skeleton';
 import Drawer from '../../../components/navigation/Drawer';
 import ErrorBoundary from '../../../components/ErrorBoundary';
 import { COLORS, FONTS } from '../../../lib/design';
+import { modelSupportsPriority } from '../../../lib/model-capabilities';
 import { showAppDialog } from '../../../components/ui/AppDialog';
 
 interface ChatItem {
@@ -29,15 +30,6 @@ interface ChatItem {
 }
 
 const MAX_REASONABLE_TOKENS_PER_SECOND = 500;
-const PRIORITY_MODEL_IDS = new Set(['gpt-5.5']);
-const LEGACY_PRIORITY_MODEL_IDS: Record<string, string> = {
-    'gemini-3-pro-preview': 'gpt-5.5',
-};
-
-function mobileModelSupportsPriority(modelId: string) {
-    const normalized = LEGACY_PRIORITY_MODEL_IDS[modelId] || modelId.replace('openai/', '');
-    return PRIORITY_MODEL_IDS.has(normalized);
-}
 
 function normalizeTokensPerSecond(value: unknown): number | undefined {
     const parsed = typeof value === 'number' ? value : Number.parseFloat(String(value ?? ''));
@@ -144,12 +136,18 @@ export default function ChatScreen() {
         setFastMode,
     } = useSettingsStore();
     const learningMode = chatMode === 'learning';
-    const supportsPriority = mobileModelSupportsPriority(currentModelId);
+    const supportsPriority = modelSupportsPriority(currentModelId);
     const { auth: openAIAccountAuth, enabled: useOpenAIAccount, refreshUsage } = useOpenAIAccountStore();
 
     const statusBarHeight = Platform.OS === 'android' ? (StatusBar.currentHeight || 24) : 0;
 
     const effectiveFastMode = fastMode && supportsPriority;
+
+    useEffect(() => {
+        if (fastMode && !supportsPriority) {
+            setFastMode(false);
+        }
+    }, [fastMode, supportsPriority, setFastMode]);
 
     // Load chats for drawer
     const loadChats = useCallback(async () => {

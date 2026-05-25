@@ -17,6 +17,7 @@ import { useTheme } from '../../store/theme';
 import { api } from '../../lib/api';
 import type { MessagePart } from '../../lib/types';
 import { useAuthStore } from '../../store/auth';
+import { useSettingsStore } from '../../store/settings';
 import ChatInput from '../../components/ui/ChatInput';
 import SuggestionCard, { SUGGESTIONS } from '../../components/ui/SuggestionCard';
 import ChatBackground from '../../components/ui/ChatBackground';
@@ -25,6 +26,7 @@ import PanelLeftIcon from '../../components/ui/PanelLeftIcon';
 import Drawer from '../../components/navigation/Drawer';
 import { useAttachments } from '../../hooks/useAttachments';
 import { COLORS, FONTS } from '../../lib/design';
+import { modelSupportsPriority } from '../../lib/model-capabilities';
 import { showAppDialog } from '../../components/ui/AppDialog';
 
 interface ChatItem {
@@ -37,6 +39,7 @@ interface ChatItem {
 export default function HomeScreen() {
     const theme = useTheme();
     const { user } = useAuthStore();
+    const { currentModelId, fastMode, setFastMode } = useSettingsStore();
     const [chats, setChats] = useState<ChatItem[]>([]);
     const [inputValue, setInputValue] = useState('');
     const [isCreating, setIsCreating] = useState(false);
@@ -137,6 +140,14 @@ export default function HomeScreen() {
     };
 
     const statusBarHeight = Platform.OS === 'android' ? (StatusBar.currentHeight || 24) : 0;
+    const supportsPriority = modelSupportsPriority(currentModelId);
+    const effectiveFastMode = fastMode && supportsPriority;
+
+    useEffect(() => {
+        if (fastMode && !supportsPriority) {
+            setFastMode(false);
+        }
+    }, [fastMode, supportsPriority, setFastMode]);
 
     return (
         <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.bgMain }}>
@@ -401,6 +412,9 @@ export default function HomeScreen() {
                     onAttachment={pickAttachment}
                     isLoading={isCreating}
                     isRecording={false}
+                    fastMode={effectiveFastMode}
+                    onFastModeChange={setFastMode}
+                    supportsPriority={supportsPriority}
                     placeholder="Let's crack..."
                 />
             </KeyboardAvoidingView>
