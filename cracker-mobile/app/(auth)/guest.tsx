@@ -82,8 +82,6 @@ export default function GuestScreen() {
                     }}
                     keyboardShouldPersistTaps="handled"
                 >
-                    <Logo />
-
                     {/* Guest Login Card */}
                     <Animated.View
                         entering={FadeInDown.delay(200).duration(500)}
