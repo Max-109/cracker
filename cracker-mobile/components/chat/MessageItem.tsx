@@ -11,7 +11,8 @@
  */
 
 import React, { useState, useCallback, useMemo } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Clipboard, Share, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Share, Platform } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 import Animated, {
     FadeIn,
     FadeInRight,
@@ -364,7 +365,7 @@ export default function MessageItem({
 
     const handleCopy = useCallback(async () => {
         try {
-            Clipboard.setString(parsedThinking.finalContent || content || '');
+            await Clipboard.setStringAsync(parsedThinking.finalContent || content || '');
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
         } catch { }
@@ -562,8 +563,9 @@ const styles = StyleSheet.create({
         justifyContent: 'flex-start',
     },
     assistantInner: {
-        width: '100%',
-        flexShrink: 1,
+        flex: 1,
+        minWidth: 0,
+        alignSelf: 'stretch',
         alignItems: 'stretch',
     },
     assistantHeader: {

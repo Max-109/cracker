@@ -6,7 +6,8 @@
  */
 
 import React, { useCallback, useMemo, useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, Clipboard, StyleSheet, type TextStyle } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, StyleSheet, type TextStyle } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 import { Ionicons } from '@expo/vector-icons';
 import * as refractor from 'refractor';
 import { useTheme, type ThemeColors } from '../../store/theme';
@@ -163,7 +164,7 @@ export default function CodeBlock({ language, value }: CodeBlockProps) {
 
     const handleCopy = useCallback(async () => {
         try {
-            Clipboard.setString(value);
+            await Clipboard.setStringAsync(value);
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
         } catch { }

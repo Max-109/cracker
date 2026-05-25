@@ -1,7 +1,11 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { Audio } from 'expo-av';
+import {
+    RecordingPresets,
+    requestRecordingPermissionsAsync,
+    setAudioModeAsync,
+    useAudioRecorder,
+} from 'expo-audio';
 import * as FileSystem from 'expo-file-system';
-import { Platform } from 'react-native';
 import { showAppDialog } from '../components/ui/AppDialog';
 
 interface UseVoiceRecordingReturn {
@@ -17,7 +21,7 @@ export function useVoiceRecording(): UseVoiceRecordingReturn {
     const [isRecording, setIsRecording] = useState(false);
     const [isProcessing, setIsProcessing] = useState(false);
     const [recordingDuration, setRecordingDuration] = useState(0);
-    const recordingRef = useRef<Audio.Recording | null>(null);
+    const recorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
     const durationIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     // Cleanup on unmount
@@ -26,34 +30,31 @@ export function useVoiceRecording(): UseVoiceRecordingReturn {
             if (durationIntervalRef.current) {
                 clearInterval(durationIntervalRef.current);
             }
-            if (recordingRef.current) {
-                recordingRef.current.stopAndUnloadAsync().catch(() => { });
+            if (recorder.isRecording) {
+                recorder.stop().catch(() => { });
             }
         };
-    }, []);
+    }, [recorder]);
 
     const startRecording = useCallback(async () => {
         try {
             // Request permissions
-            const { status } = await Audio.requestPermissionsAsync();
+            const { status } = await requestRecordingPermissionsAsync();
             if (status !== 'granted') {
                 showAppDialog({ title: 'Permission Required', message: 'Microphone permission is needed to record audio.', tone: 'warning' });
                 return;
             }
 
             // Configure audio mode
-            await Audio.setAudioModeAsync({
-                allowsRecordingIOS: true,
-                playsInSilentModeIOS: true,
-                staysActiveInBackground: false,
+            await setAudioModeAsync({
+                allowsRecording: true,
+                playsInSilentMode: true,
+                shouldPlayInBackground: false,
             });
 
-            // Create and start recording
-            const { recording } = await Audio.Recording.createAsync(
-                Audio.RecordingOptionsPresets.HIGH_QUALITY
-            );
+            await recorder.prepareToRecordAsync();
+            recorder.record();
 
-            recordingRef.current = recording;
             setIsRecording(true);
             setRecordingDuration(0);
 
@@ -65,10 +66,10 @@ export function useVoiceRecording(): UseVoiceRecordingReturn {
         } catch {
             showAppDialog({ title: 'Error', message: 'Failed to start recording', tone: 'error' });
         }
-    }, []);
+    }, [recorder]);
 
     const stopRecording = useCallback(async (): Promise<string | null> => {
-        if (!recordingRef.current) return null;
+        if (!recorder.isRecording) return null;
 
         try {
             setIsProcessing(true);
@@ -80,15 +81,14 @@ export function useVoiceRecording(): UseVoiceRecordingReturn {
             }
 
             // Stop and save recording
-            await recordingRef.current.stopAndUnloadAsync();
-            const uri = recordingRef.current.getURI();
+            await recorder.stop();
+            const uri = recorder.uri;
 
             // Reset audio mode
-            await Audio.setAudioModeAsync({
-                allowsRecordingIOS: false,
+            await setAudioModeAsync({
+                allowsRecording: false,
             });
 
-            recordingRef.current = null;
             setIsRecording(false);
             setRecordingDuration(0);
             setIsProcessing(false);
@@ -99,10 +99,10 @@ export function useVoiceRecording(): UseVoiceRecordingReturn {
             setIsProcessing(false);
             return null;
         }
-    }, []);
+    }, [recorder]);
 
     const cancelRecording = useCallback(async () => {
-        if (!recordingRef.current) return;
+        if (!recorder.isRecording) return;
 
         try {
             // Stop duration timer
@@ -111,26 +111,25 @@ export function useVoiceRecording(): UseVoiceRecordingReturn {
                 durationIntervalRef.current = null;
             }
 
-            await recordingRef.current.stopAndUnloadAsync();
+            await recorder.stop();
 
             // Delete the temp file
-            const uri = recordingRef.current.getURI();
+            const uri = recorder.uri;
             if (uri) {
                 await FileSystem.deleteAsync(uri, { idempotent: true });
             }
 
             // Reset audio mode
-            await Audio.setAudioModeAsync({
-                allowsRecordingIOS: false,
+            await setAudioModeAsync({
+                allowsRecording: false,
             });
 
-            recordingRef.current = null;
             setIsRecording(false);
             setRecordingDuration(0);
         } catch {
             setIsRecording(false);
         }
-    }, []);
+    }, [recorder]);
 
     return {
         isRecording,
