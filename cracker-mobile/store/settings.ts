@@ -28,7 +28,6 @@ function getStorage(): MMKV {
     return storage as MMKV;
 }
 
-// Pre-load cached values - called once at module load for instant startup
 const MODEL_NAMES: Record<string, string> = {
     'gpt-5.5': 'Expert',
     'gpt-5.4-mini': 'Balanced',
@@ -78,6 +77,69 @@ function getCachedValues() {
 
 const cached = getCachedValues();
 
+type SettingsField =
+    | 'accentColor'
+    | 'codeWrap'
+    | 'autoScroll'
+    | 'fastMode'
+    | 'currentModelId'
+    | 'currentModelName'
+    | 'reasoningEffort'
+    | 'responseLength'
+    | 'chatMode'
+    | 'learningSubMode'
+    | 'customInstructions'
+    | 'userName'
+    | 'userGender'
+    | 'enabledMcpServers';
+
+const LOCAL_WRITE_GRACE_MS = 10_000;
+const localEditedAt = new Map<SettingsField, number>();
+const pendingFields = new Set<SettingsField>();
+const editingFields = new Set<SettingsField>();
+let syncPromise: Promise<void> | null = null;
+let accentSaveTimer: ReturnType<typeof setTimeout> | null = null;
+
+function markLocalWrite(fields: SettingsField[]) {
+    const now = Date.now();
+    fields.forEach((field) => {
+        localEditedAt.set(field, now);
+        pendingFields.add(field);
+    });
+}
+
+function clearPending(fields: SettingsField[]) {
+    fields.forEach((field) => pendingFields.delete(field));
+}
+
+function shouldAcceptServerField(field: SettingsField, requestStartedAt: number) {
+    if (editingFields.has(field) || pendingFields.has(field)) return false;
+    const editedAt = localEditedAt.get(field);
+    if (editedAt && (requestStartedAt - editedAt) < LOCAL_WRITE_GRACE_MS) return false;
+    return true;
+}
+
+async function persistRemote(updates: Record<string, unknown>, fields: SettingsField[]) {
+    markLocalWrite(fields);
+    try {
+        await api.updateSettings(updates);
+        clearPending(fields);
+    } catch {
+        // Keep the fields protected briefly. A later foreground/interval sync can reconcile.
+        setTimeout(() => clearPending(fields), LOCAL_WRITE_GRACE_MS);
+    }
+}
+
+function persistSetting(field: SettingsField, value: string | number | boolean | string[]) {
+    try {
+        if (Array.isArray(value)) {
+            getStorage().set(field, JSON.stringify(value));
+        } else {
+            getStorage().set(field, value);
+        }
+    } catch { }
+}
+
 // Default settings (use cached values for instant display)
 const defaultLocalSettings: LocalSettings = {
     accentColor: cached.accentColor,
@@ -122,10 +184,15 @@ interface SettingsState {
     // Status
     isLoading: boolean;
     isSynced: boolean;
+    isSyncing: boolean;
+    lastSyncedAt: number | null;
+    lastSyncError: string | null;
 
     // Actions
     initialize: () => void;
     syncFromServer: () => Promise<void>;
+    beginEditingField: (field: SettingsField) => void;
+    endEditingField: (field: SettingsField) => void;
 
     // Local setters
     setAccentColor: (color: string) => void;
@@ -153,6 +220,9 @@ export const useSettingsStore = create<SettingsState>((set) => ({
     ...defaultUserSettings as Required<UserSettings>,
     isLoading: false,
     isSynced: false,
+    isSyncing: false,
+    lastSyncedAt: null,
+    lastSyncError: null,
 
     initialize: () => {
         // Settings are already loaded from MMKV cache at module load
@@ -170,90 +240,86 @@ export const useSettingsStore = create<SettingsState>((set) => ({
     },
 
     syncFromServer: async () => {
-        set({ isLoading: true });
-        try {
-            const settings = await api.getSettings();
+        if (syncPromise) return syncPromise;
 
-            // Apply accent color from server if present (always sync from server)
-            const serverAccentColor = settings.accentColor as string | undefined;
-            if (serverAccentColor) {
-                const currentAccent = useSettingsStore.getState().accentColor;
-                // Only update if different to avoid unnecessary re-renders
-                if (serverAccentColor !== currentAccent) {
-                    set({ accentColor: serverAccentColor });
-                    try {
-                        getStorage().set('accentColor', serverAccentColor);
-                    } catch { }
+        const requestStartedAt = Date.now();
+        syncPromise = (async () => {
+            set({ isLoading: true, isSyncing: true });
+            try {
+                const settings = await api.getSettings();
+                const state = useSettingsStore.getState();
 
-                    // Update app icon to match synced color (non-blocking)
+                const modelId = String(settings.currentModelId || state.currentModelId || cached.modelId);
+                const modelName = normalizeModelName(modelId, String(settings.currentModelName || state.currentModelName || cached.modelName));
+                const effort = (settings.reasoningEffort as ReasoningEffort) || state.reasoningEffort || cached.reasoningEffort;
+                const length = Number(settings.responseLength) || state.responseLength || cached.responseLength;
+                const mode = (settings.chatMode as ChatMode) || state.chatMode || cached.chatMode;
+                const subMode = (settings.learningSubMode as LearningSubMode) || state.learningSubMode || cached.learningSubMode;
+                const customInstructions = String(settings.customInstructions || '');
+                const userName = String(settings.userName || '');
+                const userGender = String(settings.userGender || state.userGender || cached.userGender);
+                const enabledMcpServers = Array.isArray(settings.enabledMcpServers)
+                    ? settings.enabledMcpServers as string[]
+                    : state.enabledMcpServers;
+                const codeWrap = typeof settings.codeWrap === 'boolean' ? settings.codeWrap : state.codeWrap;
+                const autoScroll = typeof settings.autoScroll === 'boolean' ? settings.autoScroll : state.autoScroll;
+                const fastMode = typeof settings.fastMode === 'boolean' ? settings.fastMode : state.fastMode;
+                const accentColor = typeof settings.accentColor === 'string' ? settings.accentColor : state.accentColor;
+
+                const next: Partial<SettingsState> = { isSynced: true, lastSyncedAt: Date.now(), lastSyncError: null };
+
+                const apply = <K extends keyof SettingsState>(field: SettingsField, key: K, value: SettingsState[K], persistValue?: string | number | boolean | string[]) => {
+                    if (!shouldAcceptServerField(field, requestStartedAt)) return;
+                    next[key] = value;
+                    persistSetting(field, persistValue ?? value as string | number | boolean | string[]);
+                };
+
+                apply('accentColor', 'accentColor', accentColor);
+                apply('currentModelId', 'currentModelId', modelId);
+                apply('currentModelName', 'currentModelName', modelName);
+                apply('reasoningEffort', 'reasoningEffort', effort);
+                apply('responseLength', 'responseLength', length);
+                apply('chatMode', 'chatMode', mode);
+                apply('learningSubMode', 'learningSubMode', subMode);
+                apply('customInstructions', 'customInstructions', customInstructions);
+                apply('userName', 'userName', userName);
+                apply('userGender', 'userGender', userGender);
+                apply('enabledMcpServers', 'enabledMcpServers', enabledMcpServers, enabledMcpServers);
+                apply('codeWrap', 'codeWrap', codeWrap);
+                apply('autoScroll', 'autoScroll', autoScroll);
+                apply('fastMode', 'fastMode', fastMode);
+
+                if (typeof next.accentColor === 'string' && next.accentColor !== state.accentColor) {
                     import('../lib/iconMatcher').then(({ updateAppIconForColor }) => {
-                        updateAppIconForColor(serverAccentColor);
+                        updateAppIconForColor(next.accentColor as string);
                     }).catch(() => { });
                 }
+
+                set(next);
+            } catch (error) {
+                set({ lastSyncError: error instanceof Error ? error.message : 'Failed to sync settings' });
+            } finally {
+                set({ isLoading: false, isSyncing: false });
+                syncPromise = null;
             }
+        })();
 
-            // Cache critical settings locally for instant startup
-            const mmkv = getStorage();
-            const modelId = String(settings.currentModelId || cached.modelId);
-            const modelName = normalizeModelName(modelId, String(settings.currentModelName || cached.modelName));
-            const effort = (settings.reasoningEffort as ReasoningEffort) || cached.reasoningEffort;
-            const length = Number(settings.responseLength) || cached.responseLength;
-            const mode = (settings.chatMode as ChatMode) || cached.chatMode;
-            const subMode = (settings.learningSubMode as LearningSubMode) || cached.learningSubMode;
-            const customInstructions = String(settings.customInstructions || '');
-            const userName = String(settings.userName || '');
-            const userGender = String(settings.userGender || cached.userGender);
-            const enabledMcpServers = (settings.enabledMcpServers as string[]) || defaultUserSettings.enabledMcpServers;
-            const codeWrap = typeof settings.codeWrap === 'boolean' ? settings.codeWrap : cached.codeWrap;
-            const autoScroll = typeof settings.autoScroll === 'boolean' ? settings.autoScroll : cached.autoScroll;
-            const localFastMode = mmkv.getBoolean('fastMode') ?? cached.fastMode;
-            const fastMode = typeof settings.fastMode === 'boolean' ? settings.fastMode : localFastMode;
+        return syncPromise;
+    },
 
-            // Persist to MMKV for instant next startup
-            try {
-                mmkv.set('currentModelId', modelId);
-                mmkv.set('currentModelName', modelName);
-                mmkv.set('reasoningEffort', effort as string);
-                mmkv.set('responseLength', length);
-                mmkv.set('chatMode', mode as string);
-                mmkv.set('learningSubMode', subMode as string);
-                mmkv.set('customInstructions', customInstructions);
-                mmkv.set('userName', userName);
-                mmkv.set('userGender', userGender);
-                mmkv.set('enabledMcpServers', JSON.stringify(enabledMcpServers));
-                mmkv.set('codeWrap', codeWrap);
-                mmkv.set('autoScroll', autoScroll);
-                mmkv.set('fastMode', fastMode);
-            } catch { }
+    beginEditingField: (field) => {
+        editingFields.add(field);
+    },
 
-            set({
-                currentModelId: modelId,
-                currentModelName: modelName,
-                reasoningEffort: effort,
-                responseLength: length,
-                chatMode: mode,
-                learningSubMode: subMode,
-                customInstructions,
-                userName,
-                userGender,
-                codeWrap,
-                autoScroll,
-                fastMode,
-                enabledMcpServers,
-                isSynced: true,
-            });
-        } catch {
-            // Silent fail - cached values are already in use
-        } finally {
-            set({ isLoading: false });
-        }
+    endEditingField: (field) => {
+        editingFields.delete(field);
+        localEditedAt.set(field, Date.now());
     },
 
     // Local setters - also save to server for cross-device sync
     setAccentColor: (color) => {
-        try {
-            getStorage().set('accentColor', color);
-        } catch { }
+        persistSetting('accentColor', color);
+        markLocalWrite(['accentColor']);
         set({ accentColor: color });
 
         // Update app icon to match accent color (non-blocking)
@@ -261,134 +327,107 @@ export const useSettingsStore = create<SettingsState>((set) => ({
             updateAppIconForColor(color);
         }).catch(() => { });
 
-        // Save to server for cross-device sync (non-blocking)
-        api.updateSettings({ accentColor: color }).catch(() => { });
+        if (accentSaveTimer) clearTimeout(accentSaveTimer);
+        accentSaveTimer = setTimeout(() => {
+            persistRemote({ accentColor: color }, ['accentColor']).catch(() => { });
+            accentSaveTimer = null;
+        }, 450);
     },
 
     setCodeWrap: (wrap) => {
-        try {
-            getStorage().set('codeWrap', wrap);
-        } catch { }
+        persistSetting('codeWrap', wrap);
         set({ codeWrap: wrap });
-        api.updateSettings({ codeWrap: wrap }).catch(() => { });
+        persistRemote({ codeWrap: wrap }, ['codeWrap']).catch(() => { });
     },
 
-
     setAutoScroll: (scroll) => {
-        try {
-            getStorage().set('autoScroll', scroll);
-        } catch { }
+        persistSetting('autoScroll', scroll);
         set({ autoScroll: scroll });
-        api.updateSettings({ autoScroll: scroll }).catch(() => { });
+        persistRemote({ autoScroll: scroll }, ['autoScroll']).catch(() => { });
     },
 
     setFastMode: (enabled) => {
-        try {
-            getStorage().set('fastMode', enabled);
-        } catch { }
+        persistSetting('fastMode', enabled);
         set({ fastMode: enabled });
-        api.updateSettings({ fastMode: enabled }).catch(() => { });
+        persistRemote({ fastMode: enabled }, ['fastMode']).catch(() => { });
     },
-
 
     // Remote setters
     setResponseLength: async (length) => {
-        try { getStorage().set('responseLength', length); } catch { }
+        persistSetting('responseLength', length);
         set({ responseLength: length });
-        try {
-            await api.updateSettings({ responseLength: length });
-        } catch { }
+        await persistRemote({ responseLength: length }, ['responseLength']);
     },
 
     setChatMode: async (mode) => {
-        try { getStorage().set('chatMode', mode as string); } catch { }
+        persistSetting('chatMode', mode as string);
         set({ chatMode: mode });
-        try {
-            await api.updateSettings({ chatMode: mode });
-        } catch { }
+        await persistRemote({ chatMode: mode }, ['chatMode']);
     },
 
     setLearningSubMode: async (mode) => {
-        try { getStorage().set('learningSubMode', mode as string); } catch { }
+        persistSetting('learningSubMode', mode as string);
         set({ learningSubMode: mode });
-        try {
-            await api.updateSettings({ learningSubMode: mode });
-        } catch { }
+        await persistRemote({ learningSubMode: mode }, ['learningSubMode']);
     },
 
     setCustomInstructions: async (instructions) => {
-        try { getStorage().set('customInstructions', instructions); } catch { }
+        persistSetting('customInstructions', instructions);
         set({ customInstructions: instructions });
-        try {
-            await api.updateSettings({ customInstructions: instructions });
-        } catch { }
+        await persistRemote({ customInstructions: instructions }, ['customInstructions']);
     },
 
     setUserName: (name) => {
-        try { getStorage().set('userName', name); } catch { }
+        persistSetting('userName', name);
         set({ userName: name });
-        api.updateSettings({ userName: name }).catch(() => { });
+        persistRemote({ userName: name }, ['userName']).catch(() => { });
     },
 
     setUserGender: (gender) => {
-        try { getStorage().set('userGender', gender); } catch { }
+        persistSetting('userGender', gender);
         set({ userGender: gender });
-        api.updateSettings({ userGender: gender }).catch(() => { });
+        persistRemote({ userGender: gender }, ['userGender']).catch(() => { });
     },
 
     setEnabledMcpServers: async (servers) => {
-        try { getStorage().set('enabledMcpServers', JSON.stringify(servers)); } catch { }
+        persistSetting('enabledMcpServers', servers);
         set({ enabledMcpServers: servers });
-        try {
-            await api.updateSettings({ enabledMcpServers: servers });
-        } catch { }
+        await persistRemote({ enabledMcpServers: servers }, ['enabledMcpServers']);
     },
 
     setReasoningEffort: async (effort) => {
-        try { getStorage().set('reasoningEffort', effort as string); } catch { }
+        persistSetting('reasoningEffort', effort as string);
         set({ reasoningEffort: effort });
-        try {
-            await api.updateSettings({ reasoningEffort: effort });
-        } catch { }
+        await persistRemote({ reasoningEffort: effort }, ['reasoningEffort']);
     },
 
     setCurrentModelId: async (modelId, modelName) => {
         const nextModelName = normalizeModelName(modelId, modelName || MODEL_NAMES[modelId]);
         set({ currentModelId: modelId, currentModelName: nextModelName });
-        try {
-            const mmkv = getStorage();
-            mmkv.set('currentModelId', modelId);
-            mmkv.set('currentModelName', nextModelName);
-        } catch { }
-        try {
-            await api.updateSettings({ currentModelId: modelId, currentModelName: nextModelName });
-        } catch { }
+        persistSetting('currentModelId', modelId);
+        persistSetting('currentModelName', nextModelName);
+        await persistRemote({ currentModelId: modelId, currentModelName: nextModelName }, ['currentModelId', 'currentModelName']);
     },
 
     toggleMcpServer: (serverSlug, enabled) => {
-        set((state) => {
-            const servers = state.enabledMcpServers;
-            const nextServers = enabled ? [...servers, serverSlug] : servers.filter(s => s !== serverSlug);
-            try { getStorage().set('enabledMcpServers', JSON.stringify(nextServers)); } catch { }
-            api.updateSettings({ enabledMcpServers: nextServers }).catch(() => { });
-            return { enabledMcpServers: nextServers };
-        });
+        const state = useSettingsStore.getState();
+        const servers = state.enabledMcpServers;
+        const nextServers = enabled ? [...servers, serverSlug] : servers.filter(s => s !== serverSlug);
+        persistSetting('enabledMcpServers', nextServers);
+        set({ enabledMcpServers: nextServers });
+        persistRemote({ enabledMcpServers: nextServers }, ['enabledMcpServers']).catch(() => { });
     },
 
     saveToServer: async () => {
         const state = useSettingsStore.getState();
-        try {
-            await api.updateSettings({
-                userName: state.userName,
-                userGender: state.userGender,
-                customInstructions: state.customInstructions,
-                enabledMcpServers: state.enabledMcpServers,
-                codeWrap: state.codeWrap,
-                autoScroll: state.autoScroll,
-                fastMode: state.fastMode,
-            });
-        } catch {
-            // Silent fail - will retry on next sync
-        }
+        await persistRemote({
+            userName: state.userName,
+            userGender: state.userGender,
+            customInstructions: state.customInstructions,
+            enabledMcpServers: state.enabledMcpServers,
+            codeWrap: state.codeWrap,
+            autoScroll: state.autoScroll,
+            fastMode: state.fastMode,
+        }, ['userName', 'userGender', 'customInstructions', 'enabledMcpServers', 'codeWrap', 'autoScroll', 'fastMode']);
     },
 }));

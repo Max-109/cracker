@@ -40,7 +40,8 @@ export default function SettingsScreen() {
         enabledMcpServers,
         toggleMcpServer,
         syncFromServer,
-        saveToServer,
+        beginEditingField,
+        endEditingField,
         responseLength,
         setResponseLength,
         customInstructions,
@@ -50,6 +51,8 @@ export default function SettingsScreen() {
     const [isColorPickerOpen, setIsColorPickerOpen] = useState(false);
     const [localName, setLocalName] = useState(userName);
     const [localInstructions, setLocalInstructions] = useState(customInstructions);
+    const [isEditingName, setIsEditingName] = useState(false);
+    const [isEditingInstructions, setIsEditingInstructions] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
     const [facts, setFacts] = useState<Array<{ id: string, fact: string }>>([]);
     const [loadingFacts, setLoadingFacts] = useState(true);
@@ -90,12 +93,24 @@ export default function SettingsScreen() {
     }, []);
 
     useEffect(() => {
-        setLocalName(userName);
-    }, [userName]);
+        if (!isEditingName && localName.trim() !== userName) {
+            setLocalName(userName);
+        }
+    }, [userName, isEditingName, localName]);
 
     useEffect(() => {
-        setLocalInstructions(customInstructions);
-    }, [customInstructions]);
+        if (!isEditingInstructions && localInstructions !== customInstructions) {
+            setLocalInstructions(customInstructions);
+        }
+    }, [customInstructions, isEditingInstructions, localInstructions]);
+
+    useEffect(() => {
+        return () => {
+            endEditingField('accentColor');
+            endEditingField('userName');
+            endEditingField('customInstructions');
+        };
+    }, [endEditingField]);
 
     const handleBack = () => {
         router.back();
@@ -107,11 +122,12 @@ export default function SettingsScreen() {
     };
 
     const handleSaveName = async () => {
+        setIsEditingName(false);
+        endEditingField('userName');
         if (localName.trim() !== userName) {
-            setUserName(localName.trim());
             setIsSaving(true);
             try {
-                await saveToServer();
+                setUserName(localName.trim());
             } finally {
                 setIsSaving(false);
             }
@@ -119,11 +135,12 @@ export default function SettingsScreen() {
     };
 
     const handleSaveInstructions = async () => {
+        setIsEditingInstructions(false);
+        endEditingField('customInstructions');
         if (localInstructions !== customInstructions) {
-            setCustomInstructions(localInstructions);
             setIsSaving(true);
             try {
-                await saveToServer();
+                await setCustomInstructions(localInstructions);
             } finally {
                 setIsSaving(false);
             }
@@ -260,6 +277,10 @@ export default function SettingsScreen() {
                             style={styles.textInput}
                             value={localName}
                             onChangeText={setLocalName}
+                            onFocus={() => {
+                                setIsEditingName(true);
+                                beginEditingField('userName');
+                            }}
                             onBlur={handleSaveName}
                             placeholder="Enter your name"
                             placeholderTextColor={COLORS.textMuted}
@@ -281,7 +302,6 @@ export default function SettingsScreen() {
                                     ]}
                                     onPress={() => {
                                         setUserGender(option.value);
-                                        saveToServer().catch(() => { });
                                     }}
                                 >
                                     <Text style={[
@@ -302,7 +322,12 @@ export default function SettingsScreen() {
 
                     <TouchableOpacity
                         style={styles.colorRow}
-                        onPress={() => setIsColorPickerOpen(!isColorPickerOpen)}
+                        onPress={() => {
+                            const nextOpen = !isColorPickerOpen;
+                            setIsColorPickerOpen(nextOpen);
+                            if (nextOpen) beginEditingField('accentColor');
+                            else endEditingField('accentColor');
+                        }}
                         activeOpacity={0.7}
                     >
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
@@ -352,7 +377,6 @@ export default function SettingsScreen() {
                             value={responseLength}
                             onChange={(val) => {
                                 setResponseLength(val);
-                                saveToServer().catch(() => { });
                             }}
                         />
                         <Text style={{ color: COLORS.textMuted, fontSize: 11, marginTop: 8, fontFamily: FONTS.mono }}>
@@ -369,6 +393,10 @@ export default function SettingsScreen() {
                             style={[styles.textInput, { minHeight: 100, textAlignVertical: 'top' }]}
                             value={localInstructions}
                             onChangeText={setLocalInstructions}
+                            onFocus={() => {
+                                setIsEditingInstructions(true);
+                                beginEditingField('customInstructions');
+                            }}
                             onBlur={handleSaveInstructions}
                             placeholder="Add any custom instructions for the AI..."
                             placeholderTextColor={COLORS.textMuted}
@@ -515,7 +543,6 @@ export default function SettingsScreen() {
                         value={codeWrap}
                         onValueChange={(value) => {
                             setCodeWrap(value);
-                            saveToServer().catch(() => { });
                         }}
                     />
                     <ToggleRow
@@ -525,7 +552,6 @@ export default function SettingsScreen() {
                         value={autoScroll}
                         onValueChange={(value) => {
                             setAutoScroll(value);
-                            saveToServer().catch(() => { });
                         }}
                     />
                 </View>
@@ -541,7 +567,6 @@ export default function SettingsScreen() {
                         value={enabledMcpServers.includes('brave-search')}
                         onValueChange={(value) => {
                             toggleMcpServer('brave-search', value);
-                            saveToServer().catch(() => { });
                         }}
                     />
                     <ToggleRow
@@ -551,7 +576,6 @@ export default function SettingsScreen() {
                         value={enabledMcpServers.includes('youtube')}
                         onValueChange={(value) => {
                             toggleMcpServer('youtube', value);
-                            saveToServer().catch(() => { });
                         }}
                     />
                 </View>

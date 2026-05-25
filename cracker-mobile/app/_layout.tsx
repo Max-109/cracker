@@ -9,6 +9,7 @@ import { useAuthStore } from '../store/auth';
 import { useSettingsStore } from '../store/settings';
 import { useOpenAIAccountStore } from '../store/openaiAccount';
 import { AppDialogProvider } from '../components/ui/AppDialog';
+import { useSettingsSync } from '../hooks/useSettingsSync';
 import '../global.css';
 
 // Get cached accent color for instant loading indicator
@@ -76,13 +77,7 @@ export default function RootLayout() {
         init();
     }, []);
 
-    useEffect(() => {
-        if (!isInitialized || !settingsSynced) return;
-        const interval = setInterval(() => {
-            syncFromServer().catch(() => { });
-        }, 30_000);
-        return () => clearInterval(interval);
-    }, [isInitialized, settingsSynced, syncFromServer]);
+    useSettingsSync(isInitialized && settingsSynced);
 
     if (error) {
         return (

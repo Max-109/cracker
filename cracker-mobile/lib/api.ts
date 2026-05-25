@@ -336,8 +336,8 @@ export const api = {
         return apiFetch('/api/settings');
     },
 
-    async updateSettings(settings: Record<string, unknown>): Promise<void> {
-        await apiFetch('/api/settings', {
+    async updateSettings(settings: Record<string, unknown>): Promise<Record<string, unknown>> {
+        return apiFetch('/api/settings', {
             method: 'PUT',
             body: JSON.stringify(settings),
         });
