@@ -9,8 +9,3 @@
 - improved the mobile chat input width so longer prompts have more room before wrapping
 - hardened the chat input layout so prompt text cannot collide with attachment, fast-mode, send, stop, or mic icons
 
-## validation
-
-- `cd cracker-mobile && bunx tsc --noEmit`
-- Android release build with Java 17
-- emulator install and launch check
