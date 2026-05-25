@@ -263,17 +263,19 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     await fetchSettings();
   }, [fetchSettings]);
 
-  // Poll for settings updates every 2 seconds for real-time sync with mobile
+  // Sync settings when the tab becomes active instead of polling constantly.
+  // The old 2s interval spammed /api/settings while the page was idle.
   useEffect(() => {
     if (!user) return;
 
-    const pollInterval = setInterval(() => {
-      // Use hidden fetch to avoid triggering loading states
+    const syncAccentColor = () => {
+      if (document.visibilityState !== 'visible') return;
+
       fetch('/api/settings')
         .then(res => res.ok ? res.json() : null)
         .then(data => {
-          if (data && data.accentColor) {
-            const currentStored = localStorage.getItem('CRACKER_ACCENT_COLOR');
+          if (data?.accentColor) {
+            const currentStored = localStorage.getItem(ACCENT_COLOR_KEY);
             if (data.accentColor !== currentStored) {
               console.log('[Settings] Syncing new accent color from DB:', data.accentColor);
               saveAccentColor(data.accentColor);
@@ -281,10 +283,22 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
             }
           }
         })
-        .catch(() => { }); // Silent fail on poll error
-    }, 2000);
+        .catch(() => { });
+    };
 
-    return () => clearInterval(pollInterval);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        syncAccentColor();
+      }
+    };
+
+    window.addEventListener('focus', syncAccentColor);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('focus', syncAccentColor);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, [user]);
 
   const updateSettings = useCallback(async (updates: Partial<Settings>) => {
