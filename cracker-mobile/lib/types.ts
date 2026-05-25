@@ -200,6 +200,7 @@ export interface UserSettings {
     userName: string;
     userGender: string;
     enabledMcpServers: string[];
+    fastMode?: boolean;
 }
 
 // Local settings (stored in MMKV)

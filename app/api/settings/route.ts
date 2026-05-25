@@ -77,6 +77,7 @@ export async function PUT(request: NextRequest) {
       'memoryEnabled',
       'codeWrap',
       'autoScroll',
+      'fastMode',
       'accentColor', // Accent color for UI theming
     ];
 

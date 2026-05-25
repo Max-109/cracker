@@ -206,6 +206,8 @@ export const useSettingsStore = create<SettingsState>((set) => ({
             const enabledMcpServers = (settings.enabledMcpServers as string[]) || defaultUserSettings.enabledMcpServers;
             const codeWrap = typeof settings.codeWrap === 'boolean' ? settings.codeWrap : cached.codeWrap;
             const autoScroll = typeof settings.autoScroll === 'boolean' ? settings.autoScroll : cached.autoScroll;
+            const localFastMode = mmkv.getBoolean('fastMode') ?? cached.fastMode;
+            const fastMode = typeof settings.fastMode === 'boolean' ? settings.fastMode : localFastMode;
 
             // Persist to MMKV for instant next startup
             try {
@@ -221,6 +223,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
                 mmkv.set('enabledMcpServers', JSON.stringify(enabledMcpServers));
                 mmkv.set('codeWrap', codeWrap);
                 mmkv.set('autoScroll', autoScroll);
+                mmkv.set('fastMode', fastMode);
             } catch { }
 
             set({
@@ -235,6 +238,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
                 userGender,
                 codeWrap,
                 autoScroll,
+                fastMode,
                 enabledMcpServers,
                 isSynced: true,
             });
@@ -283,6 +287,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
             getStorage().set('fastMode', enabled);
         } catch { }
         set({ fastMode: enabled });
+        api.updateSettings({ fastMode: enabled }).catch(() => { });
     },
 
 
@@ -377,6 +382,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
                 enabledMcpServers: state.enabledMcpServers,
                 codeWrap: state.codeWrap,
                 autoScroll: state.autoScroll,
+                fastMode: state.fastMode,
             });
         } catch {
             // Silent fail - will retry on next sync

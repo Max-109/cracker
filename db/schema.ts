@@ -74,6 +74,7 @@ export const userSettings = pgTable('user_settings', {
   // UI behavior
   codeWrap: boolean('code_wrap').default(true),
   autoScroll: boolean('auto_scroll').default(true),
+  fastMode: boolean('fast_mode').default(false),
   // Timestamps
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),

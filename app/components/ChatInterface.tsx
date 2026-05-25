@@ -254,6 +254,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
 
   // Refs for state management
   const ignoreNextChatIdChangeRef = useRef(false);
+  const messageLoadSeqRef = useRef(0);
   const isRegeneratingRef = useRef(false);
 
   // Helper to generate IDs
@@ -715,8 +716,12 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
         return;
       }
 
-      // Fall back to IndexedDB cache
+      // Fall back to async cache/network. Clear stale chat content before showing skeleton.
+      const loadSeq = ++messageLoadSeqRef.current;
+      const requestedChatId = currentChatId;
+      setMessages([]);
       setIsMessagesLoading(true);
+      const isStaleLoad = () => loadSeq !== messageLoadSeqRef.current || chatIdRef.current !== requestedChatId;
 
       try {
         // Try to get cached chat first for instant loading
@@ -728,6 +733,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
           trackLoadTime(startTime, 'cache');
 
           // Use the reusable transformer instead of duplicated code
+          if (isStaleLoad()) return;
           const uiMessages = transformMessagesToUi(cachedChat.messages);
           setMessages(uiMessages as Parameters<typeof setMessages>[0]);
           setIsMessagesLoading(false);
@@ -736,6 +742,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
           fetch(`/api/chats/${currentChatId}`)
             .then(res => res.json())
             .then(data => {
+              if (isStaleLoad()) return;
               if (Array.isArray(data)) {
                 // Only update if there are new messages
                 const hasNewMessages = data.length !== cachedChat.messages.length ||
@@ -768,6 +775,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
             .then(res => res.json())
             .then(data => {
               trackLoadTime(networkStartTime, 'network');
+              if (isStaleLoad()) return;
               if (Array.isArray(data)) {
                 const uiMessages = transformMessagesToUi(data);
                 setMessages(uiMessages as Parameters<typeof setMessages>[0]);
@@ -783,7 +791,9 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
               }
             })
             .catch(err => console.error("Failed to fetch messages:", err))
-            .finally(() => setIsMessagesLoading(false));
+            .finally(() => {
+              if (!isStaleLoad()) setIsMessagesLoading(false);
+            });
         }
       } catch (error) {
         console.error("Cache operation failed, falling back to network:", error);
@@ -795,6 +805,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
           .then(res => res.json())
           .then(data => {
             trackLoadTime(networkStartTime, 'network');
+            if (isStaleLoad()) return;
             if (Array.isArray(data)) {
               const uiMessages = transformMessagesToUi(data);
               setMessages(uiMessages as Parameters<typeof setMessages>[0]);
@@ -810,7 +821,9 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
             }
           })
           .catch(err => console.error("Failed to fetch messages:", err))
-          .finally(() => setIsMessagesLoading(false));
+          .finally(() => {
+            if (!isStaleLoad()) setIsMessagesLoading(false);
+          });
       }
     };
 

@@ -15,7 +15,7 @@ import ThinkingIndicator from '../../../components/ui/ThinkingIndicator';
 import { DotGridIndicator } from '../../../components/ui/ConnectionIndicator';
 import { ModelSelector, AccentColorPicker } from '../../../components/ui/ModelSelector';
 import PanelLeftIcon from '../../../components/ui/PanelLeftIcon';
-import { MessageSkeleton } from '../../../components/ui/Skeleton';
+import { MessageThreadSkeleton } from '../../../components/ui/Skeleton';
 import Drawer from '../../../components/navigation/Drawer';
 import ErrorBoundary from '../../../components/ErrorBoundary';
 import { COLORS, FONTS } from '../../../lib/design';
@@ -29,6 +29,15 @@ interface ChatItem {
 }
 
 const MAX_REASONABLE_TOKENS_PER_SECOND = 500;
+const PRIORITY_MODEL_IDS = new Set(['gpt-5.5']);
+const LEGACY_PRIORITY_MODEL_IDS: Record<string, string> = {
+    'gemini-3-pro-preview': 'gpt-5.5',
+};
+
+function mobileModelSupportsPriority(modelId: string) {
+    const normalized = LEGACY_PRIORITY_MODEL_IDS[modelId] || modelId.replace('openai/', '');
+    return PRIORITY_MODEL_IDS.has(normalized);
+}
 
 function normalizeTokensPerSecond(value: unknown): number | undefined {
     const parsed = typeof value === 'number' ? value : Number.parseFloat(String(value ?? ''));
@@ -113,6 +122,7 @@ export default function ChatScreen() {
     const [hasAutoSent, setHasAutoSent] = useState(false);
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
     const [chats, setChats] = useState<ChatItem[]>([]);
+    const [isChatsRefreshing, setIsChatsRefreshing] = useState(true);
     const [chatError, setChatError] = useState<string | null>(null);
     const flatListRef = useRef<FlatList>(null);
     const abortControllerRef = useRef<AbortController | null>(null);
@@ -134,9 +144,12 @@ export default function ChatScreen() {
         setFastMode,
     } = useSettingsStore();
     const learningMode = chatMode === 'learning';
+    const supportsPriority = mobileModelSupportsPriority(currentModelId);
     const { auth: openAIAccountAuth, enabled: useOpenAIAccount, refreshUsage } = useOpenAIAccountStore();
 
     const statusBarHeight = Platform.OS === 'android' ? (StatusBar.currentHeight || 24) : 0;
+
+    const effectiveFastMode = fastMode && supportsPriority;
 
     // Load chats for drawer
     const loadChats = useCallback(async () => {
@@ -146,9 +159,23 @@ export default function ChatScreen() {
         } catch { }
     }, []);
 
+    const refreshChats = useCallback(async () => {
+        setIsChatsRefreshing(true);
+        try {
+            await loadChats();
+        } finally {
+            setIsChatsRefreshing(false);
+        }
+    }, [loadChats]);
+
     // Load chat messages
     useEffect(() => {
         if (!id) return;
+
+        let cancelled = false;
+        setIsLoading(true);
+        setMessages([]);
+        setChatTitle('Chat');
 
         const loadChat = async () => {
             try {
@@ -170,8 +197,10 @@ export default function ChatScreen() {
 
                 // Defensive check - ensure we have an array
                 if (!messagesData || !Array.isArray(messagesData)) {
-                    setMessages([]);
-                    setIsLoading(false);
+                    if (!cancelled) {
+                        setMessages([]);
+                        setIsLoading(false);
+                    }
                     return;
                 }
 
@@ -205,6 +234,7 @@ export default function ChatScreen() {
                         tokensPerSecond: tps,
                     };
                 });
+                if (cancelled) return;
                 setMessages(formattedMessages);
 
                 // Set title from first user message if available
@@ -216,13 +246,17 @@ export default function ChatScreen() {
                     setChatTitle(content.slice(0, 40) || 'Chat');
                 }
             } catch { } finally {
-                setIsLoading(false);
+                if (!cancelled) setIsLoading(false);
             }
         };
 
         loadChat();
-        loadChats();
-    }, [id, loadChats]);
+        refreshChats();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [id, loadChats, refreshChats]);
 
     // Auto-scroll to bottom
     useEffect(() => {
@@ -338,7 +372,7 @@ export default function ChatScreen() {
                 learningMode,
                 learningSubMode,
                 customInstructions,
-                fastMode,
+                fastMode: effectiveFastMode,
                 ...accountContext,
             },
             (event: unknown) => {
@@ -511,7 +545,7 @@ export default function ChatScreen() {
         }).finally(() => {
             abortControllerRef.current = null;
         });
-    }, [id, messages, isStreaming, chatMode, reasoningEffort, enabledMcpServers, responseLength, currentModelId, fastMode, userName, userGender, customInstructions, learningSubMode, learningMode, useOpenAIAccount, openAIAccountAuth, refreshUsage, clearLiveStreamState]);
+    }, [id, messages, isStreaming, chatMode, reasoningEffort, enabledMcpServers, responseLength, currentModelId, effectiveFastMode, userName, userGender, customInstructions, learningSubMode, learningMode, useOpenAIAccount, openAIAccountAuth, refreshUsage, clearLiveStreamState]);
 
     // Auto-send initial message if provided
     useEffect(() => {
@@ -642,17 +676,13 @@ export default function ChatScreen() {
         </View>
     ) : null;
 
-    if (isLoading) {
+    if (isLoading && messages.length === 0) {
         return (
             <View style={{ flex: 1, backgroundColor: COLORS.bgMain }}>
                 <View style={styles.header}>
                     <View style={{ width: 40, height: 40, backgroundColor: COLORS.border }} />
                 </View>
-                <View style={{ flex: 1, padding: 16 }}>
-                    <MessageSkeleton />
-                    <MessageSkeleton isUser />
-                    <MessageSkeleton />
-                </View>
+                <MessageThreadSkeleton estimatedMessages={chatMode === 'deep-search' ? 6 : 5} />
             </View>
         );
     }
@@ -674,6 +704,8 @@ export default function ChatScreen() {
                 onChatPress={handleChatPress}
                 onNewChat={handleNewChat}
                 currentChatId={id}
+                isRefreshing={isChatsRefreshing}
+                onRefresh={refreshChats}
             />
 
             {/* Header - MATCHING HOME SCREEN EXACTLY */}
@@ -785,9 +817,9 @@ export default function ChatScreen() {
                 isLoading={false}
                 isRecording={false}
                 isStreaming={isStreaming}
-                fastMode={fastMode}
+                fastMode={effectiveFastMode}
                 onFastModeChange={setFastMode}
-                supportsPriority={currentModelId === 'gpt-5.5' || currentModelId === 'gemini-3-pro-preview'}
+                supportsPriority={supportsPriority}
                 placeholder="Let's crack..."
             />
         </KeyboardAvoidingView>
