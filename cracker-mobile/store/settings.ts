@@ -327,11 +327,13 @@ export const useSettingsStore = create<SettingsState>((set) => ({
     setUserName: (name) => {
         try { getStorage().set('userName', name); } catch { }
         set({ userName: name });
+        api.updateSettings({ userName: name }).catch(() => { });
     },
 
     setUserGender: (gender) => {
         try { getStorage().set('userGender', gender); } catch { }
         set({ userGender: gender });
+        api.updateSettings({ userGender: gender }).catch(() => { });
     },
 
     setEnabledMcpServers: async (servers) => {
@@ -368,6 +370,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
             const servers = state.enabledMcpServers;
             const nextServers = enabled ? [...servers, serverSlug] : servers.filter(s => s !== serverSlug);
             try { getStorage().set('enabledMcpServers', JSON.stringify(nextServers)); } catch { }
+            api.updateSettings({ enabledMcpServers: nextServers }).catch(() => { });
             return { enabledMcpServers: nextServers };
         });
     },

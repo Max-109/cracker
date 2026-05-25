@@ -42,6 +42,7 @@ export default function HomeScreen() {
     const [isCreating, setIsCreating] = useState(false);
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+    const [isChatsRefreshing, setIsChatsRefreshing] = useState(false);
     // Hooks
     const { attachments, pickAttachment, removeAttachment, clearAttachments } = useAttachments();
 
@@ -55,6 +56,15 @@ export default function HomeScreen() {
 
     useEffect(() => {
         loadChats();
+    }, [loadChats]);
+
+    const refreshChats = useCallback(async () => {
+        setIsChatsRefreshing(true);
+        try {
+            await loadChats();
+        } finally {
+            setIsChatsRefreshing(false);
+        }
     }, [loadChats]);
 
     const uploadInitialAttachments = async (): Promise<MessagePart[]> => {
@@ -111,20 +121,11 @@ export default function HomeScreen() {
         }
     };
 
-    // Quick new chat (empty)
+    // Quick new chat (empty) - stay on the smooth welcome screen until a message is sent.
     const handleNewChat = async () => {
-        setIsCreating(true);
-        try {
-            const chat = await api.createChat('New Chat', 'chat');
-            if (chat?.id) {
-                router.push(`/(main)/chat/${chat.id}`);
-                loadChats();
-            }
-        } catch (error: any) {
-            showAppDialog({ title: 'Error', message: error?.message || 'Failed to create chat', tone: 'error' });
-        } finally {
-            setIsCreating(false);
-        }
+        setInputValue('');
+        clearAttachments();
+        router.replace('/(main)');
     };
 
     const handleChatPress = (chatId: string) => {
@@ -411,6 +412,9 @@ export default function HomeScreen() {
                 chats={chats}
                 onChatPress={handleChatPress}
                 onNewChat={handleNewChat}
+                isRefreshing={isChatsRefreshing}
+                onRefresh={refreshChats}
+                onChatsChanged={refreshChats}
             />
         </SafeAreaView>
     );

@@ -579,16 +579,15 @@ export default function ChatScreen() {
 
     const handleNewChat = async () => {
         setIsDrawerOpen(false);
-        try {
-            const chat = await api.createChat('New Chat', 'chat');
-            if (chat?.id) {
-                router.push(`/(main)/chat/${chat.id}`);
-                loadChats();
-            }
-        } catch (error: any) {
-            showAppDialog({ title: 'Error', message: error?.message || 'Failed to create chat', tone: 'error' });
-        }
+        router.replace('/(main)');
     };
+
+    const handleChatDeleted = useCallback((deletedId: string) => {
+        if (deletedId === id) {
+            setIsDrawerOpen(false);
+            router.replace('/(main)');
+        }
+    }, [id]);
 
     const renderMessage = ({ item, index }: { item: ChatMessage; index: number }) => {
         const isStreamingMessage = isStreaming && index === messages.length - 1 && item.role === 'assistant';
@@ -706,6 +705,8 @@ export default function ChatScreen() {
                 currentChatId={id}
                 isRefreshing={isChatsRefreshing}
                 onRefresh={refreshChats}
+                onChatsChanged={refreshChats}
+                onChatDeleted={handleChatDeleted}
             />
 
             {/* Header - MATCHING HOME SCREEN EXACTLY */}
@@ -801,7 +802,7 @@ export default function ChatScreen() {
                             <Ionicons name="chatbubbles-outline" size={24} color={theme.accent} />
                         </View>
                         <Text style={{ fontSize: 14, color: COLORS.textSecondary, textAlign: 'center' }}>
-                            Start the conversation...
+                            What can I help with?
                         </Text>
                     </Animated.View>
                 }

@@ -209,3 +209,13 @@ export function useAutoScroll() {
     isHydrated,
   };
 }
+
+export function useFastMode() {
+  const { settings, updateSettings, isHydrated } = useSettings();
+
+  return {
+    fastMode: settings.fastMode,
+    setFastMode: (value: boolean) => updateSettings({ fastMode: value }),
+    isHydrated,
+  };
+}

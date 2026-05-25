@@ -8,7 +8,7 @@ import type { ChatMessage, MessagePart } from '@/lib/chat-types';
 import { useChatContext } from './ChatContext';
 import { updateFavicon, getAccentColorFromStorage } from './SettingsContext';
 import { useAttachments } from '@/app/hooks/useAttachments';
-import { usePersistedSetting, useAccentColor, useResponseLength, useUserProfile, useLearningMode, useChatMode, useLearningSubMode, useCustomInstructions, useEnabledMcpServers, useCodeWrap, useAutoScroll, ReasoningEffortLevel, ChatMode, LearningSubMode } from '@/app/hooks/usePersistedSettings';
+import { usePersistedSetting, useAccentColor, useResponseLength, useUserProfile, useLearningMode, useChatMode, useLearningSubMode, useCustomInstructions, useEnabledMcpServers, useCodeWrap, useAutoScroll, useFastMode, ReasoningEffortLevel, ChatMode, LearningSubMode } from '@/app/hooks/usePersistedSettings';
 import { useOpenAIAccount } from '@/app/hooks/useOpenAIAccount';
 import { formatOpenAIUsageReset, type OpenAIUsagePayload } from '@/lib/openai-account-shared';
 import { ModelSelector } from './ModelSelector';
@@ -97,16 +97,13 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
   const { learningSubMode, setLearningSubMode, isHydrated: isLearningSubModeHydrated } = useLearningSubMode();
   const { codeWrap, setCodeWrap } = useCodeWrap();
   const { autoScroll, setAutoScroll } = useAutoScroll();
+  const { fastMode, setFastMode, isHydrated: isFastModeHydrated } = useFastMode();
   const openAIAccount = useOpenAIAccount();
 
-  const isSettingsHydrated = isModelIdHydrated && isModelNameHydrated && isColorHydrated && isResponseLengthHydrated && isProfileHydrated && isLearningModeHydrated && isChatModeHydrated && isCustomInstructionsHydrated && isMcpServersHydrated && isLearningSubModeHydrated;
+  const isSettingsHydrated = isModelIdHydrated && isModelNameHydrated && isColorHydrated && isResponseLengthHydrated && isProfileHydrated && isLearningModeHydrated && isChatModeHydrated && isCustomInstructionsHydrated && isMcpServersHydrated && isLearningSubModeHydrated && isFastModeHydrated;
 
   // Settings dialog state
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [fastMode, setFastMode] = useState(() => {
-    if (typeof window === 'undefined') return false;
-    return localStorage.getItem('CRACKER_FAST_MODE') === 'true';
-  });
   // Auto-reasoning: reasoning effort is determined per-message, not user-selected
   // We keep the ref to pass to transport, but it gets set before each message send
 
@@ -190,8 +187,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
       return;
     }
     fastModeRef.current = fastMode;
-    localStorage.setItem('CRACKER_FAST_MODE', String(fastMode));
-  }, [fastMode, currentModelId]);
+  }, [fastMode, currentModelId, setFastMode]);
   // Auto-reasoning: reasoningEffortRef is now updated before each message, not synced from user setting
   useEffect(() => { responseLengthRef.current = responseLength; }, [responseLength]);
   useEffect(() => { userNameRef.current = userName; }, [userName]);

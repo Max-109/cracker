@@ -25,6 +25,7 @@ interface AccountSettings {
   enabledMcpServers: string[]; // MCP servers enabled for tool calling
   codeWrap: boolean; // Enable word wrap in code blocks
   autoScroll: boolean; // Enable auto-scroll during streaming
+  fastMode: boolean; // Enable priority/fast responses when supported
 }
 
 // Combined settings (account + browser-only)
@@ -46,6 +47,7 @@ const DEFAULT_ACCOUNT_SETTINGS: AccountSettings = {
   enabledMcpServers: ['brave-search'], // Brave Search enabled by default
   codeWrap: true, // Code wrap enabled by default
   autoScroll: true, // Auto-scroll enabled by default
+  fastMode: false,
 };
 
 const DEFAULT_ACCENT_COLOR = '#af8787';
@@ -248,6 +250,7 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
           enabledMcpServers: Array.isArray(data.enabledMcpServers) ? data.enabledMcpServers : DEFAULT_ACCOUNT_SETTINGS.enabledMcpServers,
           codeWrap: data.codeWrap ?? DEFAULT_ACCOUNT_SETTINGS.codeWrap,
           autoScroll: data.autoScroll ?? DEFAULT_ACCOUNT_SETTINGS.autoScroll,
+          fastMode: data.fastMode ?? DEFAULT_ACCOUNT_SETTINGS.fastMode,
           accentColor: finalAccentColor,
         });
       }
@@ -268,35 +271,53 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!user) return;
 
-    const syncAccentColor = () => {
+    const syncSettings = () => {
       if (document.visibilityState !== 'visible') return;
 
       fetch('/api/settings')
         .then(res => res.ok ? res.json() : null)
         .then(data => {
-          if (data?.accentColor) {
-            const currentStored = localStorage.getItem(ACCENT_COLOR_KEY);
-            if (data.accentColor !== currentStored) {
-              console.log('[Settings] Syncing new accent color from DB:', data.accentColor);
-              saveAccentColor(data.accentColor);
-              setSettings(prev => ({ ...prev, accentColor: data.accentColor }));
+          if (!data) return;
+          setSettings(prev => {
+            const nextAccent = data.accentColor || prev.accentColor;
+            if (nextAccent !== prev.accentColor) {
+              saveAccentColor(nextAccent);
             }
-          }
+            const nextChatMode = data.chatMode || prev.chatMode;
+            return {
+              ...prev,
+              currentModelId: data.currentModelId || prev.currentModelId,
+              currentModelName: data.currentModelName || prev.currentModelName,
+              reasoningEffort: data.reasoningEffort || prev.reasoningEffort,
+              responseLength: data.responseLength ?? prev.responseLength,
+              learningMode: nextChatMode === 'learning',
+              chatMode: nextChatMode,
+              learningSubMode: data.learningSubMode || prev.learningSubMode,
+              customInstructions: data.customInstructions ?? prev.customInstructions,
+              userName: data.userName ?? prev.userName,
+              userGender: data.userGender || prev.userGender,
+              enabledMcpServers: Array.isArray(data.enabledMcpServers) ? data.enabledMcpServers : prev.enabledMcpServers,
+              codeWrap: data.codeWrap ?? prev.codeWrap,
+              autoScroll: data.autoScroll ?? prev.autoScroll,
+              fastMode: data.fastMode ?? prev.fastMode,
+              accentColor: nextAccent,
+            };
+          });
         })
         .catch(() => { });
     };
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        syncAccentColor();
+        syncSettings();
       }
     };
 
-    window.addEventListener('focus', syncAccentColor);
+    window.addEventListener('focus', syncSettings);
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
-      window.removeEventListener('focus', syncAccentColor);
+      window.removeEventListener('focus', syncSettings);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [user]);

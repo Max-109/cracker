@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
     View,
     Text,
@@ -9,18 +9,24 @@ import {
     StatusBar,
     Pressable,
     RefreshControl,
+    Modal,
+    TextInput,
 } from 'react-native';
 import Animated, {
     useSharedValue,
     useAnimatedStyle,
     withTiming,
     Easing,
+    FadeOut,
+    LinearTransition,
 } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../store/theme';
 import { useAuthStore } from '../../store/auth';
 import { router } from 'expo-router';
 import { FONTS } from '../../lib/design';
+import { api } from '../../lib/api';
+import { showAppDialog } from '../ui/AppDialog';
 import Skeleton from '../ui/Skeleton';
 
 // Web colors from globals.css - EXACT values
@@ -54,6 +60,8 @@ interface DrawerProps {
     currentChatId?: string | null;
     isRefreshing?: boolean;
     onRefresh?: () => void;
+    onChatsChanged?: () => void | Promise<void>;
+    onChatDeleted?: (id: string) => void;
 }
 
 // Time grouping function - EXACT copy from web Sidebar.tsx
@@ -148,6 +156,8 @@ export default function Drawer({
     currentChatId,
     isRefreshing = false,
     onRefresh,
+    onChatsChanged,
+    onChatDeleted,
 }: DrawerProps) {
     const theme = useTheme();
     const { user, logout } = useAuthStore();
@@ -155,6 +165,12 @@ export default function Drawer({
 
     const translateX = useSharedValue(-DRAWER_WIDTH);
     const overlayOpacity = useSharedValue(0);
+
+    const [actionChat, setActionChat] = useState<ChatItem | null>(null);
+    const [renameChat, setRenameChat] = useState<ChatItem | null>(null);
+    const [renameTitle, setRenameTitle] = useState('');
+    const [animatingDeleteId, setAnimatingDeleteId] = useState<string | null>(null);
+    const [animatingRenameId, setAnimatingRenameId] = useState<string | null>(null);
 
     // Group chats by time
     const groupedChats = useMemo(() => groupChatsByDate(chats), [chats]);
@@ -192,6 +208,51 @@ export default function Drawer({
         await logout();
         router.replace('/(auth)/login');
     }, [logout, onClose]);
+
+    const refreshAfterMutation = useCallback(async () => {
+        try {
+            await onChatsChanged?.();
+        } catch { }
+    }, [onChatsChanged]);
+
+    const openRenameDialog = useCallback((chat: ChatItem) => {
+        setActionChat(null);
+        setRenameChat(chat);
+        setRenameTitle(chat.title || 'New Chat');
+    }, []);
+
+    const handleRename = useCallback(async () => {
+        if (!renameChat) return;
+        const nextTitle = renameTitle.trim();
+        if (!nextTitle) return;
+
+        const chatId = renameChat.id;
+        setRenameChat(null);
+        setAnimatingRenameId(chatId);
+        try {
+            await api.updateChatTitle(chatId, nextTitle);
+            await refreshAfterMutation();
+        } catch (error: any) {
+            showAppDialog({ title: 'Rename Failed', message: error?.message || 'Could not rename this chat.', tone: 'error' });
+        } finally {
+            setTimeout(() => setAnimatingRenameId(null), 520);
+        }
+    }, [renameChat, renameTitle, refreshAfterMutation]);
+
+    const handleDelete = useCallback(async (chat: ChatItem) => {
+        const chatId = chat.id;
+        setActionChat(null);
+        setAnimatingDeleteId(chatId);
+        try {
+            await new Promise(resolve => setTimeout(resolve, 260));
+            await api.deleteChat(chatId);
+            await refreshAfterMutation();
+            onChatDeleted?.(chatId);
+        } catch (error: any) {
+            setAnimatingDeleteId(null);
+            showAppDialog({ title: 'Delete Failed', message: error?.message || 'Could not delete this chat.', tone: 'error' });
+        }
+    }, [onChatDeleted, refreshAfterMutation]);
 
     const getUserName = () => {
         // Use name from profile API (fetched by auth store)
@@ -353,67 +414,80 @@ export default function Drawer({
                                 {/* Chat Items in this group */}
                                 {groupChats.map((chat) => {
                                     const isSelected = currentChatId === chat.id;
+                                    const isDeleting = animatingDeleteId === chat.id;
+                                    const isRenaming = animatingRenameId === chat.id;
 
                                     return (
-                                        <TouchableOpacity
+                                        <Animated.View
                                             key={chat.id}
-                                            onPress={() => {
-                                                onClose();
-                                                onChatPress(chat.id);
-                                            }}
-                                            activeOpacity={0.7}
+                                            layout={LinearTransition.duration(180)}
+                                            exiting={FadeOut.duration(180)}
                                             style={{
-                                                flexDirection: 'row',
-                                                alignItems: 'center',
-                                                paddingVertical: 10,
-                                                paddingHorizontal: 10,
-                                                marginHorizontal: 8,
-                                                marginBottom: 2,
-                                                // Web: border-l-2 for selected
-                                                borderLeftWidth: 2,
-                                                borderLeftColor: isSelected ? theme.accent : `${theme.accent}66`,
-                                                backgroundColor: isSelected ? `${theme.accent}1A` : 'transparent',
+                                                opacity: isDeleting ? 0.25 : 1,
+                                                transform: [{ translateX: isDeleting ? -18 : 0 }, { scale: isRenaming ? 1.02 : 1 }],
                                             }}
                                         >
-                                            {/* Icon box - web: w-6 h-6 = 24px */}
-                                            <View
+                                            <TouchableOpacity
+                                                onPress={() => {
+                                                    onClose();
+                                                    onChatPress(chat.id);
+                                                }}
+                                                onLongPress={() => setActionChat(chat)}
+                                                delayLongPress={320}
+                                                activeOpacity={0.7}
                                                 style={{
-                                                    width: 24,
-                                                    height: 24,
+                                                    flexDirection: 'row',
                                                     alignItems: 'center',
-                                                    justifyContent: 'center',
-                                                    borderWidth: 1,
-                                                    backgroundColor: isSelected ? theme.accent : COLORS.bgMain,
-                                                    borderColor: isSelected ? theme.accent : COLORS.borderColor,
-                                                    marginRight: 10,
+                                                    paddingVertical: 10,
+                                                    paddingHorizontal: 10,
+                                                    marginHorizontal: 8,
+                                                    marginBottom: 2,
+                                                    // Web: border-l-2 for selected
+                                                    borderLeftWidth: 2,
+                                                    borderLeftColor: isSelected || isRenaming ? theme.accent : `${theme.accent}66`,
+                                                    backgroundColor: isSelected ? `${theme.accent}1A` : isRenaming ? `${theme.accent}14` : 'transparent',
                                                 }}
                                             >
-                                                <Ionicons
-                                                    name={
-                                                        chat.mode === 'deep-search'
-                                                            ? 'search'
-                                                            : chat.mode === 'learning'
-                                                                ? 'school'
-                                                                : 'chatbubble-outline'
-                                                    }
-                                                    size={12}
-                                                    color={isSelected ? '#000' : COLORS.textSecondary}
-                                                />
-                                            </View>
-                                            {/* Title - web: text-xs truncate */}
-                                            <Text
-                                                style={{
-                                                    flex: 1,
-                                                    fontSize: 13,
-                                                    fontFamily: FONTS.mono,
-                                                    color: isSelected ? theme.accent : COLORS.textSecondary,
-                                                    fontWeight: isSelected ? '500' : '400',
-                                                }}
-                                                numberOfLines={1}
-                                            >
-                                                {chat.title || 'New Chat'}
-                                            </Text>
-                                        </TouchableOpacity>
+                                                {/* Icon box - web: w-6 h-6 = 24px */}
+                                                <View
+                                                    style={{
+                                                        width: 24,
+                                                        height: 24,
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        borderWidth: 1,
+                                                        backgroundColor: isSelected ? theme.accent : COLORS.bgMain,
+                                                        borderColor: isSelected || isRenaming ? theme.accent : COLORS.borderColor,
+                                                        marginRight: 10,
+                                                    }}
+                                                >
+                                                    <Ionicons
+                                                        name={
+                                                            chat.mode === 'deep-search'
+                                                                ? 'search'
+                                                                : chat.mode === 'learning'
+                                                                    ? 'school'
+                                                                    : 'chatbubble-outline'
+                                                        }
+                                                        size={12}
+                                                        color={isSelected ? '#000' : COLORS.textSecondary}
+                                                    />
+                                                </View>
+                                                {/* Title - web: text-xs truncate */}
+                                                <Text
+                                                    style={{
+                                                        flex: 1,
+                                                        fontSize: 13,
+                                                        fontFamily: FONTS.mono,
+                                                        color: isSelected || isRenaming ? theme.accent : COLORS.textSecondary,
+                                                        fontWeight: isSelected ? '500' : '400',
+                                                    }}
+                                                    numberOfLines={1}
+                                                >
+                                                    {chat.title || 'New Chat'}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        </Animated.View>
                                     );
                                 })}
                             </View>
@@ -429,6 +503,60 @@ export default function Drawer({
                         </View>
                     )}
                 </ScrollView>
+
+                <Modal visible={!!actionChat} transparent animationType="fade" onRequestClose={() => setActionChat(null)}>
+                    <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.72)', alignItems: 'center', justifyContent: 'center', padding: 22 }} onPress={() => setActionChat(null)}>
+                        <Pressable style={{ width: '100%', maxWidth: 360, backgroundColor: COLORS.bgSidebarSolid, borderWidth: 1, borderColor: COLORS.borderColor }}>
+                            <View style={{ padding: 14, borderBottomWidth: 1, borderBottomColor: COLORS.borderColor }}>
+                                <Text style={{ color: COLORS.textPrimary, fontFamily: FONTS.mono, fontSize: 12, fontWeight: '700', letterSpacing: 1.2, textTransform: 'uppercase' }}>Chat Actions</Text>
+                                <Text style={{ color: COLORS.textSecondary, fontFamily: FONTS.mono, fontSize: 12, marginTop: 8 }} numberOfLines={2}>{actionChat?.title || 'New Chat'}</Text>
+                            </View>
+                            <TouchableOpacity
+                                onPress={() => actionChat && openRenameDialog(actionChat)}
+                                style={{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, borderBottomWidth: 1, borderBottomColor: COLORS.borderColor }}
+                            >
+                                <Ionicons name="create-outline" size={17} color={theme.accent} />
+                                <Text style={{ color: theme.accent, fontFamily: FONTS.mono, fontSize: 12, fontWeight: '700', letterSpacing: 0.8, textTransform: 'uppercase' }}>Rename</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                onPress={() => actionChat && handleDelete(actionChat)}
+                                style={{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14 }}
+                            >
+                                <Ionicons name="trash-outline" size={17} color="#ef4444" />
+                                <Text style={{ color: '#ef4444', fontFamily: FONTS.mono, fontSize: 12, fontWeight: '700', letterSpacing: 0.8, textTransform: 'uppercase' }}>Delete</Text>
+                            </TouchableOpacity>
+                        </Pressable>
+                    </Pressable>
+                </Modal>
+
+                <Modal visible={!!renameChat} transparent animationType="fade" onRequestClose={() => setRenameChat(null)}>
+                    <Pressable style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.72)', alignItems: 'center', justifyContent: 'center', padding: 22 }} onPress={() => setRenameChat(null)}>
+                        <Pressable style={{ width: '100%', maxWidth: 360, backgroundColor: COLORS.bgSidebarSolid, borderWidth: 1, borderColor: COLORS.borderColor }}>
+                            <View style={{ padding: 14, borderBottomWidth: 1, borderBottomColor: COLORS.borderColor }}>
+                                <Text style={{ color: COLORS.textPrimary, fontFamily: FONTS.mono, fontSize: 12, fontWeight: '700', letterSpacing: 1.2, textTransform: 'uppercase' }}>Rename Chat</Text>
+                            </View>
+                            <View style={{ padding: 14 }}>
+                                <TextInput
+                                    value={renameTitle}
+                                    onChangeText={setRenameTitle}
+                                    autoFocus
+                                    selectionColor={theme.accent}
+                                    placeholder="Chat title"
+                                    placeholderTextColor={COLORS.textSecondary}
+                                    style={{ color: COLORS.textPrimary, fontFamily: FONTS.mono, fontSize: 13, borderWidth: 1, borderColor: COLORS.borderColor, backgroundColor: COLORS.bgMain, paddingVertical: 11, paddingHorizontal: 12 }}
+                                />
+                            </View>
+                            <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 8, padding: 12, borderTopWidth: 1, borderTopColor: COLORS.borderColor }}>
+                                <TouchableOpacity onPress={() => setRenameChat(null)} style={{ borderWidth: 1, borderColor: COLORS.borderColor, paddingVertical: 9, paddingHorizontal: 12 }}>
+                                    <Text style={{ color: COLORS.textSecondary, fontFamily: FONTS.mono, fontSize: 11, fontWeight: '700', letterSpacing: 0.8, textTransform: 'uppercase' }}>Cancel</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity onPress={handleRename} style={{ borderWidth: 1, borderColor: theme.accent, paddingVertical: 9, paddingHorizontal: 12, backgroundColor: `${theme.accent}10` }}>
+                                    <Text style={{ color: theme.accent, fontFamily: FONTS.mono, fontSize: 11, fontWeight: '700', letterSpacing: 0.8, textTransform: 'uppercase' }}>Save</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </Pressable>
+                    </Pressable>
+                </Modal>
 
                 {/* Footer - User Info + Branding */}
                 <View
