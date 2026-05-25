@@ -231,6 +231,17 @@ export default function ChatScreen() {
         }
     }, [messages, streamingContent]);
 
+    const clearLiveStreamState = useCallback(() => {
+        setStreamingContent('');
+        setStreamingReasoning('');
+        setCurrentTps(undefined);
+        streamingReasoningRef.current = '';
+        accumulatedTextRef.current = '';
+        currentTpsRef.current = undefined;
+    }, []);
+
+    const isAbortError = (error: unknown) => error instanceof Error && (error.name === 'AbortError' || error.message === 'Request aborted');
+
     // Stop generation
     const handleStop = useCallback(() => {
         if (abortControllerRef.current) {
@@ -240,7 +251,8 @@ export default function ChatScreen() {
         setIsStreaming(false);
         setIsThinking(false);
         setIsConnecting(false);
-    }, []);
+        clearLiveStreamState();
+    }, [clearLiveStreamState]);
 
     // Send message function
     const sendMessage = useCallback(async (messageText: string, attachmentParts: MessagePart[] = []) => {
@@ -340,10 +352,13 @@ export default function ChatScreen() {
                         setThinkingLabel('PROCESSING');
                         break;
                     case 'reasoning-start':
+                        setIsConnecting(false);
                         setIsThinking(true);
                         setThinkingLabel('THINKING');
                         break;
                     case 'reasoning-delta':
+                        setIsConnecting(false);
+                        setIsThinking(true);
                         const reasoningDelta = (e as any).delta || (e as any).textDelta || '';
                         streamingReasoningRef.current += reasoningDelta;
                         setStreamingReasoning(streamingReasoningRef.current);
@@ -395,6 +410,9 @@ export default function ChatScreen() {
                         setThinkingLabel((e as any).status?.toUpperCase() || 'PROCESSING');
                         break;
                     case 'reasoning':
+                        setIsConnecting(false);
+                        setIsThinking(true);
+                        setThinkingLabel('THINKING');
                         const legacyReasoningDelta = (e as any).textDelta || (e as any).delta || '';
                         streamingReasoningRef.current += legacyReasoningDelta;
                         setStreamingReasoning(streamingReasoningRef.current);
@@ -451,6 +469,7 @@ export default function ChatScreen() {
                         setIsStreaming(false);
                         setIsThinking(false);
                         setIsConnecting(false);
+                        clearLiveStreamState();
 
                         // Generate title for first message (matches web behavior)
                         if (useOpenAIAccount && openAIAccountAuth) {
@@ -466,26 +485,30 @@ export default function ChatScreen() {
                 }
             },
             (error) => {
+                if (isAbortError(error)) return;
                 const message = error.message || 'The model request failed.';
                 setChatError(message);
                 setMessages(prev => prev.filter(messageItem => messageItem.id !== assistantMessage.id));
                 setIsStreaming(false);
                 setIsThinking(false);
                 setIsConnecting(false);
+                clearLiveStreamState();
             },
             abortControllerRef.current.signal
         ).catch((error) => {
+            if (isAbortError(error)) return;
             const message = error instanceof Error ? error.message : 'The model request failed.';
             setChatError(message);
             setMessages(prev => prev.filter(messageItem => messageItem.id !== assistantMessage.id));
             setIsStreaming(false);
             setIsThinking(false);
             setIsConnecting(false);
+            clearLiveStreamState();
             abortControllerRef.current = null;
         }).finally(() => {
             abortControllerRef.current = null;
         });
-    }, [id, messages, isStreaming, chatMode, reasoningEffort, enabledMcpServers, responseLength, currentModelId, userName, userGender, customInstructions, learningSubMode, learningMode, useOpenAIAccount, openAIAccountAuth, refreshUsage]);
+    }, [id, messages, isStreaming, chatMode, reasoningEffort, enabledMcpServers, responseLength, currentModelId, userName, userGender, customInstructions, learningSubMode, learningMode, useOpenAIAccount, openAIAccountAuth, refreshUsage, clearLiveStreamState]);
 
     // Auto-send initial message if provided
     useEffect(() => {
@@ -719,6 +742,7 @@ export default function ChatScreen() {
                 data={messages}
                 keyExtractor={(item, index) => item.id || `msg-${index}`}
                 renderItem={renderMessage}
+                extraData={{ isStreaming, streamingContent, streamingReasoning, currentTps }}
                 contentContainerStyle={{ paddingTop: 18, paddingBottom: 20 }}
                 onContentSizeChange={() => {
                     if (messages.length > 0) {

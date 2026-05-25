@@ -53,8 +53,25 @@ const THINKING_LABELS = [
     "SIMULATING",
     "ANALYZING",
     "ROUTING",
-    "CRACKING"
+    "CRACKING",
+    "THINKING"
 ];
+
+const FINAL_THINKING_LABELS: Record<string, string> = {
+    COMPILING: 'COMPILED',
+    PROCESSING: 'PROCESSED',
+    LINKING: 'LINKED',
+    CALIBRATING: 'CALIBRATED',
+    SIMULATING: 'SIMULATED',
+    ANALYZING: 'ANALYZED',
+    ROUTING: 'ROUTED',
+    CRACKING: 'CRACKED',
+    THINKING: 'THOUGHT',
+};
+
+function finalThinkingLabel(label: string) {
+    return FINAL_THINKING_LABELS[label] || label;
+}
 
 /**
  * LoadingGrid - EXACT match to web LoadingIndicator with thinking-flicker animation
@@ -304,7 +321,8 @@ export default function MessageItem({
     }, [parsedThinking.finalContent]);
 
     const actuallyThinking = isThinking && !processedContent.trim();
-    const thinkingLabel = actuallyThinking ? randomLabel : 'CRACKED';
+    const thinkingLabel = actuallyThinking ? randomLabel : finalThinkingLabel(randomLabel);
+    const showReasoningContent = showReasoning || actuallyThinking;
 
     // Animated text during streaming (matches web useAnimatedText)
     // Word-by-word, 4s duration, circOut easing
@@ -441,7 +459,7 @@ export default function MessageItem({
                             )}
                             <GlowLabel active={actuallyThinking}>{thinkingLabel}</GlowLabel>
                         </View>
-                        {showReasoning ? (
+                        {showReasoningContent ? (
                             <View style={styles.reasoningContent}>
                                 <Markdown style={markdownStyles} rules={markdownRules}>
                                     {visibleReasoning}

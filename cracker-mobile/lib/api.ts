@@ -152,9 +152,9 @@ export async function apiFetch<T = unknown>(
 }
 
 /**
- * Streaming fetch for SSE endpoints like /api/chat
- * Uses fetch with ReadableStream for real-time streaming (supported in Expo SDK 54+)
- * Falls back to XMLHttpRequest if ReadableStream is not available
+ * Streaming fetch for SSE endpoints like /api/chat.
+ * React Native fetch can expose the body only after completion on some builds, so
+ * use XMLHttpRequest progress events for reliable token-by-token UI updates.
  */
 export async function apiStreamFetch(
     path: string,
@@ -166,112 +166,140 @@ export async function apiStreamFetch(
     const token = await getAuthToken();
     const apiBase = await getApiBaseUrl();
 
-    try {
-        const response = await fetch(`${apiBase}${path}`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'text/event-stream',
-                ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-            },
-            body: JSON.stringify(body),
-            signal,
-            // @ts-ignore - React Native specific option for streaming
-            reactNative: { textStreaming: true },
-        });
+    return new Promise((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        let seenLength = 0;
+        let buffer = '';
+        let settled = false;
 
-        if (!response.ok) {
-            throw new ApiError(response.status, await parseApiError(response, response.statusText || 'Request failed'));
-        }
-
-        // Try to use ReadableStream (real-time streaming)
-        const reader = response.body?.getReader();
-        if (reader) {
-            const decoder = new TextDecoder();
-            let buffer = '';
-
-            while (true) {
-                const { done, value } = await reader.read();
-
-                if (done) {
-                    // Process any remaining data in buffer
-                    if (buffer.trim()) {
-                        processSSEBuffer(buffer, onEvent);
-                    }
-                    break;
-                }
-
-                // Decode the chunk and add to buffer
-                const chunk = decoder.decode(value, { stream: true });
-                buffer += chunk;
-
-                // Process complete SSE events (lines ending with \n\n or \n)
-                const lines = buffer.split('\n');
-                buffer = lines.pop() || ''; // Keep incomplete line in buffer
-
-                for (const line of lines) {
-                    if (line.startsWith('data: ')) {
-                        const data = line.slice(6).trim();
-                        if (data === '[DONE]') return;
-
-                        try {
-                            const event = JSON.parse(data);
-                            const eventObj = event as { type?: string; error?: unknown; message?: unknown };
-                            if (eventObj.type === 'error' || eventObj.error) {
-                                const message = typeof eventObj.error === 'string'
-                                    ? eventObj.error
-                                    : typeof eventObj.message === 'string'
-                                        ? eventObj.message
-                                        : 'The model request failed.';
-                                throw new Error(message);
-                            }
-                            onEvent(event);
-                        } catch (error) {
-                            if (error instanceof Error && error.name !== 'SyntaxError') throw error;
-                            // Skip invalid JSON
-                        }
-                    }
-                }
+        const finish = (error?: Error) => {
+            if (settled) return;
+            settled = true;
+            signal?.removeEventListener('abort', abort);
+            if (error) {
+                onError?.(error);
+                reject(error);
+            } else {
+                resolve();
             }
-        } else {
-            // Fallback: parse entire response at once (no real streaming)
-            const text = await response.text();
-            processSSEBuffer(text, onEvent);
+        };
+
+        const abort = () => {
+            const error = new Error('Request aborted');
+            error.name = 'AbortError';
+            xhr.abort();
+            finish(error);
+        };
+
+        const safelyProcessIncomingText = () => {
+            try {
+                processIncomingText();
+            } catch (error) {
+                finish(error instanceof Error ? error : new Error(String(error)));
+            }
+        };
+
+        const processIncomingText = () => {
+            const responseText = xhr.responseText || '';
+            if (responseText.length <= seenLength) return;
+
+            buffer += responseText.slice(seenLength);
+            seenLength = responseText.length;
+            buffer = processSSEBuffer(buffer, onEvent, () => finish());
+        };
+
+        try {
+            xhr.open('POST', `${apiBase}${path}`);
+            xhr.setRequestHeader('Content-Type', 'application/json');
+            xhr.setRequestHeader('Accept', 'text/event-stream');
+            if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+
+            signal?.addEventListener('abort', abort);
+
+            xhr.onprogress = safelyProcessIncomingText;
+            xhr.onreadystatechange = () => {
+                if (xhr.readyState === XMLHttpRequest.LOADING) {
+                    safelyProcessIncomingText();
+                }
+            };
+            xhr.onload = () => {
+                try {
+                    processIncomingText();
+                    if (xhr.status < 200 || xhr.status >= 300) {
+                        const message = parseXhrError(xhr.responseText, xhr.statusText || 'Request failed');
+                        finish(new ApiError(xhr.status, message));
+                        return;
+                    }
+                    if (buffer.trim()) {
+                        buffer = processSSEBuffer(`${buffer}\n`, onEvent, () => finish());
+                    }
+                    finish();
+                } catch (error) {
+                    finish(error instanceof Error ? error : new Error(String(error)));
+                }
+            };
+            xhr.onerror = () => finish(new Error('Network request failed'));
+            xhr.ontimeout = () => finish(new Error('Request timed out'));
+            xhr.onabort = () => {
+                const error = new Error('Request aborted');
+                error.name = 'AbortError';
+                finish(error);
+            };
+            xhr.send(JSON.stringify(body));
+        } catch (error) {
+            finish(error instanceof Error ? error : new Error(String(error)));
         }
+    });
+}
+
+function parseXhrError(text: string, fallback: string) {
+    if (!text) return fallback;
+    try {
+        const data = JSON.parse(text) as { error?: string; details?: string; message?: string };
+        return data.details || data.error || data.message || text;
+    } catch {
+        return text;
+    }
+}
+
+function emitSSEData(data: string, onEvent: (event: unknown) => void | boolean, onDone: () => void) {
+    if (!data || data === '[DONE]') {
+        if (data === '[DONE]') onDone();
+        return;
+    }
+
+    try {
+        const event = JSON.parse(data);
+        const eventObj = event as { type?: string; error?: unknown; message?: unknown };
+        if (eventObj.type === 'error' || eventObj.error) {
+            const message = typeof eventObj.error === 'string'
+                ? eventObj.error
+                : typeof eventObj.message === 'string'
+                    ? eventObj.message
+                    : 'The model request failed.';
+            throw new Error(message);
+        }
+        if (onEvent(event) === false) onDone();
     } catch (error) {
-        onError?.(error instanceof Error ? error : new Error(String(error)));
-        throw error;
+        if (error instanceof Error && error.name !== 'SyntaxError') throw error;
+        // Skip invalid/incomplete JSON chunks.
     }
 }
 
 /**
- * Helper to process remaining SSE buffer
+ * Processes complete SSE lines and returns any partial trailing line.
  */
-function processSSEBuffer(buffer: string, onEvent: (event: unknown) => void) {
+function processSSEBuffer(buffer: string, onEvent: (event: unknown) => void | boolean, onDone: () => void) {
     const lines = buffer.split('\n');
-    for (const line of lines) {
-        if (line.startsWith('data: ')) {
-            const data = line.slice(6).trim();
-            if (data && data !== '[DONE]') {
-                try {
-                    const event = JSON.parse(data);
-                    const eventObj = event as { type?: string; error?: unknown; message?: unknown };
-                    if (eventObj.type === 'error' || eventObj.error) {
-                        const message = typeof eventObj.error === 'string'
-                            ? eventObj.error
-                            : typeof eventObj.message === 'string'
-                                ? eventObj.message
-                                : 'The model request failed.';
-                        throw new Error(message);
-                    }
-                    onEvent(event);
-                } catch (error) {
-                    if (error instanceof Error && error.name !== 'SyntaxError') throw error;
-                    // Skip invalid JSON
-                }
-            }
-        }
+    const remainder = lines.pop() || '';
+
+    for (const rawLine of lines) {
+        const line = rawLine.trimEnd();
+        if (!line.startsWith('data: ')) continue;
+        emitSSEData(line.slice(6).trim(), onEvent, onDone);
     }
+
+    return remainder;
 }
 
 // API endpoint helpers

@@ -58,8 +58,25 @@ const THINKING_LABELS = [
   "Simulating",
   "Analyzing",
   "Routing",
-  "Cracking"
+  "Cracking",
+  "Thinking"
 ];
+
+const FINAL_THINKING_LABELS: Record<string, string> = {
+  Compiling: "Compiled",
+  Processing: "Processed",
+  Linking: "Linked",
+  Calibrating: "Calibrated",
+  Simulating: "Simulated",
+  Analyzing: "Analyzed",
+  Routing: "Routed",
+  Cracking: "Cracked",
+  Thinking: "Thought",
+};
+
+function getFinalThinkingLabel(label: string) {
+  return FINAL_THINKING_LABELS[label] || label;
+}
 
 // AI Indicator - animated signal pulse with scan effect
 function AIIndicator() {
@@ -1074,7 +1091,7 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
   const actuallyThinking = isThinking && !finalContent.trim();
 
   // Derive thinking label from actuallyThinking for immediate updates
-  const thinkingLabel = actuallyThinking ? randomLabel : "Cracked";
+  const thinkingLabel = actuallyThinking ? randomLabel : getFinalThinkingLabel(randomLabel);
 
   // Don't show thinking section if it only contains [REDACTED]
   const isRedactedOnly = thinkContent.trim() === '[REDACTED]' || thinkContent.trim() === '';
