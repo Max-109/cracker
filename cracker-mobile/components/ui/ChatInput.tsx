@@ -46,7 +46,11 @@ export default function ChatInput({
     const [isFocused, setIsFocused] = useState(false);
 
     const hasText = value.trim().length > 0;
-    const BUTTON_SIZE = 44;
+    const BUTTON_SIZE = 40;
+    const OUTER_HORIZONTAL_PADDING = 12;
+    const ROW_HORIZONTAL_PADDING = 8;
+    const ROW_GAP = 6;
+    const TEXT_HORIZONTAL_PADDING = 4;
     const fastModeDisabled = isLoading || isStreaming || !supportsPriority;
 
     const handleSendPress = () => {
@@ -78,7 +82,7 @@ export default function ChatInput({
         <View
             style={{
                 backgroundColor: COLORS.bgMain,
-                paddingHorizontal: 16,
+                paddingHorizontal: OUTER_HORIZONTAL_PADDING,
                 paddingTop: 12,
                 paddingBottom: Platform.OS === 'ios' ? 34 : 16,
                 borderTopWidth: 1,
@@ -129,9 +133,9 @@ export default function ChatInput({
                     borderColor: isFocused ? `${theme.accent}80` : COLORS.border, // web: 50% opacity on focus
                     borderRadius: BORDER_RADIUS,
                     minHeight: 56,
-                    paddingHorizontal: 10, // web: p-2.5 = 10px
+                    paddingHorizontal: ROW_HORIZONTAL_PADDING,
                     paddingVertical: 10,
-                    gap: 8, // web: gap-2 = 8px
+                    gap: ROW_GAP,
                 }}
             >
                 {/* Attachment Button - matches web Paperclip button */}
@@ -139,14 +143,15 @@ export default function ChatInput({
                     onPress={onAttachment}
                     activeOpacity={0.7}
                     style={{
-                        width: 40, // web: w-10 = 40px
-                        height: 40, // web: h-10 = 40px
+                        width: BUTTON_SIZE,
+                        height: BUTTON_SIZE,
                         backgroundColor: COLORS.bgCard,
                         borderWidth: 1,
                         borderColor: COLORS.border,
                         borderRadius: BORDER_RADIUS,
                         alignItems: 'center',
                         justifyContent: 'center',
+                        flexShrink: 0,
                     }}
                 >
                     <Ionicons name="attach" size={16} color={COLORS.textSecondary} />
@@ -165,10 +170,13 @@ export default function ChatInput({
                     editable={!isRecording}
                     style={{
                         flex: 1,
+                        flexShrink: 1,
+                        minWidth: 0,
                         fontSize: 16,
                         color: COLORS.textPrimary,
                         maxHeight: 120,
-                        paddingHorizontal: 12,
+                        paddingHorizontal: TEXT_HORIZONTAL_PADDING,
+                        textAlignVertical: 'top',
                         paddingTop: Platform.OS === 'ios' ? 12 : 10,
                         paddingBottom: Platform.OS === 'ios' ? 12 : 10,
                         minHeight: BUTTON_SIZE,
@@ -184,8 +192,8 @@ export default function ChatInput({
                     accessibilityLabel="Toggle priority service"
                     accessibilityState={{ disabled: fastModeDisabled, selected: fastMode }}
                     style={{
-                        width: 40,
-                        height: 40,
+                        width: BUTTON_SIZE,
+                        height: BUTTON_SIZE,
                         backgroundColor: fastMode ? theme.accent : COLORS.bgCard,
                         borderWidth: 1,
                         borderColor: fastMode ? theme.accent : COLORS.border,
@@ -193,6 +201,7 @@ export default function ChatInput({
                         borderRadius: BORDER_RADIUS,
                         alignItems: 'center',
                         justifyContent: 'center',
+                        flexShrink: 0,
                     }}
                 >
                     <Ionicons name="flash" size={16} color={fastMode ? '#000' : COLORS.textSecondary} />
@@ -205,14 +214,15 @@ export default function ChatInput({
                         onPress={handleStopPress}
                         activeOpacity={0.7}
                         style={{
-                            width: 40,
-                            height: 40,
+                            width: BUTTON_SIZE,
+                            height: BUTTON_SIZE,
                             backgroundColor: COLORS.bgCard,
                             borderWidth: 1,
                             borderColor: theme.accent,
                             borderRadius: BORDER_RADIUS,
                             alignItems: 'center',
                             justifyContent: 'center',
+                            flexShrink: 0,
                         }}
                     >
                         <Ionicons name="stop" size={14} color={theme.accent} />
@@ -221,23 +231,24 @@ export default function ChatInput({
                     // Loading spinner
                     <View
                         style={{
-                            width: 40,
-                            height: 40,
+                            width: BUTTON_SIZE,
+                            height: BUTTON_SIZE,
                             alignItems: 'center',
                             justifyContent: 'center',
+                            flexShrink: 0,
                         }}
                     >
                         <ActivityIndicator size="small" color={theme.accent} />
                     </View>
                 ) : hasText ? (
                     // Send button - web: accent bg with ArrowUp
-                    <Animated.View entering={ZoomIn.duration(100)} exiting={ZoomOut.duration(100)}>
+                    <Animated.View entering={ZoomIn.duration(100)} exiting={ZoomOut.duration(100)} style={{ flexShrink: 0 }}>
                         <TouchableOpacity
                             onPress={handleSendPress}
                             activeOpacity={0.8}
                             style={{
-                                width: 40,
-                                height: 40,
+                                width: BUTTON_SIZE,
+                                height: BUTTON_SIZE,
                                 backgroundColor: theme.accent,
                                 borderRadius: BORDER_RADIUS,
                                 alignItems: 'center',
@@ -253,14 +264,15 @@ export default function ChatInput({
                         onPress={handleMicPress}
                         activeOpacity={0.7}
                         style={{
-                            width: 40,
-                            height: 40,
+                            width: BUTTON_SIZE,
+                            height: BUTTON_SIZE,
                             backgroundColor: isRecording ? theme.accent : COLORS.bgCard,
                             borderWidth: 1,
                             borderColor: isRecording ? theme.accent : COLORS.border,
                             borderRadius: BORDER_RADIUS,
                             alignItems: 'center',
                             justifyContent: 'center',
+                            flexShrink: 0,
                         }}
                     >
                         <Ionicons
