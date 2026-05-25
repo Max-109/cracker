@@ -6,6 +6,8 @@
     <img alt="Next.js" src="https://img.shields.io/badge/Next.js-16-%23d4a86b?style=for-the-badge&labelColor=3f3f46" />
     <img alt="React" src="https://img.shields.io/badge/React-19-%23d4a86b?style=for-the-badge&labelColor=3f3f46" />
     <img alt="Tailwind CSS" src="https://img.shields.io/badge/Tailwind-v4-%23d4a86b?style=for-the-badge&labelColor=3f3f46" />
+    <img alt="Expo" src="https://img.shields.io/badge/Expo-SDK%2056-%23d4a86b?style=for-the-badge&labelColor=3f3f46" />
+    <img alt="Redis" src="https://img.shields.io/badge/Redis%2FValkey-optional-%23d4a86b?style=for-the-badge&labelColor=3f3f46" />
     <img alt="AI SDK" src="https://img.shields.io/badge/AI%20SDK-v5-%23d4a86b?style=for-the-badge&labelColor=3f3f46" />
   </p>
   <h3>Web version</h3>
@@ -20,7 +22,9 @@
 
 ## What is Cracker?
 
-Cracker is a private AI chat app built around an OpenAI-compatible backend. It has encrypted chat storage, local auth, model switching, file attachments, web tools, learning mode, memory, and a matching mobile app.
+Cracker is a private AI chat app built around an OpenAI-compatible backend, with a Next.js web app and an Expo React Native mobile app. It uses PostgreSQL as the source of truth and optional Redis/Valkey for faster settings sync, cache hits, and lightweight coordination.
+
+It has encrypted chat storage, local auth, model switching, file attachments, web tools, learning mode, memory, and a matching mobile app.
 
 You can also connect OpenAI accounts in the browser and use their Codex/ChatGPT-plan usage for compatible models. Add more than one account if you want. Cracker checks usage, picks the account with the most room left, and tries the next account when one hits a limit.
 
