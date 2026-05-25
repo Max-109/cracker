@@ -1,5 +1,5 @@
 import { getDb } from '@/db';
-import { chats, messages } from '@/db/schema';
+import { activeGenerations, chats, messages } from '@/db/schema';
 import { eq, asc, and } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 import { getAuthUser } from '@/lib/auth';
@@ -115,7 +115,8 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
       return NextResponse.json({ error: 'Chat not found' }, { status: 404 });
     }
 
-    // Delete messages then chat
+    // Delete dependent rows before chat to avoid FK failures.
+    await db.delete(activeGenerations).where(eq(activeGenerations.chatId, id));
     await db.delete(messages).where(eq(messages.chatId, id));
     await db.delete(chats).where(and(eq(chats.id, id), eq(chats.userId, user.id)));
     return NextResponse.json({ success: true });

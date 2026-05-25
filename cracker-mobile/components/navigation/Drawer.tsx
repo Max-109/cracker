@@ -17,8 +17,6 @@ import Animated, {
     useAnimatedStyle,
     withTiming,
     Easing,
-    FadeOut,
-    LinearTransition,
 } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../store/theme';
@@ -241,18 +239,27 @@ export default function Drawer({
 
     const handleDelete = useCallback(async (chat: ChatItem) => {
         const chatId = chat.id;
+        if (animatingDeleteId) return;
+
         setActionChat(null);
         setAnimatingDeleteId(chatId);
         try {
-            await new Promise(resolve => setTimeout(resolve, 260));
+            await new Promise(resolve => setTimeout(resolve, 180));
             await api.deleteChat(chatId);
+
+            if (currentChatId === chatId) {
+                onChatDeleted?.(chatId);
+                return;
+            }
+
             await refreshAfterMutation();
             onChatDeleted?.(chatId);
         } catch (error: any) {
-            setAnimatingDeleteId(null);
             showAppDialog({ title: 'Delete Failed', message: error?.message || 'Could not delete this chat.', tone: 'error' });
+        } finally {
+            setTimeout(() => setAnimatingDeleteId(null), 120);
         }
-    }, [onChatDeleted, refreshAfterMutation]);
+    }, [animatingDeleteId, currentChatId, onChatDeleted, refreshAfterMutation]);
 
     const getUserName = () => {
         // Use name from profile API (fetched by auth store)
@@ -420,8 +427,6 @@ export default function Drawer({
                                     return (
                                         <Animated.View
                                             key={chat.id}
-                                            layout={LinearTransition.duration(180)}
-                                            exiting={FadeOut.duration(180)}
                                             style={{
                                                 opacity: isDeleting ? 0.25 : 1,
                                                 transform: [{ translateX: isDeleting ? -18 : 0 }, { scale: isRenaming ? 1.02 : 1 }],
@@ -520,7 +525,8 @@ export default function Drawer({
                             </TouchableOpacity>
                             <TouchableOpacity
                                 onPress={() => actionChat && handleDelete(actionChat)}
-                                style={{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14 }}
+                                disabled={!!animatingDeleteId}
+                                style={{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 14, opacity: animatingDeleteId ? 0.5 : 1 }}
                             >
                                 <Ionicons name="trash-outline" size={17} color="#ef4444" />
                                 <Text style={{ color: '#ef4444', fontFamily: FONTS.mono, fontSize: 12, fontWeight: '700', letterSpacing: 0.8, textTransform: 'uppercase' }}>Delete</Text>

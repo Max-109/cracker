@@ -184,9 +184,9 @@ export default function ChatScreen() {
                 } catch (apiError: any) {
                     // Handle specific API errors
                     if (apiError?.status === 404 || apiError?.status === 401) {
-                        // Chat was deleted or doesn't exist - navigate back gracefully
-                        setIsLoading(false);
-                        setTimeout(() => router.back(), 100);
+                        // Chat was deleted or doesn't exist - leave the stale route deterministically.
+                        if (!cancelled) setIsLoading(false);
+                        setTimeout(() => router.replace('/(main)'), 100);
                         return;
                     }
                     // Re-throw for outer catch to handle other errors
@@ -571,7 +571,7 @@ export default function ChatScreen() {
     const handleChatPress = (chatId: string) => {
         setIsDrawerOpen(false);
         if (chatId !== id) {
-            router.push(`/(main)/chat/${chatId}`);
+            router.replace(`/(main)/chat/${chatId}`);
         }
     };
 
@@ -582,6 +582,11 @@ export default function ChatScreen() {
 
     const handleChatDeleted = useCallback((deletedId: string) => {
         if (deletedId === id) {
+            abortControllerRef.current?.abort();
+            abortControllerRef.current = null;
+            setIsStreaming(false);
+            setIsThinking(false);
+            setIsConnecting(false);
             setIsDrawerOpen(false);
             router.replace('/(main)');
         }
