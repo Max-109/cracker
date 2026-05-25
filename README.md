@@ -10,14 +10,16 @@
     <img alt="Redis" src="https://img.shields.io/badge/Redis%2FValkey-cache%20%2B%20sync-%23d4a86b?style=for-the-badge&labelColor=3f3f46" />
     <img alt="AI SDK" src="https://img.shields.io/badge/AI%20SDK-v5-%23d4a86b?style=for-the-badge&labelColor=3f3f46" />
   </p>
-  <h3>Web version</h3>
-  <img src="./cracker.gif" alt="Cracker app preview" width="900" />
-
-  <h3>Android app</h3>
-  <p>
-    <img src="./docs/release/mobile-login.jpg" alt="Cracker mobile login" width="300" />
-    <img src="./docs/release/syntax-highlighting-preview.png" alt="Cracker mobile syntax highlighting preview" width="300" />
-  </p>
+  <table>
+    <tr>
+      <th>Web version</th>
+      <th>Mobile version</th>
+    </tr>
+    <tr>
+      <td><img src="./cracker.gif" alt="Cracker web app preview" width="560" /></td>
+      <td><img src="./cracker-mobile.gif" alt="Cracker mobile app preview" width="260" /></td>
+    </tr>
+  </table>
 </div>
 
 ## What is Cracker?
