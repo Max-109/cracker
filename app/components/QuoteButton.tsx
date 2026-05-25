@@ -5,6 +5,23 @@ import { Quote as QuoteIcon } from 'lucide-react';
 import { useQuoteContext } from './QuoteContext';
 import { cn } from '@/lib/utils';
 
+const QUOTABLE_SELECTOR = '[data-quote-source="message"]';
+const NON_QUOTABLE_SELECTOR = [
+  'input',
+  'textarea',
+  'select',
+  'button',
+  '[contenteditable="true"]',
+  '.chat-input',
+  '[data-input-area="true"]',
+  '[data-quote-exclude="true"]',
+].join(',');
+
+function elementFromNode(node: Node | null): Element | null {
+  if (!node) return null;
+  return node.nodeType === Node.ELEMENT_NODE ? (node as Element) : node.parentElement;
+}
+
 export function QuoteButton() {
   const [position, setPosition] = useState<{ top: number; left: number } | null>(null);
   const [isVisible, setIsVisible] = useState(false);
@@ -40,7 +57,7 @@ export function QuoteButton() {
       }
     };
 
-    const handleMouseUp = (e: MouseEvent) => {
+    const handleMouseUp = () => {
       const selection = window.getSelection();
       if (!selection || selection.isCollapsed || !selection.toString().trim()) {
         return;
@@ -59,17 +76,22 @@ export function QuoteButton() {
         return;
       }
 
-      // Check if the selection is within a message content area (not input/textarea)
-      const anchorNode = selection.anchorNode;
-      const parentElement = anchorNode?.parentElement;
+      const anchorElement = elementFromNode(selection.anchorNode);
+      const focusElement = elementFromNode(selection.focusNode);
+      const anchorQuoteSource = anchorElement?.closest(QUOTABLE_SELECTOR);
+      const focusQuoteSource = focusElement?.closest(QUOTABLE_SELECTOR);
 
-      // Don't show quote button for input areas
-      if (parentElement) {
-        if (parentElement.tagName === 'INPUT' || parentElement.tagName === 'TEXTAREA' ||
-          parentElement.classList.contains('chat-input') || parentElement.closest('.chat-input') ||
-          parentElement.closest('[data-input-area="true"]')) {
-          return;
-        }
+      // Only show the quote button for selections inside a single chat message body.
+      // The listener is global so selections in settings, sidebar/chat list, input, etc.
+      // must be ignored explicitly.
+      if (!anchorElement || !focusElement || !anchorQuoteSource || anchorQuoteSource !== focusQuoteSource) {
+        setIsVisible(false);
+        return;
+      }
+
+      if (anchorElement.closest(NON_QUOTABLE_SELECTOR) || focusElement.closest(NON_QUOTABLE_SELECTOR)) {
+        setIsVisible(false);
+        return;
       }
 
       // Improved positioning with better edge case handling

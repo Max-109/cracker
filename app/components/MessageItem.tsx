@@ -818,7 +818,10 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
                           <MessageSquareQuote size={12} className="text-[var(--text-accent)]" />
                           <span className="text-[9px] uppercase tracking-wider text-[var(--text-accent)] font-semibold">Quoting</span>
                         </div>
-                        <div className="text-[var(--text-primary)] text-sm italic border-l-2 border-l-[var(--text-accent)] pl-2">
+                        <div
+                          data-quote-source="message"
+                          className="text-[var(--text-primary)] text-sm italic border-l-2 border-l-[var(--text-accent)] pl-2"
+                        >
                           &ldquo;{quotedContent}&rdquo;
                         </div>
                       </div>
@@ -826,6 +829,7 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
                       {userQuestion && (
                         <div
                           ref={messageContentRef}
+                          data-quote-source="message"
                           className="bg-[#1a1a1a] text-[var(--text-primary)] whitespace-pre-wrap leading-relaxed break-words px-4 py-2.5 rounded-2xl rounded-tr-sm border border-[var(--border-color)] max-w-full"
                           style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}
                         >
@@ -840,6 +844,7 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
                 return (
                   <div
                     ref={messageContentRef}
+                    data-quote-source="message"
                     className="bg-[#1a1a1a] text-[var(--text-primary)] whitespace-pre-wrap leading-relaxed break-words px-4 py-2.5 rounded-2xl rounded-tr-sm border border-[var(--border-color)] max-w-full"
                     style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}
                   >
@@ -1128,6 +1133,7 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
                 <div className="mt-2 text-[var(--text-secondary)] text-sm whitespace-pre-wrap overflow-hidden">
                   <div
                     ref={messageContentRef}
+                    data-quote-source="message"
                     className="prose dark:prose-invert max-w-none text-sm text-[var(--text-secondary)]"
                     style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}
                   >
@@ -1218,6 +1224,7 @@ export const MessageItem = memo(function MessageItem({ role, content, isThinking
             <div className="min-h-[20px] space-y-3">
               <div
                 ref={messageContentRef}
+                data-quote-source="message"
                 className={cn("prose dark:prose-invert max-w-none break-words overflow-wrap-anywhere prose-pre:bg-transparent prose-pre:p-0", isStreaming && "streaming-active")}
                 style={{ wordBreak: 'break-word', overflowWrap: 'anywhere' }}
               >
