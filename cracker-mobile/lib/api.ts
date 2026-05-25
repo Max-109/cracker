@@ -1,3 +1,4 @@
+import { fetch as expoFetch } from 'expo/fetch';
 import * as SecureStore from 'expo-secure-store';
 
 const DEFAULT_API_BASE = 'https://cracker.mom';
@@ -153,8 +154,8 @@ export async function apiFetch<T = unknown>(
 
 /**
  * Streaming fetch for SSE endpoints like /api/chat.
- * React Native fetch can expose the body only after completion on some builds, so
- * use XMLHttpRequest progress events for reliable token-by-token UI updates.
+ * Use Expo's native fetch implementation because React Native's global fetch/XHR
+ * can buffer chunked responses until completion on Android release builds.
  */
 export async function apiStreamFetch(
     path: string,
@@ -166,99 +167,53 @@ export async function apiStreamFetch(
     const token = await getAuthToken();
     const apiBase = await getApiBaseUrl();
 
-    return new Promise((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        let seenLength = 0;
-        let buffer = '';
-        let settled = false;
-
-        const finish = (error?: Error) => {
-            if (settled) return;
-            settled = true;
-            signal?.removeEventListener('abort', abort);
-            if (error) {
-                onError?.(error);
-                reject(error);
-            } else {
-                resolve();
-            }
-        };
-
-        const abort = () => {
-            const error = new Error('Request aborted');
-            error.name = 'AbortError';
-            xhr.abort();
-            finish(error);
-        };
-
-        const safelyProcessIncomingText = () => {
-            try {
-                processIncomingText();
-            } catch (error) {
-                finish(error instanceof Error ? error : new Error(String(error)));
-            }
-        };
-
-        const processIncomingText = () => {
-            const responseText = xhr.responseText || '';
-            if (responseText.length <= seenLength) return;
-
-            buffer += responseText.slice(seenLength);
-            seenLength = responseText.length;
-            buffer = processSSEBuffer(buffer, onEvent, () => finish());
-        };
-
-        try {
-            xhr.open('POST', `${apiBase}${path}`);
-            xhr.setRequestHeader('Content-Type', 'application/json');
-            xhr.setRequestHeader('Accept', 'text/event-stream');
-            if (token) xhr.setRequestHeader('Authorization', `Bearer ${token}`);
-
-            signal?.addEventListener('abort', abort);
-
-            xhr.onprogress = safelyProcessIncomingText;
-            xhr.onreadystatechange = () => {
-                if (xhr.readyState === XMLHttpRequest.LOADING) {
-                    safelyProcessIncomingText();
-                }
-            };
-            xhr.onload = () => {
-                try {
-                    processIncomingText();
-                    if (xhr.status < 200 || xhr.status >= 300) {
-                        const message = parseXhrError(xhr.responseText, xhr.statusText || 'Request failed');
-                        finish(new ApiError(xhr.status, message));
-                        return;
-                    }
-                    if (buffer.trim()) {
-                        buffer = processSSEBuffer(`${buffer}\n`, onEvent, () => finish());
-                    }
-                    finish();
-                } catch (error) {
-                    finish(error instanceof Error ? error : new Error(String(error)));
-                }
-            };
-            xhr.onerror = () => finish(new Error('Network request failed'));
-            xhr.ontimeout = () => finish(new Error('Request timed out'));
-            xhr.onabort = () => {
-                const error = new Error('Request aborted');
-                error.name = 'AbortError';
-                finish(error);
-            };
-            xhr.send(JSON.stringify(body));
-        } catch (error) {
-            finish(error instanceof Error ? error : new Error(String(error)));
-        }
-    });
-}
-
-function parseXhrError(text: string, fallback: string) {
-    if (!text) return fallback;
     try {
-        const data = JSON.parse(text) as { error?: string; details?: string; message?: string };
-        return data.details || data.error || data.message || text;
-    } catch {
-        return text;
+        const response = await expoFetch(`${apiBase}${path}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'text/event-stream',
+                ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify(body),
+            signal,
+        });
+
+        if (!response.ok) {
+            throw new ApiError(response.status, await parseApiError(response, response.statusText || 'Request failed'));
+        }
+
+        const reader = response.body?.getReader();
+        if (!reader) {
+            processSSEBuffer(`${await response.text()}\n`, onEvent, () => undefined);
+            return;
+        }
+
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let shouldStop = false;
+
+        while (!shouldStop) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            buffer = processSSEBuffer(buffer + decoder.decode(value, { stream: true }), onEvent, () => {
+                shouldStop = true;
+            });
+        }
+
+        const trailing = decoder.decode();
+        if (trailing || buffer.trim()) {
+            processSSEBuffer(`${buffer}${trailing}\n`, onEvent, () => undefined);
+        }
+
+        if (shouldStop) {
+            await reader.cancel().catch(() => undefined);
+        }
+    } catch (error) {
+        const normalized = error instanceof Error ? error : new Error(String(error));
+        if (signal?.aborted) normalized.name = 'AbortError';
+        onError?.(normalized);
+        throw normalized;
     }
 }
 

@@ -130,6 +130,8 @@ export default function ChatScreen() {
         customInstructions,
         learningSubMode,
         currentModelId,
+        fastMode,
+        setFastMode,
     } = useSettingsStore();
     const learningMode = chatMode === 'learning';
     const { auth: openAIAccountAuth, enabled: useOpenAIAccount, refreshUsage } = useOpenAIAccountStore();
@@ -336,6 +338,7 @@ export default function ChatScreen() {
                 learningMode,
                 learningSubMode,
                 customInstructions,
+                fastMode,
                 ...accountContext,
             },
             (event: unknown) => {
@@ -508,7 +511,7 @@ export default function ChatScreen() {
         }).finally(() => {
             abortControllerRef.current = null;
         });
-    }, [id, messages, isStreaming, chatMode, reasoningEffort, enabledMcpServers, responseLength, currentModelId, userName, userGender, customInstructions, learningSubMode, learningMode, useOpenAIAccount, openAIAccountAuth, refreshUsage, clearLiveStreamState]);
+    }, [id, messages, isStreaming, chatMode, reasoningEffort, enabledMcpServers, responseLength, currentModelId, fastMode, userName, userGender, customInstructions, learningSubMode, learningMode, useOpenAIAccount, openAIAccountAuth, refreshUsage, clearLiveStreamState]);
 
     // Auto-send initial message if provided
     useEffect(() => {
@@ -745,7 +748,9 @@ export default function ChatScreen() {
                 extraData={{ isStreaming, streamingContent, streamingReasoning, currentTps }}
                 contentContainerStyle={{ paddingTop: 18, paddingBottom: 20 }}
                 onContentSizeChange={() => {
-                    if (messages.length > 0) {
+                    // Only auto-follow generated content while streaming.
+                    // Expanding completed reasoning changes content height too; do not steal the user's scroll then.
+                    if (isStreaming && messages.length > 0) {
                         flatListRef.current?.scrollToEnd({ animated: true });
                     }
                 }}
@@ -780,6 +785,9 @@ export default function ChatScreen() {
                 isLoading={false}
                 isRecording={false}
                 isStreaming={isStreaming}
+                fastMode={fastMode}
+                onFastModeChange={setFastMode}
+                supportsPriority={currentModelId === 'gpt-5.5' || currentModelId === 'gemini-3-pro-preview'}
                 placeholder="Let's crack..."
             />
         </KeyboardAvoidingView>

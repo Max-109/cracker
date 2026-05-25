@@ -562,8 +562,9 @@ const styles = StyleSheet.create({
         justifyContent: 'flex-start',
     },
     assistantInner: {
-        maxWidth: '100%',  // Use full width, parent paddingHorizontal handles spacing
-        alignItems: 'flex-start',
+        width: '100%',
+        flexShrink: 1,
+        alignItems: 'stretch',
     },
     assistantHeader: {
         flexDirection: 'row',
@@ -572,6 +573,7 @@ const styles = StyleSheet.create({
     },
     assistantContent: {
         width: '100%',
+        alignSelf: 'stretch',
     },
     assistantActions: {
         flexDirection: 'row',
@@ -690,6 +692,7 @@ const styles = StyleSheet.create({
     // REASONING - matches web thinking accordion exactly
     // ═══════════════════════════════════════════════════════════════════════
     reasoningBox: {
+        alignSelf: 'stretch',
         backgroundColor: '#141414',
         borderWidth: 1,
         padding: 12, // web: p-3 = 12px

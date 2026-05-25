@@ -54,6 +54,7 @@ function getCachedValues() {
         accentColor: s.getString('accentColor') || '#af8787',
         codeWrap: s.getBoolean('codeWrap') ?? true,
         autoScroll: s.getBoolean('autoScroll') ?? true,
+        fastMode: s.getBoolean('fastMode') ?? false,
         modelId,
         modelName,
         reasoningEffort: (s.getString('reasoningEffort') as ReasoningEffort) || 'medium',
@@ -82,6 +83,7 @@ const defaultLocalSettings: LocalSettings = {
     accentColor: cached.accentColor,
     codeWrap: cached.codeWrap,
     autoScroll: cached.autoScroll,
+    fastMode: cached.fastMode,
 };
 
 const defaultUserSettings: Partial<UserSettings> = {
@@ -103,6 +105,7 @@ interface SettingsState {
     accentColor: string;
     codeWrap: boolean;
     autoScroll: boolean;
+    fastMode: boolean;
 
     // Remote settings (API)
     currentModelId: string;
@@ -128,6 +131,7 @@ interface SettingsState {
     setAccentColor: (color: string) => void;
     setCodeWrap: (wrap: boolean) => void;
     setAutoScroll: (scroll: boolean) => void;
+    setFastMode: (enabled: boolean) => void;
 
     // Remote setters (auto-sync to server)
     setResponseLength: (length: number) => Promise<void>;
@@ -158,7 +162,8 @@ export const useSettingsStore = create<SettingsState>((set) => ({
             const accentColor = mmkv.getString('accentColor') || cached.accentColor;
             const codeWrap = mmkv.getBoolean('codeWrap') ?? cached.codeWrap;
             const autoScroll = mmkv.getBoolean('autoScroll') ?? cached.autoScroll;
-            set({ accentColor, codeWrap, autoScroll });
+            const fastMode = mmkv.getBoolean('fastMode') ?? cached.fastMode;
+            set({ accentColor, codeWrap, autoScroll, fastMode });
         } catch {
             // Silent fail - cached values are already in use
         }
@@ -271,6 +276,13 @@ export const useSettingsStore = create<SettingsState>((set) => ({
         } catch { }
         set({ autoScroll: scroll });
         api.updateSettings({ autoScroll: scroll }).catch(() => { });
+    },
+
+    setFastMode: (enabled) => {
+        try {
+            getStorage().set('fastMode', enabled);
+        } catch { }
+        set({ fastMode: enabled });
     },
 
 

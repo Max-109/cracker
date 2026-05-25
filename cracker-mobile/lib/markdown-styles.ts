@@ -20,6 +20,7 @@ const ACCENT_COLOR = '#a855f7'; // Default purple, overridden by theme
 export const createMarkdownStyles = (accent: string = ACCENT_COLOR) => StyleSheet.create({
     // Root container
     body: {
+        width: '100%',
         color: '#E5E5E5',
         fontSize: 15,
         lineHeight: 24,
@@ -29,6 +30,7 @@ export const createMarkdownStyles = (accent: string = ACCENT_COLOR) => StyleShee
     // Text color comes from body so blockquotes can correctly inherit their
     // own web color instead of being overridden by paragraph styling.
     paragraph: {
+        width: '100%',
         marginBottom: 12,
         lineHeight: 24,
     },

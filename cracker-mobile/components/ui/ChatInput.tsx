@@ -15,6 +15,9 @@ interface ChatInputProps {
     isLoading?: boolean;
     isRecording?: boolean;
     isStreaming?: boolean;
+    fastMode?: boolean;
+    supportsPriority?: boolean;
+    onFastModeChange?: (enabled: boolean) => void;
     placeholder?: string;
 }
 
@@ -33,6 +36,9 @@ export default function ChatInput({
     isLoading = false,
     isRecording = false,
     isStreaming = false,
+    fastMode = false,
+    supportsPriority = false,
+    onFastModeChange,
     placeholder = "Let's crack...",
 }: ChatInputProps) {
     const theme = useTheme();
@@ -58,6 +64,12 @@ export default function ChatInput({
     const handleStopPress = () => {
         if (onStop) {
             onStop();
+        }
+    };
+
+    const handleFastModePress = () => {
+        if (supportsPriority && !isLoading && onFastModeChange) {
+            onFastModeChange(!fastMode);
         }
     };
 
@@ -161,6 +173,29 @@ export default function ChatInput({
                         minHeight: BUTTON_SIZE,
                     }}
                 />
+
+                {/* Fast mode - matches web priority toggle, placed left of send/stop */}
+                <TouchableOpacity
+                    onPress={handleFastModePress}
+                    disabled={isLoading || !supportsPriority}
+                    activeOpacity={0.75}
+                    accessibilityRole="button"
+                    accessibilityLabel="Toggle priority service"
+                    accessibilityState={{ disabled: isLoading || !supportsPriority, selected: fastMode }}
+                    style={{
+                        width: 40,
+                        height: 40,
+                        backgroundColor: fastMode ? theme.accent : COLORS.bgCard,
+                        borderWidth: 1,
+                        borderColor: fastMode ? theme.accent : COLORS.border,
+                        opacity: isLoading || !supportsPriority ? 0.5 : 1,
+                        borderRadius: BORDER_RADIUS,
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                    }}
+                >
+                    <Ionicons name="flash" size={16} color={fastMode ? '#000' : COLORS.textSecondary} />
+                </TouchableOpacity>
 
                 {/* Right Side Button - all 40x40 to match web */}
                 {isStreaming ? (

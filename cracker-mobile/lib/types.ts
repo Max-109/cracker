@@ -207,6 +207,7 @@ export interface LocalSettings {
     accentColor: string;
     codeWrap: boolean;
     autoScroll: boolean;
+    fastMode: boolean;
 }
 
 // Auth types
