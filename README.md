@@ -37,14 +37,14 @@ You can also connect OpenAI accounts in the browser and use their Codex/ChatGPT-
 - Accent-color theming across the UI, favicon, app icon, and code highlighting.
 - MCP tools for Brave Search and YouTube.
 - Learning mode for summaries, flashcards, and guided explanations.
-- Expo SDK 54 / React Native Android app in `cracker-mobile/`, targeting `https://cracker.mom` by default.
+- Expo SDK 56 / React Native Android app in `cracker-mobile/`, targeting `https://cracker.mom` by default.
 
 ## Tech stack
 
 | Part | Tech |
 | --- | --- |
 | Web | Next.js 16, React 19, Tailwind CSS v4 |
-| Mobile | Expo SDK 54, React Native 0.81, Expo Router |
+| Mobile | Expo SDK 56, React Native 0.85, Expo Router |
 | Runtime | Bun |
 | AI | Vercel AI SDK, OpenAI-compatible provider |
 | Data | PostgreSQL, Drizzle ORM |
@@ -103,6 +103,62 @@ bun start -- --clear
 ```
 
 Use a native build or dev client. The app includes MMKV, Reanimated, dynamic app icons, Secure Store, and Nitro modules, so plain Expo Go is not the reliable target.
+
+## Run Android in an emulator
+
+Install the emulator and an Android 36 ARM image once:
+
+```bash
+export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools
+export ANDROID_SDK_ROOT="$ANDROID_HOME"
+export PATH="$ANDROID_HOME/emulator:$ANDROID_HOME/platform-tools:$PATH"
+
+yes | sdkmanager "emulator" "system-images;android-36;google_apis;arm64-v8a"
+printf 'no\n' | avdmanager create avd \
+  -n cracker_api36 \
+  -k "system-images;android-36;google_apis;arm64-v8a" \
+  -d pixel_7 \
+  --force
+```
+
+Start the emulator:
+
+```bash
+export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools
+export ANDROID_SDK_ROOT="$ANDROID_HOME"
+export PATH="$ANDROID_HOME/emulator:$ANDROID_HOME/platform-tools:$PATH"
+
+emulator -avd cracker_api36 -no-snapshot -no-audio -no-boot-anim -gpu swiftshader_indirect
+```
+
+In another terminal, wait for boot, install the APK, launch the app, and capture logs:
+
+```bash
+export ANDROID_HOME=/opt/homebrew/share/android-commandlinetools
+export PATH="$ANDROID_HOME/platform-tools:$PATH"
+
+adb wait-for-device
+until adb shell getprop sys.boot_completed | grep -q 1; do sleep 2; done
+
+adb install -r cracker.apk
+adb logcat -c
+adb shell am force-stop com.cracker.mobile
+adb shell am start -W -n com.cracker.mobile/.MainActivity
+sleep 10
+adb logcat -d -v threadtime > cracker-logcat.txt
+```
+
+Useful crash filters:
+
+```bash
+grep -E 'FATAL EXCEPTION|AndroidRuntime|ReactNativeJS|UnsatisfiedLinkError|SoLoader|Nitro|MMKV|QuickCrypto|Reanimated|com\.cracker\.mobile' cracker-logcat.txt
+```
+
+Take a screenshot from the emulator:
+
+```bash
+adb exec-out screencap -p > cracker-screen.png
+```
 
 ## Build the Android APK
 

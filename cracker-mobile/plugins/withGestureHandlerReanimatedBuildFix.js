@@ -22,9 +22,17 @@ subprojects { subproject ->
       if (androidExt != null) {
         def reanimatedSrc = subproject.file('reanimated/src/main/java')
         def noreanimatedSrc = subproject.file('noreanimated/src/main/java')
+        def patchedNoReanimatedSrc = subproject.file('build/patched-noreanimated/src/main/java')
+        def dispatcherSrc = subproject.file('noreanimated/src/main/java/com/swmansion/gesturehandler/ReanimatedEventDispatcher.kt')
+        def dispatcherDest = subproject.file('build/patched-noreanimated/src/main/java/com/swmansion/gesturehandler/ReanimatedEventDispatcher.kt')
+        dispatcherDest.parentFile.mkdirs()
+        dispatcherDest.text = dispatcherSrc.text
         androidExt.sourceSets.main.java.srcDirs = androidExt.sourceSets.main.java.srcDirs
-          .findAll { it != reanimatedSrc }
-          .plus(noreanimatedSrc)
+          .findAll { it != reanimatedSrc && it != noreanimatedSrc }
+          .plus(patchedNoReanimatedSrc)
+        androidExt.sourceSets.main.kotlin.srcDirs = androidExt.sourceSets.main.kotlin.srcDirs
+          .findAll { it != reanimatedSrc && it != noreanimatedSrc }
+          .plus(patchedNoReanimatedSrc)
       }
     }
   }
