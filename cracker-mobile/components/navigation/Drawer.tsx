@@ -8,6 +8,7 @@ import {
     Platform,
     StatusBar,
     Pressable,
+    RefreshControl,
 } from 'react-native';
 import Animated, {
     useSharedValue,
@@ -20,6 +21,7 @@ import { useTheme } from '../../store/theme';
 import { useAuthStore } from '../../store/auth';
 import { router } from 'expo-router';
 import { FONTS } from '../../lib/design';
+import Skeleton from '../ui/Skeleton';
 
 // Web colors from globals.css - EXACT values
 const COLORS = {
@@ -50,9 +52,43 @@ interface DrawerProps {
     onChatPress: (id: string) => void;
     onNewChat?: () => void;
     currentChatId?: string | null;
+    isRefreshing?: boolean;
+    onRefresh?: () => void;
 }
 
 // Time grouping function - EXACT copy from web Sidebar.tsx
+function ChatDrawerSkeleton({ estimatedCount = 6 }: { estimatedCount?: number }) {
+    return (
+        <View style={{ paddingHorizontal: 10, paddingTop: 8, paddingBottom: 12 }}>
+            {Array.from({ length: Math.max(2, Math.min(Math.ceil(estimatedCount / 2), 4)) }).map((_, item) => (
+                <View key={item} style={{ marginBottom: 12 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 2, paddingVertical: 8 }}>
+                        <Skeleton width={12} height={12} borderRadius={0} />
+                        <Skeleton width={92} height={10} borderRadius={0} />
+                    </View>
+                    {[0, 1].map((row) => (
+                        <View
+                            key={row}
+                            style={{
+                                flexDirection: 'row',
+                                alignItems: 'center',
+                                paddingVertical: 10,
+                                paddingHorizontal: 2,
+                                marginBottom: 2,
+                                borderLeftWidth: 2,
+                                borderLeftColor: COLORS.borderColor,
+                            }}
+                        >
+                            <Skeleton width={24} height={24} borderRadius={0} style={{ marginRight: 10 }} />
+                            <Skeleton width={row === 0 ? '72%' : '54%'} height={13} borderRadius={0} />
+                        </View>
+                    ))}
+                </View>
+            ))}
+        </View>
+    );
+}
+
 function groupChatsByDate(chats: ChatItem[]) {
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -110,6 +146,8 @@ export default function Drawer({
     onChatPress,
     onNewChat,
     currentChatId,
+    isRefreshing = false,
+    onRefresh,
 }: DrawerProps) {
     const theme = useTheme();
     const { user, logout } = useAuthStore();
@@ -265,7 +303,18 @@ export default function Drawer({
                     style={{ flex: 1 }}
                     contentContainerStyle={{ paddingBottom: 20 }}
                     showsVerticalScrollIndicator={false}
+                    refreshControl={onRefresh ? (
+                        <RefreshControl
+                            refreshing={isRefreshing}
+                            onRefresh={onRefresh}
+                            tintColor={theme.accent}
+                            colors={[theme.accent]}
+                            progressBackgroundColor={COLORS.bgMain}
+                        />
+                    ) : undefined}
                 >
+                    {isRefreshing && chats.length === 0 ? <ChatDrawerSkeleton estimatedCount={6} /> : null}
+
                     {groupedChats.map(({ label, chats: groupChats }) => (
                         groupChats.length > 0 && (
                             <View key={label} style={{ marginBottom: 12 }}>
@@ -371,7 +420,7 @@ export default function Drawer({
                         )
                     ))}
 
-                    {chats.length === 0 && (
+                    {!isRefreshing && chats.length === 0 && (
                         <View style={{ alignItems: 'center', paddingVertical: 60 }}>
                             <Ionicons name="chatbubbles-outline" size={40} color={COLORS.textSecondary} />
                             <Text style={{ color: COLORS.textSecondary, fontSize: 13, marginTop: 16, fontFamily: FONTS.mono }}>

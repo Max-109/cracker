@@ -49,11 +49,42 @@ export default function Skeleton({ width = '100%', height = 16, style, borderRad
     );
 }
 
+export function MessageThreadSkeleton({ estimatedMessages = 5 }: { estimatedMessages?: number }) {
+    const count = Math.max(3, Math.min(estimatedMessages, 8));
+    return (
+        <View style={{ flex: 1, paddingHorizontal: 16, paddingTop: 12 }}>
+            {Array.from({ length: count }).map((_, index) => {
+                const isUser = index % 2 === 0;
+                return (
+                    <View
+                        key={index}
+                        style={[
+                            styles.threadMessage,
+                            isUser ? styles.threadUserMessage : styles.threadAssistantMessage,
+                        ]}
+                    >
+                        {isUser ? (
+                            <Skeleton width={index % 4 === 0 ? '58%' : '42%'} height={38} borderRadius={0} />
+                        ) : (
+                            <View style={{ width: '100%', gap: 8 }}>
+                                <Skeleton width="28%" height={10} borderRadius={0} />
+                                <Skeleton width="96%" height={13} borderRadius={0} />
+                                <Skeleton width="88%" height={13} borderRadius={0} />
+                                <Skeleton width={index % 3 === 0 ? '54%' : '74%'} height={13} borderRadius={0} />
+                            </View>
+                        )}
+                    </View>
+                );
+            })}
+        </View>
+    );
+}
+
 // Chat list skeleton
-export function ChatListSkeleton() {
+export function ChatListSkeleton({ estimatedCount = 6 }: { estimatedCount?: number }) {
     return (
         <View style={{ padding: 16, gap: 12 }}>
-            {[1, 2, 3, 4, 5].map((i) => (
+            {Array.from({ length: Math.max(4, Math.min(estimatedCount, 10)) }).map((_, i) => (
                 <View key={i} style={styles.chatItem}>
                     <View style={styles.chatContent}>
                         <Skeleton width="70%" height={18} />
@@ -114,6 +145,16 @@ const styles = StyleSheet.create({
     },
     userMessage: {
         alignItems: 'flex-end',
+    },
+    threadMessage: {
+        marginVertical: 10,
+    },
+    threadUserMessage: {
+        alignItems: 'flex-end',
+    },
+    threadAssistantMessage: {
+        alignItems: 'flex-start',
+        maxWidth: '94%',
     },
     settingsBox: {
         backgroundColor: '#1a1a1a',

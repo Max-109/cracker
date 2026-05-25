@@ -21,6 +21,7 @@ export const createMarkdownStyles = (accent: string = ACCENT_COLOR) => StyleShee
     // Root container
     body: {
         width: '100%',
+        alignSelf: 'stretch',
         color: '#E5E5E5',
         fontSize: 15,
         lineHeight: 24,
@@ -31,12 +32,21 @@ export const createMarkdownStyles = (accent: string = ACCENT_COLOR) => StyleShee
     // own web color instead of being overridden by paragraph styling.
     paragraph: {
         width: '100%',
+        alignSelf: 'stretch',
         marginBottom: 12,
         lineHeight: 24,
         flexWrap: 'wrap',
         flexDirection: 'row',
         alignItems: 'flex-start',
         justifyContent: 'flex-start',
+    },
+    textgroup: {
+        flexShrink: 1,
+        minWidth: 0,
+    },
+    text: {
+        flexShrink: 1,
+        minWidth: 0,
     },
     blockquoteParagraph: {
         marginBottom: 0,
@@ -115,14 +125,19 @@ export const createMarkdownStyles = (accent: string = ACCENT_COLOR) => StyleShee
 
     // Lists - web: "list-disc pl-4 mb-4 space-y-1 marker:text-[var(--text-accent)]"
     bullet_list: {
+        width: '100%',
+        alignSelf: 'stretch',
         marginBottom: 16,
         paddingLeft: 16,
     },
     ordered_list: {
+        width: '100%',
+        alignSelf: 'stretch',
         marginBottom: 16,
         paddingLeft: 16,
     },
     list_item: {
+        width: '100%',
         marginBottom: 4,
         flexDirection: 'row',
     },

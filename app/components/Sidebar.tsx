@@ -8,7 +8,6 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
     Input,
-    FadeWrapper,
     AlertDialog,
     AlertDialogAction,
     AlertDialogCancel,
@@ -97,10 +96,49 @@ function groupChatsByDate(chats: Chat[]) {
     return groups;
 }
 
+function AdaptiveChatListSkeleton({ count = 7 }: { count?: number }) {
+    const rows = Array.from({ length: Math.max(4, Math.min(count, 12)) });
+    return (
+        <div className="px-2 pb-4">
+            {[0, 1, 2].map((group) => (
+                <div key={group} className="mb-3">
+                    <div className="flex items-center gap-2 px-2 py-2">
+                        <Skeleton className="h-2.5 w-2.5 bg-[var(--text-accent)]/30" />
+                        <Skeleton className="h-2.5 w-20 bg-[var(--border-color)]" />
+                    </div>
+                    <div className="space-y-0.5">
+                        {rows.slice(group * 3, group * 3 + (group === 0 ? 3 : 2)).map((_, index) => (
+                            <div key={index} className="flex items-center gap-2.5 border-l-2 border-l-[var(--border-color)] px-2 py-2">
+                                <Skeleton className="h-6 w-6 flex-shrink-0 bg-[#222]" />
+                                <Skeleton className={cn("h-3 bg-[var(--border-color)]", index % 3 === 0 ? "w-3/4" : index % 3 === 1 ? "w-5/6" : "w-1/2")} />
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
+}
 
+function SidebarSyncStrip() {
+    return (
+        <div className="mx-2 mb-3 border border-[var(--text-accent)]/20 bg-[var(--text-accent)]/5 px-2 py-1.5">
+            <div className="flex items-center justify-between gap-2">
+                <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-accent)]">Syncing chats</span>
+                <span className="h-1 w-14 overflow-hidden bg-[var(--border-color)]">
+                    <span className="block h-full w-1/2 animate-pulse bg-[var(--text-accent)]" />
+                </span>
+            </div>
+        </div>
+    );
+}
 
 export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose, isLoading, onRefresh, fetchError, className }: SidebarProps & { className?: string }) {
     const groupedChats = groupChatsByDate(chats);
+    const hasChats = chats.length > 0;
+    const showInitialSkeleton = !!isLoading && !hasChats;
+    const showRefreshStrip = !!isLoading && hasChats;
+    const skeletonCount = Math.max(6, Math.min(chats.length || 7, 12));
     const { profile, signOut } = useAuth();
     const router = useRouter();
     const { loadMoreChats, hasMoreChats, isLoadingMore } = useChatContext();
@@ -388,26 +426,11 @@ export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose
                 className="flex-1 overflow-y-auto scrollbar-custom relative"
             >
                 <div className="relative min-h-full">
-                    {/* Loading State - Absolute Overlay */}
-                    <FadeWrapper show={!!isLoading} isAbsolute={true} className="z-10 bg-[var(--bg-sidebar)]">
-                        <div className="space-y-4 px-2">
-                            <div className="space-y-2">
-                                <Skeleton className="h-3 w-12 bg-[var(--border-color)]" />
-                                <Skeleton className="h-8 w-full" />
-                                <Skeleton className="h-8 w-full" />
-                                <Skeleton className="h-8 w-3/4" />
-                            </div>
-                            <div className="space-y-2">
-                                <Skeleton className="h-3 w-16 bg-[var(--border-color)]" />
-                                <Skeleton className="h-8 w-full" />
-                                <Skeleton className="h-8 w-5/6" />
-                            </div>
-                        </div>
-                    </FadeWrapper>
-
-                    {/* Content State - Relative Flow */}
-                    <FadeWrapper show={!isLoading} isAbsolute={false}>
+                    {showInitialSkeleton ? (
+                        <AdaptiveChatListSkeleton count={skeletonCount} />
+                    ) : (
                         <div className="pb-4">
+                            {showRefreshStrip && <SidebarSyncStrip />}
                             {groupedChats.map(({ label, chats }) => (
                                 chats.length > 0 && (
                                     <div key={label} className="mb-3">
@@ -514,7 +537,6 @@ export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose
                                     </div>
                                 )
                             ))}
-                        </div>
 
                         {/* Load More Indicator */}
                         {hasMoreChats && (
@@ -534,7 +556,8 @@ export function Sidebar({ onNewChat, chats, currentChatId, onSelectChat, onClose
                                 )}
                             </div>
                         )}
-                    </FadeWrapper>
+                        </div>
+                    )}
                 </div>
             </div>
 

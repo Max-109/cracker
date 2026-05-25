@@ -6,7 +6,7 @@ import { MessageItem } from './MessageItem';
 import { Skeleton } from './Skeleton';
 import { LoadingIndicator } from './LoadingIndicator';
 
-import { FadeWrapper, ErrorAlert } from '@/components/ui';
+import { ErrorAlert } from '@/components/ui';
 import { Brain, Code, Lightbulb, PenLine, Zap, ArrowRight, Terminal } from 'lucide-react';
 import type { ChatMode, LearningSubMode } from '@/app/hooks/usePersistedSettings';
 
@@ -465,6 +465,54 @@ const SUGGESTIONS = [
   { icon: Zap, label: 'Explain', text: 'Explain quantum computing simply', desc: 'Learn anything' },
 ];
 
+function AdaptiveMessageSkeleton({ estimatedCount = 4, chatMode }: { estimatedCount?: number; chatMode?: ChatMode }) {
+  const count = Math.max(3, Math.min(estimatedCount, 8));
+  const rows = Array.from({ length: count });
+
+  return (
+    <div className="space-y-10">
+      {rows.map((_, index) => {
+        const isUser = index % 2 === 0;
+        if (isUser) {
+          return (
+            <div key={index} className="flex justify-end">
+              <Skeleton className={index % 4 === 0 ? "h-11 w-[52%]" : "h-10 w-[38%]"} />
+            </div>
+          );
+        }
+
+        return (
+          <div key={index} className="flex justify-start gap-4">
+            <div className="w-full max-w-[92%] space-y-3">
+              {chatMode === 'deep-search' && (
+                <div className="flex items-center gap-2">
+                  <Skeleton className="h-5 w-5 bg-[var(--text-accent)]/25" />
+                  <Skeleton className="h-3 w-32 bg-[var(--border-color)]" />
+                </div>
+              )}
+              <Skeleton className="h-3 w-[28%] bg-[var(--border-color)]" />
+              <div className="space-y-2">
+                <Skeleton className="h-4 w-[96%]" />
+                <Skeleton className="h-4 w-[88%]" />
+                <Skeleton className="h-4 w-[92%]" />
+                {index % 3 !== 0 && <Skeleton className="h-4 w-[64%]" />}
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function MessageRefreshStrip() {
+  return (
+    <div className="sticky top-2 z-20 mx-auto mb-4 w-fit border border-[var(--text-accent)]/20 bg-[#141414]/95 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-accent)] backdrop-blur">
+      Checking for updates
+    </div>
+  );
+}
+
 export function MessageList({
   messages,
   isMessagesLoading,
@@ -543,6 +591,10 @@ export function MessageList({
   const lastUserMessageIndex = messages.reduce((lastIdx, m, idx) =>
     m.role === 'user' ? idx : lastIdx, -1
   );
+  const hasMessages = messages.length > 0;
+  const showInitialSkeleton = isMessagesLoading && !hasMessages && !!currentChatId && !isSending;
+  const showRefreshStrip = isMessagesLoading && hasMessages;
+  const skeletonEstimate = Math.max(4, Math.min(messages.length || (chatMode === 'deep-search' ? 6 : 4), 8));
 
   return (
     <div
@@ -550,36 +602,11 @@ export function MessageList({
       ref={scrollContainerRef}
     >
       <div className="max-w-[800px] mx-auto pt-6 pb-6 px-4 md:px-6 relative">
-        {/* Loading Skeletons */}
-        <FadeWrapper show={isMessagesLoading} isAbsolute className="pt-6 px-4 md:px-6 z-10">
-          <div className="space-y-10">
-            <div className="flex justify-end">
-              <Skeleton className="h-12 w-[60%]" />
-            </div>
-            <div className="flex justify-start gap-4">
-              <div className="space-y-3 w-full max-w-[90%]">
-                <Skeleton className="h-4 w-[30%]" />
-                <div className="space-y-2">
-                  <Skeleton className="h-4 w-[95%]" />
-                  <Skeleton className="h-4 w-[88%]" />
-                  <Skeleton className="h-4 w-[92%]" />
-                  <Skeleton className="h-4 w-[60%]" />
-                </div>
-                <div className="pt-2 space-y-2">
-                  <Skeleton className="h-4 w-[90%]" />
-                  <Skeleton className="h-4 w-[85%]" />
-                </div>
-              </div>
-            </div>
-            <div className="flex justify-end">
-              <Skeleton className="h-10 w-[40%]" />
-            </div>
-          </div>
-        </FadeWrapper>
-
-        {/* Actual Content */}
-        <FadeWrapper show={!isMessagesLoading} className="relative z-0">
-          <>
+        {showInitialSkeleton ? (
+          <AdaptiveMessageSkeleton estimatedCount={skeletonEstimate} chatMode={chatMode} />
+        ) : (
+          <div className="relative z-0">
+            {showRefreshStrip && <MessageRefreshStrip />}
             {/* Sending indicator - shows immediately when user clicks send */}
             {isSending && messages.length === 0 && (
               <div className="flex flex-col items-center justify-center min-h-[60vh] px-4 py-8">
@@ -712,8 +739,8 @@ export function MessageList({
                 className="mt-6"
               />
             )}
-          </>
-        </FadeWrapper>
+          </div>
+        )}
 
 
         {/* Spacer for comfortable scroll positioning */}

@@ -163,10 +163,10 @@ export default function AuthBackground() {
         <View style={StyleSheet.absoluteFill} pointerEvents="none">
             {/* Grid Pattern */}
             <View
-                style={{
-                    ...StyleSheet.absoluteFillObject,
-                    opacity: 0.03,
-                }}
+                style={[
+                    StyleSheet.absoluteFill,
+                    { opacity: 0.03 },
+                ]}
             >
                 {/* Vertical lines */}
                 {Array.from({ length: Math.ceil(width / 60) }).map((_, i) => (
