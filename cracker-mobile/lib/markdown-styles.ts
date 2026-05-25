@@ -33,6 +33,10 @@ export const createMarkdownStyles = (accent: string = ACCENT_COLOR) => StyleShee
         width: '100%',
         marginBottom: 12,
         lineHeight: 24,
+        flexWrap: 'wrap',
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        justifyContent: 'flex-start',
     },
     blockquoteParagraph: {
         marginBottom: 0,

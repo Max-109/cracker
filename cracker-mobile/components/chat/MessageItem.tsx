@@ -349,12 +349,12 @@ export default function MessageItem({
                 </Text>
             );
         },
-        paragraph: (node: any, children: any, parent: any) => {
+        paragraph: (node: any, children: any, parent: any, styles: any) => {
             const insideBlockquote = parent?.some((item: any) => item?.type === 'blockquote');
             return (
                 <View
                     key={node.key}
-                    style={insideBlockquote ? markdownStyles.blockquoteParagraph : markdownStyles.paragraph}
+                    style={insideBlockquote ? styles._VIEW_SAFE_blockquoteParagraph : styles._VIEW_SAFE_paragraph}
                 >
                     {children}
                 </View>
