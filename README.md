@@ -7,7 +7,7 @@
     <img alt="React" src="https://img.shields.io/badge/React-19-%23d4a86b?style=for-the-badge&labelColor=3f3f46" />
     <img alt="Tailwind CSS" src="https://img.shields.io/badge/Tailwind-v4-%23d4a86b?style=for-the-badge&labelColor=3f3f46" />
     <img alt="Expo" src="https://img.shields.io/badge/Expo-SDK%2056-%23d4a86b?style=for-the-badge&labelColor=3f3f46" />
-    <img alt="Redis" src="https://img.shields.io/badge/Redis%2FValkey-cache%20%2B%20sync-%23d4a86b?style=for-the-badge&labelColor=3f3f46" />
+    <img alt="Redis" src="https://img.shields.io/badge/Redis-cache%20%2B%20sync-%23d4a86b?style=for-the-badge&labelColor=3f3f46" />
     <img alt="AI SDK" src="https://img.shields.io/badge/AI%20SDK-v5-%23d4a86b?style=for-the-badge&labelColor=3f3f46" />
   </p>
   <table width="100%">
