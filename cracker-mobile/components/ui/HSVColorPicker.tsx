@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Dimensions, PanResponder, GestureResponderEvent, PanResponderGestureState } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Dimensions, PanResponder, GestureResponderEvent, PanResponderGestureState, TextInput } from 'react-native';
 import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../store/theme';
@@ -89,6 +89,8 @@ export function HSVColorPicker({ onColorChange }: HSVColorPickerProps) {
     const [hue, setHue] = useState(initialHsv.h);
     const [saturation, setSaturation] = useState(initialHsv.s);
     const [brightness, setBrightness] = useState(initialHsv.v);
+    const [hexInput, setHexInput] = useState(theme.accent.toUpperCase());
+    const [isEditingHex, setIsEditingHex] = useState(false);
 
     // Track if user has interacted - prevent overwriting on mount
     const [hasInteracted, setHasInteracted] = useState(false);
@@ -96,6 +98,12 @@ export function HSVColorPicker({ onColorChange }: HSVColorPickerProps) {
     // Current color derived from HSV
     const currentColor = hsvToHex(hue, saturation, brightness);
     const hueColor = hueToColor(hue);
+
+    useEffect(() => {
+        if (!isEditingHex) {
+            setHexInput(currentColor);
+        }
+    }, [currentColor, isEditingHex]);
 
     // Only apply color when user has actually interacted with the picker
     useEffect(() => {
@@ -141,6 +149,27 @@ export function HSVColorPicker({ onColorChange }: HSVColorPickerProps) {
         setSaturation(hsv.s);
         setBrightness(hsv.v);
     }, []);
+
+    const handleHexChange = useCallback((value: string) => {
+        const cleaned = value.replace(/[^0-9a-fA-F#]/g, '').slice(0, value.startsWith('#') ? 7 : 6);
+        const normalized = cleaned.startsWith('#') ? cleaned : `#${cleaned}`;
+        setHexInput(normalized.toUpperCase());
+
+        if (/^#[0-9a-fA-F]{6}$/.test(normalized)) {
+            const hsv = hexToHsv(normalized);
+            setHasInteracted(true);
+            setHue(hsv.h);
+            setSaturation(hsv.s);
+            setBrightness(hsv.v);
+        }
+    }, []);
+
+    const handleHexBlur = useCallback(() => {
+        setIsEditingHex(false);
+        if (!/^#[0-9a-fA-F]{6}$/.test(hexInput)) {
+            setHexInput(currentColor);
+        }
+    }, [currentColor, hexInput]);
 
     // Reset to default
     const handleReset = useCallback(() => {
@@ -254,9 +283,20 @@ export function HSVColorPicker({ onColorChange }: HSVColorPickerProps) {
                 <View style={[styles.hexPreview, { backgroundColor: currentColor }]} />
                 <View style={styles.hexInputContainer}>
                     <Text style={styles.hexLabel}>HEX CODE</Text>
-                    <View style={styles.hexDisplay}>
-                        <Text style={styles.hexText}>{currentColor}</Text>
-                    </View>
+                    <TextInput
+                        value={hexInput}
+                        onChangeText={handleHexChange}
+                        onFocus={() => setIsEditingHex(true)}
+                        onBlur={handleHexBlur}
+                        onSubmitEditing={handleHexBlur}
+                        autoCapitalize="characters"
+                        autoCorrect={false}
+                        maxLength={7}
+                        selectionColor={currentColor}
+                        placeholder="#AF8787"
+                        placeholderTextColor={COLORS.textSecondary}
+                        style={styles.hexDisplay}
+                    />
                 </View>
             </View>
 
@@ -406,8 +446,6 @@ const styles = StyleSheet.create({
         borderColor: COLORS.border,
         paddingHorizontal: 12,
         paddingVertical: 8,
-    },
-    hexText: {
         fontSize: 13,
         color: COLORS.textPrimary,
         fontFamily: FONTS.mono,
