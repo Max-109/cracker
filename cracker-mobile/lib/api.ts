@@ -332,8 +332,35 @@ export const api = {
     },
 
     // Settings
-    async getSettings(): Promise<Record<string, unknown>> {
-        return apiFetch('/api/settings');
+    async getSettings(options: { etag?: string; since?: number } = {}): Promise<Record<string, unknown> & { _notModified?: boolean; _etag?: string; _version?: number }> {
+        const token = await getAuthToken();
+        const apiBase = await getApiBaseUrl();
+        const query = options.since ? `?since=${encodeURIComponent(String(options.since))}` : '';
+        const headers: HeadersInit = {
+            'Content-Type': 'application/json',
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+            ...(options.etag ? { 'If-None-Match': options.etag } : {}),
+        };
+
+        const response = await fetch(`${apiBase}/api/settings${query}`, { headers });
+        const etag = response.headers.get('etag') || undefined;
+        const versionHeader = response.headers.get('x-settings-version');
+        const version = versionHeader ? Number(versionHeader) : undefined;
+
+        if (response.status === 304) {
+            return { _notModified: true, _etag: etag, _version: version };
+        }
+
+        if (!response.ok) {
+            throw new ApiError(response.status, await parseApiError(response, 'Failed to load settings'));
+        }
+
+        const data = await response.json();
+        return {
+            ...data,
+            _etag: typeof data._etag === 'string' ? data._etag : etag,
+            _version: typeof data._version === 'number' ? data._version : version,
+        };
     },
 
     async updateSettings(settings: Record<string, unknown>): Promise<Record<string, unknown>> {

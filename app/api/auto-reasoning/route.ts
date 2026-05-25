@@ -3,6 +3,8 @@ import { NextResponse } from "next/server";
 import { createOpenAIProviderOverride, openai, openAIProviderOptions } from '@/lib/ai-provider';
 import { createOpenAIAccountProvider } from '@/lib/openai-account';
 import type { OpenAIAccountAuth } from '@/lib/openai-account-shared';
+import { createHash } from 'crypto';
+import { redisGetJson, redisSetJson, redisSetNx } from '@/lib/redis';
 
 // GPT reasoning effort classifier. The target chat models accept: low, medium, high, xhigh.
 const CLASSIFIER_SYSTEM_PROMPT = `You are a prompt complexity analyzer. Your ONLY job is to analyze user prompts and choose the best GPT reasoning_effort value.
@@ -49,6 +51,21 @@ When in doubt between two levels, choose the HIGHER one to ensure quality respon
 
 type GptReasoningEffort = 'low' | 'medium' | 'high' | 'xhigh';
 
+function promptCacheKey(prompt: string) {
+    const normalized = prompt.trim().toLowerCase().replace(/\s+/g, ' ').slice(0, 4000);
+    const hash = createHash('sha256').update(`spark-v1:${normalized}`).digest('hex');
+    return `auto-reasoning:v2:${hash}`;
+}
+
+async function waitForCachedEffort(cacheKey: string) {
+    for (let i = 0; i < 6; i++) {
+        await new Promise(resolve => setTimeout(resolve, 250));
+        const cached = await redisGetJson<{ effort: GptReasoningEffort }>(cacheKey);
+        if (cached?.effort) return cached.effort;
+    }
+    return null;
+}
+
 function parseEffort(response: string): GptReasoningEffort {
     const normalized = response.trim().toLowerCase();
 
@@ -74,6 +91,26 @@ export async function POST(req: Request) {
         console.log('[AUTO-REASONING] Analyzing prompt:', prompt.slice(0, 200) + (prompt.length > 200 ? '...' : ''));
 
         const openAIAccountAuths = Array.isArray(openAIAccountAuth) ? openAIAccountAuth : openAIAccountAuth ? [openAIAccountAuth] : [];
+        const canUseSharedCache = openAIAccountAuths.length === 0 && !providerApiBaseUrl && !providerApiKey;
+        const cacheKey = canUseSharedCache ? promptCacheKey(prompt) : null;
+        let ownsLock = false;
+        if (cacheKey) {
+            const cached = await redisGetJson<{ effort: GptReasoningEffort }>(cacheKey);
+            if (cached?.effort) {
+                console.log('[AUTO-REASONING] Redis cache hit:', cached.effort);
+                return NextResponse.json({ effort: cached.effort, cached: true });
+            }
+
+            ownsLock = await redisSetNx(`${cacheKey}:lock`, '1', 30);
+            if (!ownsLock) {
+                const lockedResult = await waitForCachedEffort(cacheKey);
+                if (lockedResult) {
+                    console.log('[AUTO-REASONING] Redis singleflight hit:', lockedResult);
+                    return NextResponse.json({ effort: lockedResult, cached: true });
+                }
+            }
+        }
+
         const overrideProvider = createOpenAIProviderOverride({ baseURL: providerApiBaseUrl, apiKey: providerApiKey });
         const provider = openAIAccountAuths.length > 0 ? createOpenAIAccountProvider(openAIAccountAuths) : overrideProvider || openai;
         const result = await generateText({
@@ -89,6 +126,10 @@ export async function POST(req: Request) {
         console.log('[AUTO-REASONING] AI raw response:', result.text);
         console.log('[AUTO-REASONING] Result:', effort);
         console.log('==============================================\n');
+
+        if (cacheKey) {
+            await redisSetJson(cacheKey, { effort }, 60 * 60 * 24 * 7);
+        }
 
         return NextResponse.json({ effort });
     } catch (error) {

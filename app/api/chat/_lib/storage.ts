@@ -3,6 +3,7 @@ import { encryptContent, getOrCreateChatDek } from '@/lib/encryption';
 import { splitThinkingBlocks } from '@/lib/thinking-text';
 import { and, desc, eq, gt } from 'drizzle-orm';
 import type { LearningSubMode } from './types';
+import { redisGetJson, redisSetJson } from '@/lib/redis';
 
 const MAX_REASONABLE_TOKENS_PER_SECOND = 500;
 
@@ -16,7 +17,26 @@ function formatTokensPerSecond(value: unknown): string | null {
   return normalized == null ? null : String(Math.round(normalized * 10) / 10);
 }
 
+function statsCacheKey(chatId: string) {
+  return `chat:v1:${chatId}:latestAssistantStats`;
+}
+
 export async function getLatestAssistantStats(db: any, chatId: string, after?: Date) {
+  const cached = await redisGetJson<{
+    tokensPerSecond: number | null;
+    tokenSpeed: number | null;
+    modelId: string | null;
+    messageId: string | null;
+    createdAt: string | null;
+  }>(statsCacheKey(chatId));
+
+  if (cached?.createdAt) {
+    const cachedCreatedAt = new Date(cached.createdAt);
+    if (!after || cachedCreatedAt > after) {
+      return { ...cached, createdAt: cachedCreatedAt };
+    }
+  }
+
   const [lastMessage] = await db
     .select({
       id: messagesTable.id,
@@ -35,13 +55,22 @@ export async function getLatestAssistantStats(db: any, chatId: string, after?: D
 
   const tokensPerSecond = normalizeTokensPerSecond(lastMessage?.tokensPerSecond);
 
-  return {
+  const stats = {
     tokensPerSecond,
     tokenSpeed: tokensPerSecond,
     modelId: lastMessage?.model || null,
     messageId: lastMessage?.id || null,
     createdAt: lastMessage?.createdAt || null,
   };
+
+  if (stats.messageId) {
+    await redisSetJson(statsCacheKey(chatId), {
+      ...stats,
+      createdAt: stats.createdAt instanceof Date ? stats.createdAt.toISOString() : stats.createdAt,
+    }, 60 * 60);
+  }
+
+  return stats;
 }
 
 export async function saveAssistantMessage(db: any, params: {
@@ -114,14 +143,24 @@ export async function saveAssistantMessage(db: any, params: {
     const dek = await getOrCreateChatDek(chatId);
     const encryptedContent = encryptContent(contentParts, dek);
 
-    await db.insert(messagesTable).values({
+    const formattedTokensPerSecond = formatTokensPerSecond(tokensPerSecond);
+    const [savedMessage] = await db.insert(messagesTable).values({
       chatId,
       role: 'assistant',
       content: encryptedContent,
       model: modelId,
       learningSubMode: subMode,
-      tokensPerSecond: formatTokensPerSecond(tokensPerSecond),
-    });
+      tokensPerSecond: formattedTokensPerSecond,
+    }).returning({ id: messagesTable.id, createdAt: messagesTable.createdAt });
+
+    const normalizedTokensPerSecond = normalizeTokensPerSecond(formattedTokensPerSecond);
+    await redisSetJson(statsCacheKey(chatId), {
+      tokensPerSecond: normalizedTokensPerSecond,
+      tokenSpeed: normalizedTokensPerSecond,
+      modelId,
+      messageId: savedMessage?.id || null,
+      createdAt: savedMessage?.createdAt instanceof Date ? savedMessage.createdAt.toISOString() : savedMessage?.createdAt || null,
+    }, 60 * 60);
   } catch (error) {
     console.error('Failed to save message to DB:', error);
   }

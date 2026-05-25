@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { useAuth } from './AuthContext';
 import { setAppIcon } from '@/lib/capacitor/app-icon';
 
@@ -181,6 +181,8 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
   }));
   const [isLoading, setIsLoading] = useState(true);
   const [isHydrated, setIsHydrated] = useState(false);
+  const settingsEtagRef = useRef<string | null>(null);
+  const settingsVersionRef = useRef<number | null>(null);
 
   // Load accent color from localStorage on mount (browser-only)
   useEffect(() => {
@@ -211,9 +213,19 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      const res = await fetch('/api/settings');
+      const query = settingsVersionRef.current ? `?since=${encodeURIComponent(String(settingsVersionRef.current))}` : '';
+      const res = await fetch(`/api/settings${query}`, {
+        headers: settingsEtagRef.current ? { 'If-None-Match': settingsEtagRef.current } : undefined,
+      });
+      if (res.status === 304) {
+        return;
+      }
       if (res.ok) {
         const data = await res.json();
+        settingsEtagRef.current = data._etag || res.headers.get('etag') || settingsEtagRef.current;
+        settingsVersionRef.current = typeof data._version === 'number'
+          ? data._version
+          : Number(res.headers.get('x-settings-version')) || settingsVersionRef.current;
         console.log('[Settings] Loaded from DB - enabledMcpServers:', data.enabledMcpServers);
         // Derive chatMode from learningMode if not explicitly set (backward compatibility)
         let chatMode: ChatMode = data.chatMode || DEFAULT_ACCOUNT_SETTINGS.chatMode;
@@ -274,8 +286,20 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
     const syncSettings = () => {
       if (document.visibilityState !== 'visible') return;
 
-      fetch('/api/settings')
-        .then(res => res.ok ? res.json() : null)
+      const query = settingsVersionRef.current ? `?since=${encodeURIComponent(String(settingsVersionRef.current))}` : '';
+      fetch(`/api/settings${query}`, {
+        headers: settingsEtagRef.current ? { 'If-None-Match': settingsEtagRef.current } : undefined,
+      })
+        .then(async res => {
+          if (res.status === 304) return null;
+          if (!res.ok) return null;
+          const data = await res.json();
+          settingsEtagRef.current = data._etag || res.headers.get('etag') || settingsEtagRef.current;
+          settingsVersionRef.current = typeof data._version === 'number'
+            ? data._version
+            : Number(res.headers.get('x-settings-version')) || settingsVersionRef.current;
+          return data;
+        })
         .then(data => {
           if (!data) return;
           setSettings(prev => {
@@ -364,6 +388,11 @@ export function SettingsProvider({ children }: { children: React.ReactNode }) {
         // Revert on failure
         await fetchSettings();
       } else {
+        const data = await res.json().catch(() => null);
+        settingsEtagRef.current = data?._etag || res.headers.get('etag') || settingsEtagRef.current;
+        settingsVersionRef.current = typeof data?._version === 'number'
+          ? data._version
+          : Number(res.headers.get('x-settings-version')) || settingsVersionRef.current;
         console.log('[Settings] API update success');
       }
     } catch (error) {

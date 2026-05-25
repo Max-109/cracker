@@ -116,3 +116,5 @@ async function testChatEndpoint() {
 
 // Run test
 testChatEndpoint();
+
+export {};

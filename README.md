@@ -68,13 +68,25 @@ OPENAI_API_KEY=your_proxy_key
 AUTH_SESSION_SECRET=replace_with_a_long_random_secret
 ENCRYPTION_KEK=64_hex_characters
 
-# Optional
+# Optional tools
 BRAVE_API_KEY=
 YOUTUBE_API_KEY=
 TAVILY_API_KEY=
+
+# Optional Redis cache/sync backend
+# Prefer this for your own VPS Redis/Valkey:
+REDIS_URL=redis://:password@your-vps:6379
+# Or use Upstash REST instead:
+UPSTASH_REDIS_REST_URL=
+UPSTASH_REDIS_REST_TOKEN=
+# Optional namespace / forced DB-only mode:
+REDIS_PREFIX=cracker:
+REDIS_DISABLED=false
 ```
 
 `DATABASE_URL` may also be `POSTGRES_URL`, `POSTGRES_PRISMA_URL`, or `POSTGRES_URL_NON_POOLING`. `PROXY_API_KEY` is accepted instead of `OPENAI_API_KEY`.
+
+Redis is optional. If Redis vars are unset, the app falls back to PostgreSQL-only behavior. Use `REDIS_URL` for a VPS Redis/Valkey instance; Upstash REST vars are supported as a serverless fallback. Never expose Redis credentials with `NEXT_PUBLIC_` or `EXPO_PUBLIC_`.
 
 ## Run the web app
 

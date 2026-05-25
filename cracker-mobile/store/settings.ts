@@ -63,6 +63,8 @@ function getCachedValues() {
         customInstructions: s.getString('customInstructions') || '',
         userName: s.getString('userName') || '',
         userGender: s.getString('userGender') || 'he',
+        settingsVersion: s.getNumber('settingsVersion') ?? null,
+        settingsEtag: s.getString('settingsEtag') || null,
         enabledMcpServers: (() => {
             try {
                 const stored = s.getString('enabledMcpServers');
@@ -119,10 +121,28 @@ function shouldAcceptServerField(field: SettingsField, requestStartedAt: number)
     return true;
 }
 
+function persistServerMetadata(settings: Record<string, unknown>) {
+    const version = typeof settings._version === 'number' ? settings._version : null;
+    const etag = typeof settings._etag === 'string' ? settings._etag : null;
+
+    try {
+        if (version) getStorage().set('settingsVersion', version);
+        if (etag) getStorage().set('settingsEtag', etag);
+    } catch { }
+
+    useSettingsStore.setState({
+        settingsVersion: version ?? useSettingsStore.getState().settingsVersion,
+        settingsEtag: etag ?? useSettingsStore.getState().settingsEtag,
+        lastSyncedAt: Date.now(),
+        lastSyncError: null,
+    });
+}
+
 async function persistRemote(updates: Record<string, unknown>, fields: SettingsField[]) {
     markLocalWrite(fields);
     try {
-        await api.updateSettings(updates);
+        const settings = await api.updateSettings(updates);
+        persistServerMetadata(settings);
         clearPending(fields);
     } catch {
         // Keep the fields protected briefly. A later foreground/interval sync can reconcile.
@@ -187,6 +207,8 @@ interface SettingsState {
     isSyncing: boolean;
     lastSyncedAt: number | null;
     lastSyncError: string | null;
+    settingsVersion: number | null;
+    settingsEtag: string | null;
 
     // Actions
     initialize: () => void;
@@ -223,6 +245,8 @@ export const useSettingsStore = create<SettingsState>((set) => ({
     isSyncing: false,
     lastSyncedAt: null,
     lastSyncError: null,
+    settingsVersion: cached.settingsVersion,
+    settingsEtag: cached.settingsEtag,
 
     initialize: () => {
         // Settings are already loaded from MMKV cache at module load
@@ -233,7 +257,9 @@ export const useSettingsStore = create<SettingsState>((set) => ({
             const codeWrap = mmkv.getBoolean('codeWrap') ?? cached.codeWrap;
             const autoScroll = mmkv.getBoolean('autoScroll') ?? cached.autoScroll;
             const fastMode = mmkv.getBoolean('fastMode') ?? cached.fastMode;
-            set({ accentColor, codeWrap, autoScroll, fastMode });
+            const settingsVersion = mmkv.getNumber('settingsVersion') ?? cached.settingsVersion;
+            const settingsEtag = mmkv.getString('settingsEtag') || cached.settingsEtag;
+            set({ accentColor, codeWrap, autoScroll, fastMode, settingsVersion, settingsEtag });
         } catch {
             // Silent fail - cached values are already in use
         }
@@ -246,8 +272,17 @@ export const useSettingsStore = create<SettingsState>((set) => ({
         syncPromise = (async () => {
             set({ isLoading: true, isSyncing: true });
             try {
-                const settings = await api.getSettings();
                 const state = useSettingsStore.getState();
+                const settings = await api.getSettings({
+                    etag: state.settingsEtag || undefined,
+                    since: state.settingsVersion || undefined,
+                });
+
+                if (settings._notModified) {
+                    persistServerMetadata(settings);
+                    set({ isSynced: true, lastSyncedAt: Date.now(), lastSyncError: null });
+                    return;
+                }
 
                 const modelId = String(settings.currentModelId || state.currentModelId || cached.modelId);
                 const modelName = normalizeModelName(modelId, String(settings.currentModelName || state.currentModelName || cached.modelName));
@@ -266,7 +301,15 @@ export const useSettingsStore = create<SettingsState>((set) => ({
                 const fastMode = typeof settings.fastMode === 'boolean' ? settings.fastMode : state.fastMode;
                 const accentColor = typeof settings.accentColor === 'string' ? settings.accentColor : state.accentColor;
 
-                const next: Partial<SettingsState> = { isSynced: true, lastSyncedAt: Date.now(), lastSyncError: null };
+                persistServerMetadata(settings);
+
+                const next: Partial<SettingsState> = {
+                    isSynced: true,
+                    lastSyncedAt: Date.now(),
+                    lastSyncError: null,
+                    settingsVersion: typeof settings._version === 'number' ? settings._version : state.settingsVersion,
+                    settingsEtag: typeof settings._etag === 'string' ? settings._etag : state.settingsEtag,
+                };
 
                 const apply = <K extends keyof SettingsState>(field: SettingsField, key: K, value: SettingsState[K], persistValue?: string | number | boolean | string[]) => {
                     if (!shouldAcceptServerField(field, requestStartedAt)) return;
