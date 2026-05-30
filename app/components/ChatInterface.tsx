@@ -290,6 +290,8 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
     api: '/api/chat',
     body: () => {
       console.log('[Chat] Sending with enabledMcpServers:', enabledMcpServersRef.current);
+      const providerRequestContext = providerRequestContextRef.current;
+      const useAccount = openAIAccountAuthRef.current.length > 0 && !providerRequestContext.providerApiKey;
       return {
         // When image mode is selected, use the image generation model
         model: currentModelIdRef.current,
@@ -305,9 +307,9 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
         enabledMcpServers: enabledMcpServersRef.current,
         accentColor: getAccentColorFromStorage(),
         fastMode: fastModeRef.current,
-        useOpenAIAccount: openAIAccountAuthRef.current.length > 0,
-        openAIAccountAuth: openAIAccountAuthRef.current,
-        ...providerRequestContextRef.current,
+        useOpenAIAccount: useAccount,
+        openAIAccountAuth: useAccount ? openAIAccountAuthRef.current : [],
+        ...providerRequestContext,
       };
     },
   }), []);
@@ -966,6 +968,8 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
     }
 
     const providerRequestContext = providerRequestContextRef.current;
+    const useAccount = openAIAccountAuthRef.current.length > 0 && !providerRequestContext.providerApiKey;
+    const openAIAccountAuthForRequest = useAccount ? openAIAccountAuthRef.current : [];
 
     // Format message with quotes if any
     let userMessage = input;
@@ -996,7 +1000,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
     const autoReasoningPromise = fetch('/api/auto-reasoning', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt: userMessage, openAIAccountAuth: openAIAccountAuthRef.current, ...providerRequestContext })
+      body: JSON.stringify({ prompt: userMessage, openAIAccountAuth: openAIAccountAuthForRequest, ...providerRequestContext })
     }).then(res => res.json()).then(data => {
       const effort = data.effort as ReasoningEffortLevel;
       reasoningEffortRef.current = effort;
@@ -1109,7 +1113,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
           fetch('/api/generate-title', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ chatId: activeChatId, prompt: titlePrompt, model: currentModelIdRef.current, openAIAccountAuth: openAIAccountAuthRef.current, ...providerRequestContext })
+            body: JSON.stringify({ chatId: activeChatId, prompt: titlePrompt, model: currentModelIdRef.current, openAIAccountAuth: openAIAccountAuthForRequest, ...providerRequestContext })
           }).then(() => refreshChats());
         }
       }

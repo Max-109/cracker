@@ -137,7 +137,10 @@ export async function POST(req: Request) {
       extractTextFromLastUserMessage(messages),
     );
 
-    const response = result.toUIMessageStreamResponse({ sendReasoning: true });
+    const response = result.toUIMessageStreamResponse({
+      sendReasoning: true,
+      onError: (error) => error instanceof Error ? error.message : String(error),
+    });
     return cleanupTempAttachmentsAfterStream(response, collectTempAttachmentIds(messages));
   } catch (error) {
     console.error('API Route Error:', error);

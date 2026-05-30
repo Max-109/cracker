@@ -120,24 +120,29 @@ async function hydrateImagePart<T extends { image?: string }>(part: T) {
 
 function normalizeUiMessages(messages: ChatInputMessage[]) {
   return messages.map((msg) => {
+    const role = normalizeMessageRole(msg.role);
     if (typeof msg.content === 'string') {
-      const parts = [{ type: 'text', text: msg.role === 'assistant' ? stripThinkingBlocks(msg.content) : msg.content }];
-      return { id: msg.id || `msg-${Date.now()}`, role: msg.role, content: parts, parts };
+      const parts = [{ type: 'text', text: role === 'assistant' ? stripThinkingBlocks(msg.content) : msg.content }];
+      return { id: msg.id || `msg-${Date.now()}`, role, content: parts, parts };
     }
 
     if (Array.isArray(msg.content)) {
-      const parts = normalizePartsForModel(msg.content, msg.role);
-      return { id: msg.id || `msg-${Date.now()}`, role: msg.role, content: parts, parts };
+      const parts = normalizePartsForModel(msg.content, role);
+      return { id: msg.id || `msg-${Date.now()}`, role, content: parts, parts };
     }
 
     if (msg.parts && Array.isArray(msg.parts)) {
-      const parts = normalizePartsForModel(msg.parts, msg.role);
-      return { id: msg.id || `msg-${Date.now()}`, role: msg.role, content: parts, parts };
+      const parts = normalizePartsForModel(msg.parts, role);
+      return { id: msg.id || `msg-${Date.now()}`, role, content: parts, parts };
     }
 
     const parts = [{ type: 'text', text: String(msg.content || '') }];
-    return { id: msg.id || `msg-${Date.now()}`, role: msg.role, content: parts, parts };
+    return { id: msg.id || `msg-${Date.now()}`, role, content: parts, parts };
   });
+}
+
+function normalizeMessageRole(role: string) {
+  return role === 'assistant' || role === 'system' || role === 'user' ? role : 'user';
 }
 
 function normalizePartsForModel(parts: unknown[], role: string) {

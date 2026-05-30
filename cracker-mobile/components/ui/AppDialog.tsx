@@ -43,7 +43,7 @@ export function AppDialogProvider() {
     }, []);
 
     const tone = dialog?.tone || 'default';
-    const toneColor = tone === 'error' ? '#ef4444' : tone === 'warning' ? '#f59e0b' : tone === 'success' ? '#87af87' : theme.accent;
+    const toneColor = tone === 'error' ? '#ef4444' : tone === 'warning' ? '#f59e0b' : theme.accent;
     const icon = tone === 'error' ? 'warning-outline' : tone === 'warning' ? 'alert-circle-outline' : tone === 'success' ? 'checkmark-circle-outline' : 'information-circle-outline';
     const actions = dialog?.actions?.length ? dialog.actions : [{ label: 'OK' }];
 

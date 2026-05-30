@@ -89,11 +89,15 @@ function contentForRequest(message: ChatMessage) {
     return message.content;
 }
 
+function roleForRequest(role: ChatMessage['role']) {
+    return role === 'assistant' || role === 'system' || role === 'user' ? role : 'user';
+}
+
 function messagesForRequest(messages: ChatMessage[], nextUserMessage: ChatMessage) {
     return [...messages, nextUserMessage]
         .filter((message) => message.role !== 'assistant' || String(contentForRequest(message)).trim().length > 0)
         .map((message) => ({
-            role: message.role,
+            role: roleForRequest(message.role),
             content: contentForRequest(message),
         }));
 }
@@ -338,9 +342,11 @@ export default function ChatScreen() {
         };
         setMessages(prev => [...prev, assistantMessage]);
 
-        const accountContext = useOpenAIAccount && openAIAccountAuth
+        const providerConfig = await getProviderConfig();
+        const hasProviderOverride = !!(providerConfig.providerApiBaseUrl && providerConfig.providerApiKey);
+        const accountContext = !hasProviderOverride && useOpenAIAccount && openAIAccountAuth
             ? { useOpenAIAccount: true, openAIAccountAuth: [openAIAccountAuth] }
-            : { useOpenAIAccount: false, ...(await getProviderConfig()) };
+            : { useOpenAIAccount: false, ...providerConfig };
 
         // Get auto-reasoning
         let effort = reasoningEffort;

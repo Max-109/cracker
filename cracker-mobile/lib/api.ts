@@ -225,13 +225,17 @@ function emitSSEData(data: string, onEvent: (event: unknown) => void | boolean, 
 
     try {
         const event = JSON.parse(data);
-        const eventObj = event as { type?: string; error?: unknown; message?: unknown };
-        if (eventObj.type === 'error' || eventObj.error) {
-            const message = typeof eventObj.error === 'string'
-                ? eventObj.error
-                : typeof eventObj.message === 'string'
-                    ? eventObj.message
-                    : 'The model request failed.';
+        const eventObj = event as { type?: string; error?: unknown; message?: unknown; errorText?: unknown; details?: unknown };
+        if (eventObj.type === 'error' || eventObj.error || eventObj.errorText) {
+            const message = typeof eventObj.errorText === 'string'
+                ? eventObj.errorText
+                : typeof eventObj.error === 'string'
+                    ? eventObj.error
+                    : typeof eventObj.details === 'string'
+                        ? eventObj.details
+                        : typeof eventObj.message === 'string'
+                            ? eventObj.message
+                            : 'The model request failed.';
             throw new Error(message);
         }
         if (onEvent(event) === false) onDone();
