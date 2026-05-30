@@ -11,6 +11,7 @@ import { useAttachments } from '@/app/hooks/useAttachments';
 import { usePersistedSetting, useAccentColor, useResponseLength, useUserProfile, useLearningMode, useChatMode, useLearningSubMode, useCustomInstructions, useEnabledMcpServers, useCodeWrap, useAutoScroll, useFastMode, ReasoningEffortLevel, ChatMode, LearningSubMode } from '@/app/hooks/usePersistedSettings';
 import { useOpenAIAccount } from '@/app/hooks/useOpenAIAccount';
 import { formatOpenAIUsageReset, type OpenAIUsagePayload } from '@/lib/openai-account-shared';
+import { getProviderRequestContext, PROVIDER_CONFIG_CHANGE_EVENT, readProviderConfig, writeProviderConfig, type ProviderConfig } from '@/lib/provider-config';
 import { ModelSelector } from './ModelSelector';
 import { EnhancedChatInput } from './EnhancedChatInput';
 import { MessageList } from './MessageList';
@@ -99,6 +100,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
   const { autoScroll, setAutoScroll } = useAutoScroll();
   const { fastMode, setFastMode, isHydrated: isFastModeHydrated } = useFastMode();
   const openAIAccount = useOpenAIAccount();
+  const [alternativeApi, setAlternativeApi] = useState<ProviderConfig>(() => readProviderConfig());
 
   const isSettingsHydrated = isModelIdHydrated && isModelNameHydrated && isColorHydrated && isResponseLengthHydrated && isProfileHydrated && isLearningModeHydrated && isChatModeHydrated && isCustomInstructionsHydrated && isMcpServersHydrated && isLearningSubModeHydrated && isFastModeHydrated;
 
@@ -152,6 +154,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
   const reasoningEffortRef = useRef<ReasoningEffortLevel>('medium'); // Auto-reasoning: updated per-message
   const fastModeRef = useRef(fastMode);
   const openAIAccountAuthRef = useRef(openAIAccount.requestAuths);
+  const providerRequestContextRef = useRef(getProviderRequestContext(alternativeApi));
 
   // Sync with URL changes (for history.pushState navigation)
   useEffect(() => {
@@ -195,11 +198,25 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
   useEffect(() => { learningModeRef.current = learningMode; }, [learningMode]);
   useEffect(() => { chatModeRef.current = chatMode; }, [chatMode]);
   useEffect(() => { customInstructionsRef.current = customInstructions; }, [customInstructions]);
+  useEffect(() => {
+    const reloadProviderConfig = () => setAlternativeApi(readProviderConfig());
+    window.addEventListener('storage', reloadProviderConfig);
+    window.addEventListener(PROVIDER_CONFIG_CHANGE_EVENT, reloadProviderConfig);
+    return () => {
+      window.removeEventListener('storage', reloadProviderConfig);
+      window.removeEventListener(PROVIDER_CONFIG_CHANGE_EVENT, reloadProviderConfig);
+    };
+  }, []);
+  const handleAlternativeApiChange = useCallback((config: ProviderConfig) => {
+    writeProviderConfig(config);
+    setAlternativeApi(readProviderConfig());
+  }, []);
   const enabledMcpServersRef = useRef(enabledMcpServers);
   // Use direct assignment - update ref IMMEDIATELY when value changes, not via effect
   // This prevents race condition when user toggles a tool and quickly sends a message
   enabledMcpServersRef.current = enabledMcpServers;
   openAIAccountAuthRef.current = openAIAccount.requestAuths;
+  providerRequestContextRef.current = getProviderRequestContext(alternativeApi);
   const learningSubModeRef = useRef(learningSubMode);
   useEffect(() => { learningSubModeRef.current = learningSubMode; }, [learningSubMode]);
 
@@ -290,6 +307,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
         fastMode: fastModeRef.current,
         useOpenAIAccount: openAIAccountAuthRef.current.length > 0,
         openAIAccountAuth: openAIAccountAuthRef.current,
+        ...providerRequestContextRef.current,
       };
     },
   }), []);
@@ -947,6 +965,8 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
       });
     }
 
+    const providerRequestContext = providerRequestContextRef.current;
+
     // Format message with quotes if any
     let userMessage = input;
     if (quotes && quotes.length > 0) {
@@ -976,7 +996,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
     const autoReasoningPromise = fetch('/api/auto-reasoning', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt: userMessage, openAIAccountAuth: openAIAccountAuthRef.current })
+      body: JSON.stringify({ prompt: userMessage, openAIAccountAuth: openAIAccountAuthRef.current, ...providerRequestContext })
     }).then(res => res.json()).then(data => {
       const effort = data.effort as ReasoningEffortLevel;
       reasoningEffortRef.current = effort;
@@ -1089,7 +1109,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
           fetch('/api/generate-title', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ chatId: activeChatId, prompt: titlePrompt, openAIAccountAuth: openAIAccountAuthRef.current })
+            body: JSON.stringify({ chatId: activeChatId, prompt: titlePrompt, openAIAccountAuth: openAIAccountAuthRef.current, ...providerRequestContext })
           }).then(() => refreshChats());
         }
       }
@@ -1326,6 +1346,8 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
           onOpenAIUnlink={openAIAccount.unlink}
           onOpenAIEnabledChange={openAIAccount.setEnabled}
           onOpenAISync={openAIAccount.syncUsage}
+          alternativeApi={alternativeApi}
+          onAlternativeApiChange={handleAlternativeApiChange}
         />
 
         <QuoteProvider>

@@ -6,6 +6,7 @@ import { Settings2, User, Pencil, Palette, Terminal, GaugeCircle, MessageSquareT
 import { cn } from '@/lib/utils';
 import { Dialog } from '@/components/ui';
 import { formatOpenAIUsageReset, type OpenAIUsagePayload } from '@/lib/openai-account-shared';
+import type { ProviderConfig } from '@/lib/provider-config';
 
 // Response length levels with descriptions
 const RESPONSE_LEVELS = [
@@ -70,6 +71,8 @@ interface SettingsDialogProps {
   onOpenAIUnlink: () => void;
   onOpenAIEnabledChange: (enabled: boolean) => void;
   onOpenAISync: () => void | Promise<unknown>;
+  alternativeApi: ProviderConfig;
+  onAlternativeApiChange: (config: ProviderConfig) => void;
 }
 
 export function SettingsDialog({
@@ -100,6 +103,8 @@ export function SettingsDialog({
   onOpenAIUnlink,
   onOpenAIEnabledChange,
   onOpenAISync,
+  alternativeApi,
+  onAlternativeApiChange,
 }: SettingsDialogProps) {
   const [activeSection, setActiveSection] = useState<'response' | 'profile' | 'connections' | 'appearance' | 'tools' | 'behavior' | 'memory'>('response');
   const DEFAULT_ACCENT_COLOR = '#af8787';
@@ -121,6 +126,7 @@ export function SettingsDialog({
   const [localUserName, setLocalUserName] = useState(userName);
   const [localUserGender, setLocalUserGender] = useState(userGender);
   const [localAccentColor, setLocalAccentColor] = useState(getReliableAccentColor);
+  const [localAlternativeApi, setLocalAlternativeApi] = useState<ProviderConfig>(alternativeApi);
 
   // Reset local state when dialog opens - sync from props
   const prevOpenRef = useRef(open);
@@ -133,10 +139,11 @@ export function SettingsDialog({
         setLocalUserName(userName);
         setLocalUserGender(userGender);
         setLocalAccentColor(getReliableAccentColor());
+        setLocalAlternativeApi(alternativeApi);
       });
     }
     prevOpenRef.current = open;
-  }, [open, responseLength, customInstructions, userName, userGender, accentColor]);
+  }, [open, responseLength, customInstructions, userName, userGender, accentColor, alternativeApi]);
 
   const handleSave = () => {
     console.log('[Settings] ===== SAVING =====');
@@ -149,6 +156,7 @@ export function SettingsDialog({
     onUserNameChange(localUserName);
     onUserGenderChange(localUserGender);
     onAccentColorChange(localAccentColor);
+    onAlternativeApiChange(localAlternativeApi);
 
     onOpenChange(false);
   };
@@ -230,6 +238,8 @@ export function SettingsDialog({
               onUnlink={onOpenAIUnlink}
               onEnabledChange={onOpenAIEnabledChange}
               onSync={onOpenAISync}
+              alternativeApi={localAlternativeApi}
+              onAlternativeApiChange={setLocalAlternativeApi}
             />
           )}
           {activeSection === 'tools' && (
@@ -677,9 +687,11 @@ interface ConnectionsSectionProps {
   onUnlink: () => void;
   onEnabledChange: (enabled: boolean) => void;
   onSync: () => void | Promise<unknown>;
+  alternativeApi: ProviderConfig;
+  onAlternativeApiChange: (config: ProviderConfig) => void;
 }
 
-function ConnectionsSection({ connected, enabled, identity, usage, error, onConnect, onUnlink, onEnabledChange, onSync }: ConnectionsSectionProps) {
+function ConnectionsSection({ connected, enabled, identity, usage, error, onConnect, onUnlink, onEnabledChange, onSync, alternativeApi, onAlternativeApiChange }: ConnectionsSectionProps) {
   const primaryWindow = usage?.rate_limit?.primary_window;
   const weeklyWindow = usage?.rate_limit?.secondary_window;
   const used = primaryWindow?.used_percent;
@@ -778,6 +790,69 @@ function ConnectionsSection({ connected, enabled, identity, usage, error, onConn
                 Unlink
               </button>
             </>
+          )}
+        </div>
+      </div>
+
+      <div className={cn(
+        "border bg-[#1a1a1a] p-3 transition-colors border-l-2",
+        alternativeApi.enabled ? "border-[var(--border-color)] border-l-[var(--text-accent)]" : "border-[var(--border-color)] border-l-[#333333]"
+      )}>
+        <button
+          onClick={() => onAlternativeApiChange({ ...alternativeApi, enabled: !alternativeApi.enabled })}
+          className="flex items-center justify-between w-full p-3 bg-[#141414] border border-[var(--border-color)] hover:border-[var(--text-accent)]/30 transition-all duration-150"
+        >
+          <div className="text-left">
+            <div className="text-xs font-semibold uppercase tracking-wider text-[var(--text-primary)]">Alternative API</div>
+            <div className="text-[9px] text-[var(--text-secondary)] mt-0.5">
+              Use your own API URL and API key
+            </div>
+          </div>
+          <div
+            className={cn(
+              "w-10 h-5 rounded-full transition-all duration-200 relative",
+              alternativeApi.enabled ? "bg-[var(--text-accent)]" : "bg-[#2a2a2a]"
+            )}
+          >
+            <div className={cn(
+              "absolute top-0.5 w-4 h-4 rounded-full transition-all duration-200",
+              alternativeApi.enabled
+                ? "left-[22px] bg-black"
+                : "left-0.5 bg-[#4a4a4a]"
+            )} />
+          </div>
+        </button>
+
+        <p className="mt-3 text-[9px] text-[var(--text-secondary)] leading-relaxed">
+          OpenAI-compatible only. Leave empty to use server .env.
+        </p>
+
+        <div className="mt-4 space-y-3 border-t border-[var(--border-color)] pt-3">
+          <label className="block">
+            <span className="text-[8px] uppercase tracking-[0.14em] text-[var(--text-secondary)]">API URL</span>
+            <input
+              value={alternativeApi.baseUrl}
+              onChange={(event) => onAlternativeApiChange({ ...alternativeApi, baseUrl: event.target.value })}
+              placeholder="https://api.openai.com/v1"
+              autoCapitalize="none"
+              autoCorrect="off"
+              className="mt-1 w-full bg-[#141414] border border-[var(--border-color)] px-3 py-2 text-[10px] text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] focus:outline-none focus:border-[var(--text-accent)]"
+            />
+          </label>
+          <label className="block">
+            <span className="text-[8px] uppercase tracking-[0.14em] text-[var(--text-secondary)]">API Key</span>
+            <input
+              value={alternativeApi.apiKey}
+              onChange={(event) => onAlternativeApiChange({ ...alternativeApi, apiKey: event.target.value })}
+              placeholder="API key"
+              type="password"
+              autoCapitalize="none"
+              autoCorrect="off"
+              className="mt-1 w-full bg-[#141414] border border-[var(--border-color)] px-3 py-2 text-[10px] text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] focus:outline-none focus:border-[var(--text-accent)]"
+            />
+          </label>
+          {alternativeApi.enabled && alternativeApi.apiKey.trim() && !alternativeApi.baseUrl.trim() && (
+            <div className="text-[9px] text-yellow-400/80">API URL is required when an alternative API key is enabled.</div>
           )}
         </div>
       </div>

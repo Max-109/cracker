@@ -3,20 +3,23 @@
 import React, { useState, useEffect } from 'react';
 import { HexColorPicker } from "react-colorful";
 import { cn } from '@/lib/utils';
-import { ChevronDown, Cpu, Brain, Zap } from 'lucide-react';
+import { ChevronDown, Cpu, Brain, Zap, Terminal } from 'lucide-react';
 
 type ModelOption = {
   id: string;
   name: string;
   description: string;
-  tier: 'expert' | 'balanced' | 'fast';
+  tier: 'expert' | 'balanced' | 'fast' | 'custom';
   icon: typeof Cpu;
 };
+
+const CUSTOM_MODEL_OPTION_ID = '__custom-model__';
 
 const MODEL_OPTIONS: ModelOption[] = [
   { id: "gpt-5.5", name: "Expert", description: "GPT-5.5", tier: 'expert', icon: Brain },
   { id: "gpt-5.4-mini", name: "Balanced", description: "GPT-5.4 Mini", tier: 'balanced', icon: Cpu },
   { id: "gpt-5.3-codex-spark", name: "Ultra Fast", description: "GPT-5.3 Codex Spark", tier: 'fast', icon: Zap },
+  { id: CUSTOM_MODEL_OPTION_ID, name: "Custom", description: "Enter a model name", tier: 'custom', icon: Terminal },
 ];
 
 // Tier config with intensity levels (3 = strongest, 1 = lightest)
@@ -24,6 +27,7 @@ const TIER_CONFIG = {
   expert: { badge: 'PRO', level: 3 },
   balanced: { badge: 'STD', level: 2 },
   fast: { badge: 'LITE', level: 1 },
+  custom: { badge: 'USER', level: 2 },
 };
 
 interface ModelSelectorProps {
@@ -45,6 +49,8 @@ export function ModelSelector({
 }: ModelSelectorProps) {
   const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
   const [isColorMenuOpen, setIsColorMenuOpen] = useState(false);
+  const [isCustomModelDialogOpen, setIsCustomModelDialogOpen] = useState(false);
+  const [customModelInput, setCustomModelInput] = useState('');
 
   // Local state keeps the picker input controlled, while valid colors are applied immediately.
   const [localColor, setLocalColor] = useState(accentColor);
@@ -65,6 +71,21 @@ export function ModelSelector({
   };
 
   const displayColor = isColorMenuOpen && isValidHexColor(localColor) ? localColor : accentColor;
+  const isPresetModel = MODEL_OPTIONS.some((model) => model.id === currentModelId && model.id !== CUSTOM_MODEL_OPTION_ID);
+  const isCustomModel = isHydrated && !isPresetModel;
+
+  const openCustomModelDialog = () => {
+    setCustomModelInput(isCustomModel ? currentModelId : '');
+    setIsModelMenuOpen(false);
+    setIsCustomModelDialogOpen(true);
+  };
+
+  const submitCustomModel = () => {
+    const modelId = customModelInput.trim();
+    if (!modelId) return;
+    onModelChange(modelId, 'Custom');
+    setIsCustomModelDialogOpen(false);
+  };
 
   return (
     <>
@@ -93,7 +114,8 @@ export function ModelSelector({
 
                 <div className="p-1.5">
                   {MODEL_OPTIONS.map((model) => {
-                    const isSelected = currentModelId === model.id;
+                    const isCustomOption = model.id === CUSTOM_MODEL_OPTION_ID;
+                    const isSelected = isCustomOption ? isCustomModel : currentModelId === model.id;
                     const tierConfig = TIER_CONFIG[model.tier];
                     const Icon = model.icon;
                     // Opacity based on level (3=100%, 2=70%, 1=40%)
@@ -103,6 +125,10 @@ export function ModelSelector({
                       <button
                         key={model.id}
                         onClick={() => {
+                          if (isCustomOption) {
+                            openCustomModelDialog();
+                            return;
+                          }
                           onModelChange(model.id, model.name);
                           setIsModelMenuOpen(false);
                         }}
@@ -125,7 +151,7 @@ export function ModelSelector({
                             <Icon size={16} />
                           </div>
                           {/* Premium indicator for expert tier */}
-                          {tierConfig.level === 3 && !isSelected && (
+                          {tierConfig.level === 3 && !isSelected && !isCustomOption && (
                             <div className="absolute -top-0.5 -right-0.5 w-2 h-2 bg-[var(--text-accent)] animate-pulse" />
                           )}
                         </div>
@@ -151,24 +177,28 @@ export function ModelSelector({
                               {tierConfig.badge}
                             </span>
                           </div>
-                          <div className="text-[10px] text-[var(--text-secondary)] mt-0.5">{model.description}</div>
+                          <div className="text-[10px] text-[var(--text-secondary)] mt-0.5">
+                            {isCustomOption && isCustomModel ? currentModelId : model.description}
+                          </div>
                         </div>
 
                         {/* Power Level Bars */}
-                        <div className="flex items-end gap-0.5 h-4">
-                          {[1, 2, 3].map((bar) => (
-                            <div
-                              key={bar}
-                              className={cn(
-                                "w-1 transition-all duration-150 bg-[var(--text-accent)]",
-                                bar === 1 ? "h-1.5" : bar === 2 ? "h-2.5" : "h-4",
-                                bar <= tierConfig.level
-                                  ? isSelected ? "opacity-100" : "opacity-60 group-hover:opacity-80"
-                                  : "opacity-10"
-                              )}
-                            />
-                          ))}
-                        </div>
+                        {!isCustomOption && (
+                          <div className="flex items-end gap-0.5 h-4">
+                            {[1, 2, 3].map((bar) => (
+                              <div
+                                key={bar}
+                                className={cn(
+                                  "w-1 transition-all duration-150 bg-[var(--text-accent)]",
+                                  bar === 1 ? "h-1.5" : bar === 2 ? "h-2.5" : "h-4",
+                                  bar <= tierConfig.level
+                                    ? isSelected ? "opacity-100" : "opacity-60 group-hover:opacity-80"
+                                    : "opacity-10"
+                                )}
+                              />
+                            ))}
+                          </div>
+                        )}
                       </button>
                     );
                   })}
@@ -279,6 +309,57 @@ export function ModelSelector({
           )}
         </div>
       </div>
+
+      {isCustomModelDialogOpen && (
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/70 px-4" onClick={() => setIsCustomModelDialogOpen(false)}>
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              submitCustomModel();
+            }}
+            onClick={(event) => event.stopPropagation()}
+            className="w-full max-w-[360px] border border-[var(--border-color)] bg-[var(--bg-sidebar-solid)] shadow-2xl"
+          >
+            <div className="px-4 py-3 border-b border-[var(--border-color)] bg-[#0f0f0f] flex items-center gap-2">
+              <Terminal size={13} className="text-[var(--text-accent)]" />
+              <span className="text-[10px] uppercase tracking-[0.16em] font-semibold text-[var(--text-secondary)]">Custom Model</span>
+            </div>
+            <div className="p-4 space-y-3">
+              <label className="block">
+                <span className="text-[9px] uppercase tracking-wider text-[var(--text-secondary)]">Model name</span>
+                <input
+                  value={customModelInput}
+                  onChange={(event) => setCustomModelInput(event.target.value)}
+                  autoFocus
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  placeholder="claude-opus-4-8, gpt-5.5, etc."
+                  className="mt-2 w-full bg-[#141414] border border-[var(--border-color)] px-3 py-2 text-xs text-[var(--text-primary)] placeholder:text-[var(--text-secondary)] focus:outline-none focus:border-[var(--text-accent)]"
+                />
+              </label>
+              <p className="text-[9px] text-[var(--text-secondary)] leading-relaxed">
+                This is sent as the model id to your active OpenAI-compatible provider.
+              </p>
+            </div>
+            <div className="px-4 py-3 border-t border-[var(--border-color)] bg-[#0f0f0f] flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setIsCustomModelDialogOpen(false)}
+                className="px-3 py-2 text-[10px] uppercase tracking-[0.12em] text-[var(--text-primary)] border border-[var(--border-color)] hover:border-[var(--text-accent)]/50 hover:text-[var(--text-accent)] transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={!customModelInput.trim()}
+                className="px-3 py-2 text-[10px] uppercase tracking-[0.12em] bg-[var(--text-accent)] text-black border border-[var(--text-accent)] hover:bg-black hover:text-[var(--text-accent)] disabled:opacity-40 disabled:pointer-events-none font-semibold transition-colors"
+              >
+                Use Model
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </>
   );
 }
