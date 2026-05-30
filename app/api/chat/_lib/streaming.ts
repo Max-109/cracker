@@ -24,12 +24,17 @@ export function streamChatCompletion(params: {
   let firstGeneratedChunkTime: number | null = null;
   let firstReasoningTime: number | null = null;
 
+  const modelMessages = sanitizeModelMessages(params.modelMessages);
+  if (modelMessages.length === 0) {
+    throw new Error('No valid user message content was provided. Add text or re-upload the attachment and try again.');
+  }
+
   return streamText({
     model: params.useResponsesApi
       ? (params.openaiProvider || openai).responses(params.cleanModelId)
       : (params.openaiProvider || openai).chat(params.cleanModelId),
     system: params.systemPrompt,
-    messages: params.modelMessages,
+    messages: modelMessages as any,
     tools: params.hasTools ? params.tools as any : undefined,
     stopWhen: params.hasTools ? stepCountIs(5) : undefined,
     providerOptions: { openai: params.providerOptions as any },
@@ -90,6 +95,87 @@ export function streamChatCompletion(params: {
       });
     },
   });
+}
+
+function sanitizeModelMessages(messages: any[]) {
+  return messages
+    .map((message) => {
+      const role = message?.role === 'assistant' || message?.role === 'system' || message?.role === 'tool' ? message.role : 'user';
+
+      if (role === 'system') {
+        return { role, content: stringifyContent(message?.content) };
+      }
+
+      if (role === 'assistant') {
+        const content = Array.isArray(message?.content)
+          ? message.content
+            .map((part: any) => part?.type === 'text' && typeof part.text === 'string' ? part.text : '')
+            .filter(Boolean)
+            .join('\n')
+          : stringifyContent(message?.content);
+        return content.trim() ? { role, content } : null;
+      }
+
+      if (role === 'tool') {
+        return null;
+      }
+
+      if (!Array.isArray(message?.content)) {
+        return { role: 'user', content: stringifyContent(message?.content) };
+      }
+
+      const content = message.content
+        .map((part: any) => {
+          if (part?.type === 'text' && typeof part.text === 'string' && part.text.trim()) return { type: 'text', text: part.text };
+
+          if (part?.type === 'image') {
+            const image = part.image || part.url || part.data;
+            if (!image) return null;
+            return compactPart({ type: 'image', image, mediaType: part.mediaType });
+          }
+
+          if (part?.type === 'file') {
+            const data = part.data || part.url;
+            const mediaType = part.mediaType || part.mimeType;
+            if (!data || !mediaType) return null;
+            return compactPart({ type: 'file', data, filename: part.filename || part.name, mediaType });
+          }
+
+          return null;
+        })
+        .filter(Boolean);
+
+      return { role: 'user', content: content.length ? content : '' };
+    })
+    .filter((message): message is { role: string; content: unknown } => !!message && (message.role !== 'user' || hasPromptContent(message.content)));
+}
+
+function compactPart(part: Record<string, unknown>) {
+  return Object.fromEntries(Object.entries(part).filter(([, value]) => value !== undefined && value !== null && value !== ''));
+}
+
+function hasPromptContent(content: unknown) {
+  if (typeof content === 'string') return content.trim().length > 0;
+  if (!Array.isArray(content)) return stringifyContent(content).trim().length > 0;
+
+  return content.some((part: any) => {
+    if (part?.type === 'text') return typeof part.text === 'string' && part.text.trim().length > 0;
+    if (part?.type === 'image') return !!part.image;
+    if (part?.type === 'file') return !!part.data && !!part.mediaType;
+    return false;
+  });
+}
+
+function stringifyContent(content: unknown) {
+  if (typeof content === 'string') return content;
+  if (content == null) return '';
+  if (Array.isArray(content)) {
+    return content
+      .map((part: any) => part?.type === 'text' && typeof part.text === 'string' ? part.text : '')
+      .filter(Boolean)
+      .join('\n');
+  }
+  return String(content);
 }
 
 const MIN_MEASURED_GENERATION_MS = 500;
