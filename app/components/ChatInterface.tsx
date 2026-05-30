@@ -1109,7 +1109,7 @@ export default function ChatInterface({ initialChatId }: ChatInterfaceProps) {
           fetch('/api/generate-title', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ chatId: activeChatId, prompt: titlePrompt, openAIAccountAuth: openAIAccountAuthRef.current, ...providerRequestContext })
+            body: JSON.stringify({ chatId: activeChatId, prompt: titlePrompt, model: currentModelIdRef.current, openAIAccountAuth: openAIAccountAuthRef.current, ...providerRequestContext })
           }).then(() => refreshChats());
         }
       }

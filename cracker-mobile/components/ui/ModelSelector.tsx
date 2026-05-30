@@ -12,20 +12,24 @@ type ModelOption = {
     id: string;
     name: string;
     description: string;
-    tier: 'expert' | 'balanced' | 'fast';
+    tier: 'expert' | 'balanced' | 'fast' | 'custom';
     icon: keyof typeof Ionicons.glyphMap;
 };
+
+const CUSTOM_MODEL_OPTION_ID = '__custom-model__';
 
 const MODEL_OPTIONS: ModelOption[] = [
     { id: "gpt-5.5", name: "Expert", description: "GPT-5.5", tier: 'expert', icon: 'terminal-outline' },
     { id: "gpt-5.4-mini", name: "Balanced", description: "GPT-5.4 Mini", tier: 'balanced', icon: 'radio-outline' },
     { id: "gpt-5.3-codex-spark", name: "Ultra Fast", description: "GPT-5.3 Codex Spark", tier: 'fast', icon: 'flash' },
+    { id: CUSTOM_MODEL_OPTION_ID, name: "Custom", description: "Enter a model name", tier: 'custom', icon: 'code-slash' },
 ];
 
 const TIER_CONFIG = {
     expert: { badge: 'PRO', level: 3 },
     balanced: { badge: 'STD', level: 2 },
     fast: { badge: 'LITE', level: 1 },
+    custom: { badge: 'USER', level: 2 },
 };
 
 interface ModelSelectorProps {
@@ -37,13 +41,35 @@ export function ModelSelector({ onModelChange, small = false }: ModelSelectorPro
     const theme = useTheme();
     const { currentModelId, setCurrentModelId } = useSettingsStore();
     const [isOpen, setIsOpen] = useState(false);
+    const [isCustomModelOpen, setIsCustomModelOpen] = useState(false);
+    const [customModelInput, setCustomModelInput] = useState('');
 
-    const currentModel = MODEL_OPTIONS.find(m => m.id === currentModelId) || MODEL_OPTIONS[0];
+    const presetModel = MODEL_OPTIONS.find(m => m.id === currentModelId && m.id !== CUSTOM_MODEL_OPTION_ID);
+    const isCustomModel = !presetModel;
+    const currentModel = presetModel || { ...MODEL_OPTIONS[MODEL_OPTIONS.length - 1], description: currentModelId };
+
+    const openCustomModelDialog = () => {
+        setCustomModelInput(isCustomModel ? currentModelId : '');
+        setIsOpen(false);
+        setIsCustomModelOpen(true);
+    };
 
     const handleSelect = (model: ModelOption) => {
+        if (model.id === CUSTOM_MODEL_OPTION_ID) {
+            openCustomModelDialog();
+            return;
+        }
         setCurrentModelId(model.id, model.name);
         onModelChange?.(model.id, model.name);
         setIsOpen(false);
+    };
+
+    const handleUseCustomModel = () => {
+        const modelId = customModelInput.trim();
+        if (!modelId) return;
+        setCurrentModelId(modelId, 'Custom');
+        onModelChange?.(modelId, 'Custom');
+        setIsCustomModelOpen(false);
     };
 
     return (
@@ -94,7 +120,8 @@ export function ModelSelector({ onModelChange, small = false }: ModelSelectorPro
                         {/* Options */}
                         <View style={styles.optionsContainer}>
                             {MODEL_OPTIONS.map((model) => {
-                                const isSelected = currentModel.id === model.id;
+                                const isCustomOption = model.id === CUSTOM_MODEL_OPTION_ID;
+                                const isSelected = isCustomOption ? isCustomModel : currentModel.id === model.id;
                                 const tierConfig = TIER_CONFIG[model.tier];
 
                                 return (
@@ -144,28 +171,83 @@ export function ModelSelector({ onModelChange, small = false }: ModelSelectorPro
                                                     </Text>
                                                 </View>
                                             </View>
-                                            <Text style={styles.modelDesc}>{model.description}</Text>
+                                            <Text style={styles.modelDesc}>{isCustomOption && isCustomModel ? currentModelId : model.description}</Text>
                                         </View>
 
                                         {/* Power bars */}
-                                        <View style={styles.powerBars}>
-                                            {[1, 2, 3].map((bar) => (
-                                                <View
-                                                    key={bar}
-                                                    style={[
-                                                        styles.powerBar,
-                                                        {
-                                                            height: bar === 1 ? 6 : bar === 2 ? 10 : 16,
-                                                            backgroundColor: theme.accent,
-                                                            opacity: bar <= tierConfig.level ? (isSelected ? 1 : 0.6) : 0.1,
-                                                        }
-                                                    ]}
-                                                />
-                                            ))}
-                                        </View>
+                                        {!isCustomOption && (
+                                            <View style={styles.powerBars}>
+                                                {[1, 2, 3].map((bar) => (
+                                                    <View
+                                                        key={bar}
+                                                        style={[
+                                                            styles.powerBar,
+                                                            {
+                                                                height: bar === 1 ? 6 : bar === 2 ? 10 : 16,
+                                                                backgroundColor: theme.accent,
+                                                                opacity: bar <= tierConfig.level ? (isSelected ? 1 : 0.6) : 0.1,
+                                                            }
+                                                        ]}
+                                                    />
+                                                ))}
+                                            </View>
+                                        )}
                                     </TouchableOpacity>
                                 );
                             })}
+                        </View>
+                    </Animated.View>
+                </TouchableOpacity>
+            </Modal>
+
+            <Modal
+                visible={isCustomModelOpen}
+                transparent
+                animationType="fade"
+                onRequestClose={() => setIsCustomModelOpen(false)}
+            >
+                <TouchableOpacity
+                    style={styles.backdrop}
+                    activeOpacity={1}
+                    onPress={() => setIsCustomModelOpen(false)}
+                >
+                    <Animated.View
+                        entering={ZoomIn.duration(150)}
+                        style={styles.dropdown}
+                        onStartShouldSetResponder={() => true}
+                    >
+                        <View style={styles.header}>
+                            <Ionicons name="code-slash" size={12} color={theme.accent} />
+                            <Text style={styles.headerText}>CUSTOM MODEL</Text>
+                        </View>
+                        <View style={styles.customBody}>
+                            <Text style={styles.customLabel}>MODEL NAME</Text>
+                            <TextInput
+                                value={customModelInput}
+                                onChangeText={setCustomModelInput}
+                                autoCapitalize="none"
+                                autoCorrect={false}
+                                autoFocus
+                                placeholder="claude-opus-4-8, gpt-5.5, etc."
+                                placeholderTextColor={COLORS.textMuted}
+                                style={[styles.customInput, { borderColor: theme.accent }]}
+                            />
+                            <Text style={styles.customHint}>This is sent as the model id to your active OpenAI-compatible provider.</Text>
+                        </View>
+                        <View style={styles.customFooter}>
+                            <TouchableOpacity
+                                onPress={() => setIsCustomModelOpen(false)}
+                                style={styles.secondaryButton}
+                            >
+                                <Text style={styles.secondaryButtonText}>CANCEL</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                onPress={handleUseCustomModel}
+                                disabled={!customModelInput.trim()}
+                                style={[styles.primaryButton, { borderColor: theme.accent, backgroundColor: theme.accent }, !customModelInput.trim() && styles.disabledButton]}
+                            >
+                                <Text style={styles.primaryButtonText}>USE MODEL</Text>
+                            </TouchableOpacity>
                         </View>
                     </Animated.View>
                 </TouchableOpacity>
@@ -333,6 +415,68 @@ const styles = StyleSheet.create({
     },
     powerBar: {
         width: 4,
+    },
+    customBody: {
+        padding: 18,
+        gap: 12,
+    },
+    customLabel: {
+        color: COLORS.textSecondary,
+        fontSize: 10,
+        letterSpacing: 2,
+        fontFamily: FONTS.mono,
+    },
+    customInput: {
+        backgroundColor: '#141414',
+        borderWidth: 1,
+        color: COLORS.textPrimary,
+        fontSize: 14,
+        fontFamily: FONTS.mono,
+        paddingHorizontal: 12,
+        paddingVertical: 10,
+    },
+    customHint: {
+        color: COLORS.textSecondary,
+        fontSize: 10,
+        lineHeight: 16,
+        fontFamily: FONTS.mono,
+    },
+    customFooter: {
+        flexDirection: 'row',
+        justifyContent: 'flex-end',
+        gap: 10,
+        padding: 12,
+        borderTopWidth: 1,
+        borderTopColor: COLORS.border,
+        backgroundColor: '#0f0f0f',
+    },
+    secondaryButton: {
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        borderWidth: 1,
+        borderColor: COLORS.border,
+    },
+    secondaryButtonText: {
+        color: COLORS.textPrimary,
+        fontSize: 11,
+        fontWeight: '600',
+        letterSpacing: 2,
+        fontFamily: FONTS.mono,
+    },
+    primaryButton: {
+        paddingHorizontal: 16,
+        paddingVertical: 10,
+        borderWidth: 1,
+    },
+    primaryButtonText: {
+        color: '#000',
+        fontSize: 11,
+        fontWeight: '700',
+        letterSpacing: 2,
+        fontFamily: FONTS.mono,
+    },
+    disabledButton: {
+        opacity: 0.4,
     },
 
     // ═══════════════════════════════════════════════════════════════════════

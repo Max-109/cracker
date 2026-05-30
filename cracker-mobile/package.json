@@ -1,6 +1,6 @@
 {
   "name": "cracker-mobile",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "license": "MIT",
   "main": "expo-router/entry",
   "scripts": {

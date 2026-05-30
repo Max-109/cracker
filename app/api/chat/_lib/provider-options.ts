@@ -1,3 +1,4 @@
+import { createOpenAIPromptCacheOptions } from '@/lib/ai-cache';
 import { modelSupportsPriority } from '@/lib/model-capabilities';
 import type { ReasoningEffort } from './types';
 
@@ -8,8 +9,9 @@ export function normalizeReasoningEffort(effort: string): ReasoningEffort {
   return 'medium';
 }
 
-export function createOpenAIProviderOptions(effort: string, modelId: string, fastMode: boolean) {
+export function createOpenAIProviderOptions(effort: string, modelId: string, fastMode: boolean, promptCacheKey?: string) {
   return {
+    ...createOpenAIPromptCacheOptions(promptCacheKey),
     reasoningEffort: normalizeReasoningEffort(effort),
     // OpenAI reasoning models do not stream summaries unless this is explicitly enabled.
     // AI SDK maps these summaries to reasoning deltas when the upstream supports them.

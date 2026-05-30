@@ -436,10 +436,10 @@ export const api = {
     },
 
     // Title generation (matches web API signature)
-    async generateTitle(chatId: string, prompt: string, providerContext: Record<string, unknown> = {}): Promise<{ title: string }> {
+    async generateTitle(chatId: string, prompt: string, providerContext: Record<string, unknown> = {}, model?: string): Promise<{ title: string }> {
         return apiFetch('/api/generate-title', {
             method: 'POST',
-            body: JSON.stringify({ chatId, prompt, ...providerContext }),
+            body: JSON.stringify({ chatId, prompt, model, ...providerContext }),
         });
     },
 

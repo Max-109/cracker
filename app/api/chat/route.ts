@@ -1,4 +1,5 @@
 import { getDb } from '@/db';
+import { createPromptCacheKey } from '@/lib/ai-cache';
 import { createOpenAIProviderOverride, getOpenAIConfigError } from '@/lib/ai-provider';
 import { createOpenAIAccountProvider } from '@/lib/openai-account';
 import { getModelCapabilities, modelSupportsPriority, normalizeModelId } from '@/lib/model-capabilities';
@@ -88,7 +89,8 @@ export async function POST(req: Request) {
     const effectiveModelId = normalizeModelId(modelId);
     const modelCapabilities = getModelCapabilities(effectiveModelId);
     const usePriorityService = fastMode === true && modelSupportsPriority(effectiveModelId);
-    const providerOptions = createOpenAIProviderOptions(effort, effectiveModelId, fastMode === true);
+    const promptCacheKey = createPromptCacheKey(['chat', chatId, effectiveModelId]);
+    const providerOptions = createOpenAIProviderOptions(effort, effectiveModelId, fastMode === true, promptCacheKey);
 
     if (requestContainsImages(hydratedMessages) && !modelCapabilities.supportsImages) {
       return jsonError('Unsupported attachment', `${effectiveModelId} is text-only and does not support image attachments.`, 400);
@@ -121,6 +123,7 @@ export async function POST(req: Request) {
       tools,
       hasTools,
       providerOptions,
+      promptCacheKey,
       openaiProvider: useLocalOpenAIAccount
         ? createOpenAIAccountProvider(openAIAccountAuths)
         : createOpenAIProviderOverride(providerOverride) || undefined,

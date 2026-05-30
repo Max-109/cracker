@@ -1,5 +1,6 @@
 import { generateText } from "ai";
 import { NextResponse } from "next/server";
+import { createPromptCacheHeaders, createPromptCacheKey, createOpenAIPromptCacheOptions } from '@/lib/ai-cache';
 import { createOpenAIProviderOverride, openai, openAIProviderOptions } from '@/lib/ai-provider';
 import { createOpenAIAccountProvider } from '@/lib/openai-account';
 import type { OpenAIAccountAuth } from '@/lib/openai-account-shared';
@@ -113,12 +114,14 @@ export async function POST(req: Request) {
 
         const overrideProvider = createOpenAIProviderOverride({ baseURL: providerApiBaseUrl, apiKey: providerApiKey });
         const provider = openAIAccountAuths.length > 0 ? createOpenAIAccountProvider(openAIAccountAuths) : overrideProvider || openai;
+        const aiPromptCacheKey = createPromptCacheKey(['auto-reasoning', cacheKey || promptCacheKey(prompt)]);
         const result = await generateText({
             model: provider.chat('gpt-5.3-codex-spark'),
             system: CLASSIFIER_SYSTEM_PROMPT,
             prompt,
             // Spark supports low/medium/high/xhigh. Use low for the cheap classifier call.
-            providerOptions: openAIProviderOptions({ reasoningEffort: 'low' }),
+            providerOptions: { openai: { ...openAIProviderOptions({ reasoningEffort: 'low' }).openai, ...createOpenAIPromptCacheOptions(aiPromptCacheKey) } as any },
+            headers: createPromptCacheHeaders(aiPromptCacheKey),
         });
 
         const effort = parseEffort(result.text);

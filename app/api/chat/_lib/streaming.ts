@@ -1,3 +1,4 @@
+import { createPromptCacheHeaders } from '@/lib/ai-cache';
 import { openai } from '@/lib/ai-provider';
 import { streamText, stepCountIs } from 'ai';
 import { saveAssistantMessage } from './storage';
@@ -14,6 +15,7 @@ export function streamChatCompletion(params: {
   tools: Record<string, unknown>;
   hasTools: boolean;
   providerOptions: Record<string, unknown>;
+  promptCacheKey?: string;
   openaiProvider?: typeof openai;
   useResponsesApi?: boolean;
 }) {
@@ -31,6 +33,7 @@ export function streamChatCompletion(params: {
     tools: params.hasTools ? params.tools as any : undefined,
     stopWhen: params.hasTools ? stepCountIs(5) : undefined,
     providerOptions: { openai: params.providerOptions as any },
+    headers: createPromptCacheHeaders(params.promptCacheKey),
     onStepFinish: ({ text, toolCalls, toolResults, finishReason }) => {
       console.log(`[Step Finished] finishReason: ${finishReason}`);
       console.log(`  text length: ${text?.length || 0}, toolCalls: ${toolCalls?.length || 0}, toolResults: ${toolResults?.length || 0}`);

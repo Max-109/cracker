@@ -512,7 +512,7 @@ export default function ChatScreen() {
                         }
 
                         if (isFirstMessage && id) {
-                            api.generateTitle(id, messageText.trim().substring(0, 300), accountContext)
+                            api.generateTitle(id, messageText.trim().substring(0, 300), accountContext, currentModelId)
                                 .then(() => loadChats())
                                 .catch(() => { });
                         }
